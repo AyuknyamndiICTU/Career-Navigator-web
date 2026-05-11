@@ -139,6 +139,29 @@ describe('Auth flows (e2e routes)', () => {
       .expect(401);
   });
 
+  // Milestone 2.1 Profile/Education: should be protected (401 without auth)
+  it('GET /profile without auth returns 401', async () => {
+    await request(app.getHttpServer()).get('/profile').expect(401);
+  });
+
+  it('PUT /profile without auth returns 401', async () => {
+    await request(app.getHttpServer())
+      .put('/profile')
+      .send({ firstName: 'Alice' })
+      .expect(401);
+  });
+
+  it('GET /profile/education without auth returns 401', async () => {
+    await request(app.getHttpServer()).get('/profile/education').expect(401);
+  });
+
+  it('POST /profile/education without auth returns 401', async () => {
+    await request(app.getHttpServer())
+      .post('/profile/education')
+      .send({ degree: 'BSc' })
+      .expect(401);
+  });
+
   afterEach(async () => {
     await app.close();
   });
