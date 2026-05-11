@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OtpPurpose {
+  REGISTER
+  PASSWORD_RESET
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  isActive     Boolean  @default(false)
+  themePreference ThemePreference @default(LIGHT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deactivatedAt DateTime?
+
+  otps EmailVerificationOtp[]
+  refreshTokens RefreshToken[]
+  profile Profile?
+  educations Education[]
+
+  @@index([createdAt])
+}
+
+model EmailVerificationOtp {
+  id        String     @id @default(uuid())
+  userId    String
+  purpose   OtpPurpose
+
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  attempts Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  jti       String   @unique
+  tokenHash String   @unique
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Profile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+
+  firstName String?
+  lastName  String?
+  headline  String?
+  phone     String?
+  location  String?
+  summary   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Education {
+  id             String   @id @default(uuid())
+  userId         String
+  degree         String?
+  fieldOfStudy   String?
+  institution    String?
+  startYear      Int?
+  endYear        Int?
+  grade          String?
+  description    String?
+  isCurrent      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
