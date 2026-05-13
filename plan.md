@@ -89,9 +89,9 @@
 - [x] 7.3 RBAC guard enforcement
 
 ### Milestone 8 — Docker + Kubernetes + Performance hardening
-- [ ] 8.1 Containerize services
-- [ ] 8.2 Kubernetes deployments + services + ingress/TLS
-- [ ] 8.3 WebSocket scaling strategy (Socket.IO + adapter)
+- [x] 8.1 Containerize services
+- [x] 8.2 Kubernetes deployments + services + ingress/TLS
+- [x] 8.3 WebSocket scaling strategy (Socket.IO + adapter)
 - [ ] 8.4 Rate limiting + production hardening validation
 
 ---
