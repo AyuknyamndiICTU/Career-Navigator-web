@@ -78,7 +78,9 @@ export class MessagingGateway
 
       client.emit('user:status', { userId, online: true });
       // Broadcast to other sockets in room (including self) is fine for now.
-      this.server.to(this.userRoom(userId)).emit('user:status', { userId, online: true });
+      this.server
+        .to(this.userRoom(userId))
+        .emit('user:status', { userId, online: true });
     } catch {
       client.disconnect(true);
     }
@@ -94,7 +96,9 @@ export class MessagingGateway
     set.delete(client.id);
     if (set.size === 0) {
       this.userSockets.delete(userId);
-      this.server.to(this.userRoom(userId)).emit('user:status', { userId, online: false });
+      this.server
+        .to(this.userRoom(userId))
+        .emit('user:status', { userId, online: false });
     } else {
       this.userSockets.set(userId, set);
     }
@@ -108,7 +112,10 @@ export class MessagingGateway
     return `conversation:${conversationId}`;
   }
 
-  async isParticipant(userId: string, conversationId: string): Promise<boolean> {
+  async isParticipant(
+    userId: string,
+    conversationId: string,
+  ): Promise<boolean> {
     const participant = await this.prisma.conversationParticipant.findFirst({
       where: { conversationId, userId },
       select: { id: true },
