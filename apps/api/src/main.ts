@@ -1,7 +1,10 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -10,6 +13,37 @@ async function bootstrap() {
   if (redisUrl) {
     app.useWebSocketAdapter(new RedisIoAdapter(app, redisUrl));
   }
+
+  // Production hardening
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    }),
+  );
+
+  const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
+  const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? 200);
+
+  app.use(
+    rateLimit({
+      windowMs: Number.isFinite(rateLimitWindowMs)
+        ? rateLimitWindowMs
+        : 60_000,
+      limit: Number.isFinite(rateLimitMax) ? rateLimitMax : 200,
+      standardHeaders: true,
+      legacyHeaders: false,
+      skip: (req) => req.path.startsWith('/api-docs') || req.path.startsWith('/health'),
+    }),
+  );
+
+  // Validation
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
   const config = new DocumentBuilder()
     .setTitle('Career Navigator API')
