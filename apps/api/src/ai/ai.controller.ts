@@ -35,7 +35,9 @@ export class AiController {
   }
 
   @Post('course-recommendations')
-  @ApiOkResponse({ description: 'Career-path-only course recommendations response.' })
+  @ApiOkResponse({
+    description: 'Career-path-only course recommendations response.',
+  })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async courseRecommendations(
     @Body() dto: CourseRecommendationsRequestDto,

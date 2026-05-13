@@ -179,12 +179,13 @@ ${dto.message}
 
     const careerSkillsLower = new Set(careerSkills.map((s) => s.toLowerCase()));
 
-    const allowedSkills = requestedSkills && requestedSkills.length > 0
-      ? requestedSkills
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .filter((s) => careerSkillsLower.has(s.toLowerCase()))
-      : careerSkills;
+    const allowedSkills =
+      requestedSkills && requestedSkills.length > 0
+        ? requestedSkills
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .filter((s) => careerSkillsLower.has(s.toLowerCase()))
+        : careerSkills;
 
     if (!allowedSkills || allowedSkills.length === 0) {
       throw new BadRequestException(
