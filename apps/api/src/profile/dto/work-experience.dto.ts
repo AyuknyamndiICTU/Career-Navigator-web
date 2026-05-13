@@ -1,17 +1,17 @@
 import { IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 
-export class CreateEducationDto {
+export class CreateWorkExperienceDto {
   @IsOptional()
   @IsString()
-  degree?: string;
+  jobTitle?: string;
 
   @IsOptional()
   @IsString()
-  fieldOfStudy?: string;
+  company?: string;
 
   @IsOptional()
   @IsString()
-  institution?: string;
+  location?: string;
 
   @IsOptional()
   @IsInt()
@@ -23,10 +23,6 @@ export class CreateEducationDto {
 
   @IsOptional()
   @IsString()
-  grade?: string;
-
-  @IsOptional()
-  @IsString()
   description?: string;
 
   @IsOptional()
@@ -34,4 +30,4 @@ export class CreateEducationDto {
   isCurrent?: boolean;
 }
 
-export class UpdateEducationDto extends CreateEducationDto {}
+export class UpdateWorkExperienceDto extends CreateWorkExperienceDto {}
