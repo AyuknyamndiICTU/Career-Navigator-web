@@ -16,6 +16,17 @@ enum ThemePreference {
   DARK
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum FeedbackStatus {
+  PENDING
+  RESOLVED
+  REJECTED
+}
+
 enum MediaType {
   PROFILE_PICTURE
   CV
@@ -35,6 +46,7 @@ model User {
   passwordHash String
   isActive     Boolean  @default(false)
   themePreference ThemePreference @default(LIGHT)
+  role         UserRole @default(USER)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -48,6 +60,7 @@ model User {
   media UploadMedia[]
   jobApplications JobApplication[]
   notifications Notification[]
+  feedbacks Feedback[]
   conversationParticipants ConversationParticipant[]
   sentMessages Message[]
 
@@ -247,6 +260,34 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([createdAt])
+}
+
+model Feedback {
+  id        String         @id @default(uuid())
+  userId    String
+  message   String
+  status    FeedbackStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model AgoraSession {
+  // Milestone 6.2: store session metadata for video calling
+  sessionId   String   @id
+  channelName String
+  uid          BigInt
+  role         String   // 'publisher' | 'subscriber'
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+
+  @@index([startedAt])
+  @@index([endedAt])
 }
 
 model Conversation {
