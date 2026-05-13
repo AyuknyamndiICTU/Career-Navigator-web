@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { createHash, randomUUID } from 'node:crypto';
 import type { JwtPayload } from 'jsonwebtoken';
 import { sign, verify } from 'jsonwebtoken';
