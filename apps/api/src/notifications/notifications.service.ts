@@ -70,13 +70,36 @@ export class NotificationsService {
       throw new BadRequestException('Notification type is required');
     }
 
-    return this.prisma.notification.create({
+    const created = await this.prisma.notification.create({
       data: {
         userId,
         type: dto.type,
         message: dto.message,
       },
     });
+
+    // Milestone 4.4: enqueue async worker update when enabled.
+    // Keep this guarded so tests/configs without Redis won't break.
+    if (process.env.NOTIFICATIONS_WORKER_ENABLED === 'true') {
+      const redisUrl = process.env.REDIS_URL;
+      if (redisUrl) {
+        // Lazy require so TS/tests don't need extra static imports.
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { Queue } = require('bullmq') as {
+          Queue: new (...args: unknown[]) => {
+            add: (...args: unknown[]) => Promise<unknown>;
+          };
+        };
+
+        const queue = new Queue('notifications', {
+          connection: { url: redisUrl },
+        });
+
+        await queue.add('process', { notificationId: created.id });
+      }
+    }
+
+    return created;
   }
 
   async markAsRead(
