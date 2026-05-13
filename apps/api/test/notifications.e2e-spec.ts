@@ -2,7 +2,14 @@ import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { describe, beforeEach, afterEach, it, expect, jest } from '@jest/globals';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  it,
+  expect,
+  jest,
+} from '@jest/globals';
 
 import { AppModule } from '../src/app.module';
 import { AuthService } from '../src/auth/auth.service';
@@ -111,7 +118,10 @@ describe('Notifications CRUD + mark read (Milestone 4.3)', () => {
 
   it('POST /notifications/:id/read marks notification as read', async () => {
     mockNotification.findFirst.mockResolvedValue({ id: notificationId });
-    mockNotification.update.mockResolvedValue({ id: notificationId, isRead: true });
+    mockNotification.update.mockResolvedValue({
+      id: notificationId,
+      isRead: true,
+    });
 
     const token = signTestToken();
 

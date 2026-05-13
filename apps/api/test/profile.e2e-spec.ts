@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
-
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -24,8 +22,17 @@ describe('Profile / Education flows (e2e routes)', () => {
 
   const userId = 'user-1';
   const educationId = 'edu-1';
+  const workExperienceId = 'we-1';
 
   const mockEducation: Record<string, any> = {
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  };
+
+  const mockWorkExperience: Record<string, any> = {
     findMany: jest.fn(),
     findFirst: jest.fn(),
     create: jest.fn(),
@@ -40,6 +47,7 @@ describe('Profile / Education flows (e2e routes)', () => {
   const mockPrisma: Record<string, any> = {
     profile: mockProfile,
     education: mockEducation,
+    workExperience: mockWorkExperience,
   };
 
   const signTestToken = (): string => {
@@ -220,5 +228,123 @@ describe('Profile / Education flows (e2e routes)', () => {
       .expect(400);
 
     expect(mockEducation.delete).not.toHaveBeenCalled();
+  });
+
+  // Milestone 2.2 Work experience CRUD
+
+  it('GET /profile/work-experience without auth returns 401', async () => {
+    await request(app.getHttpServer())
+      .get('/profile/work-experience')
+      .expect(401);
+  });
+
+  it('GET /profile/work-experience with auth lists work experiences', async () => {
+    mockWorkExperience.findMany.mockResolvedValue([
+      {
+        id: workExperienceId,
+        userId,
+        jobTitle: 'Software Engineer',
+        company: 'Acme',
+        startYear: 2020,
+        endYear: 2023,
+        isCurrent: false,
+      },
+    ]);
+
+    const token = signTestToken();
+    const res = await request(app.getHttpServer())
+      .get('/profile/work-experience')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toHaveLength(1);
+    expect(mockWorkExperience.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('POST /profile/work-experience with auth creates work experience entry', async () => {
+    mockWorkExperience.create.mockResolvedValue({
+      id: workExperienceId,
+      userId,
+      jobTitle: 'Software Engineer',
+    });
+
+    const token = signTestToken();
+    await request(app.getHttpServer())
+      .post('/profile/work-experience')
+      .set('authorization', `Bearer ${token}`)
+      .send({ jobTitle: 'Software Engineer', company: 'Acme' })
+      .expect(201);
+
+    expect(mockWorkExperience.create).toHaveBeenCalledTimes(1);
+    const arg = mockWorkExperience.create.mock.calls[0][0];
+    expect(arg).toEqual({
+      data: { userId, jobTitle: 'Software Engineer', company: 'Acme' },
+    });
+  });
+
+  it('PUT /profile/work-experience/:workExperienceId with auth updates work experience entry (owned)', async () => {
+    mockWorkExperience.findFirst.mockResolvedValue({ id: workExperienceId });
+    mockWorkExperience.update.mockResolvedValue({
+      id: workExperienceId,
+      userId,
+      jobTitle: 'Senior Engineer',
+      company: 'Acme',
+    });
+
+    const token = signTestToken();
+    await request(app.getHttpServer())
+      .put(`/profile/work-experience/${workExperienceId}`)
+      .set('authorization', `Bearer ${token}`)
+      .send({ jobTitle: 'Senior Engineer' })
+      .expect(200);
+
+    expect(mockWorkExperience.findFirst).toHaveBeenCalledTimes(1);
+    expect(mockWorkExperience.update).toHaveBeenCalledTimes(1);
+
+    const updateArg = mockWorkExperience.update.mock.calls[0][0];
+    expect(updateArg).toEqual({
+      where: { id: workExperienceId },
+      data: { jobTitle: 'Senior Engineer' },
+    });
+  });
+
+  it('PUT /profile/work-experience/:workExperienceId with auth rejects update (not owned)', async () => {
+    mockWorkExperience.findFirst.mockResolvedValue(undefined);
+
+    const token = signTestToken();
+    await request(app.getHttpServer())
+      .put(`/profile/work-experience/${workExperienceId}`)
+      .set('authorization', `Bearer ${token}`)
+      .send({ jobTitle: 'Senior Engineer' })
+      .expect(400);
+
+    expect(mockWorkExperience.update).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /profile/work-experience/:workExperienceId with auth deletes work experience entry (owned)', async () => {
+    mockWorkExperience.findFirst.mockResolvedValue({ id: workExperienceId });
+    mockWorkExperience.delete.mockResolvedValue({});
+
+    const token = signTestToken();
+    const res = await request(app.getHttpServer())
+      .delete(`/profile/work-experience/${workExperienceId}`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(res.body).toEqual({ message: 'Work experience deleted' });
+    expect(mockWorkExperience.delete).toHaveBeenCalledTimes(1);
+  });
+
+  it('DELETE /profile/work-experience/:workExperienceId with auth rejects delete (not owned)', async () => {
+    mockWorkExperience.findFirst.mockResolvedValue(undefined);
+
+    const token = signTestToken();
+    await request(app.getHttpServer())
+      .delete(`/profile/work-experience/${workExperienceId}`)
+      .set('authorization', `Bearer ${token}`)
+      .expect(400);
+
+    expect(mockWorkExperience.delete).not.toHaveBeenCalled();
   });
 });
