@@ -16,6 +16,10 @@ import {
 import { ProfileService } from './profile.service';
 import { UpsertProfileDto } from './dto/profile.dto';
 import { CreateEducationDto, UpdateEducationDto } from './dto/education.dto';
+import {
+  CreateWorkExperienceDto,
+  UpdateWorkExperienceDto,
+} from './dto/work-experience.dto';
 
 @ApiTags('profile')
 @Controller('profile')
@@ -79,5 +83,52 @@ export class ProfileController {
     @Headers('authorization') authorization?: string,
   ): Promise<{ message: string }> {
     return this.profileService.deleteEducation(authorization, educationId);
+  }
+
+  @Get('work-experience')
+  @ApiOkResponse({ description: 'List work experiences.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async listWorkExperiences(
+    @Headers('authorization') authorization?: string,
+  ): Promise<unknown> {
+    return this.profileService.listWorkExperiences(authorization);
+  }
+
+  @Post('work-experience')
+  @ApiOkResponse({ description: 'Create a work experience entry.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async createWorkExperience(
+    @Body() dto: CreateWorkExperienceDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<unknown> {
+    return this.profileService.createWorkExperience(authorization, dto);
+  }
+
+  @Put('work-experience/:workExperienceId')
+  @ApiOkResponse({ description: 'Update a work experience entry.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async updateWorkExperience(
+    @Param('workExperienceId') workExperienceId: string,
+    @Body() dto: UpdateWorkExperienceDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<unknown> {
+    return this.profileService.updateWorkExperience(
+      authorization,
+      workExperienceId,
+      dto,
+    );
+  }
+
+  @Delete('work-experience/:workExperienceId')
+  @ApiOkResponse({ description: 'Delete a work experience entry.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async deleteWorkExperience(
+    @Param('workExperienceId') workExperienceId: string,
+    @Headers('authorization') authorization?: string,
+  ): Promise<{ message: string }> {
+    return this.profileService.deleteWorkExperience(
+      authorization,
+      workExperienceId,
+    );
   }
 }

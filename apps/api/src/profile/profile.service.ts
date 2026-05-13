@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 import {
   BadRequestException,
   Injectable,
@@ -7,6 +6,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertProfileDto } from './dto/profile.dto';
 import { CreateEducationDto, UpdateEducationDto } from './dto/education.dto';
+import {
+  CreateWorkExperienceDto,
+  UpdateWorkExperienceDto,
+} from './dto/work-experience.dto';
 import { verifyAccessToken } from '../auth/jwt/jwt-utils';
 
 type AuthUser = { sub: string };
@@ -127,5 +130,69 @@ export class ProfileService {
     });
 
     return { message: 'Education deleted' };
+  }
+
+  async listWorkExperiences(authorizationHeader: string | undefined) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    return this.prisma.workExperience.findMany({
+      where: { userId },
+      orderBy: { startYear: 'desc' },
+    });
+  }
+
+  async createWorkExperience(
+    authorizationHeader: string | undefined,
+    dto: CreateWorkExperienceDto,
+  ) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    return this.prisma.workExperience.create({
+      data: { userId, ...dto },
+    });
+  }
+
+  async updateWorkExperience(
+    authorizationHeader: string | undefined,
+    workExperienceId: string,
+    dto: UpdateWorkExperienceDto,
+  ) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    const existing = await this.prisma.workExperience.findFirst({
+      where: { id: workExperienceId, userId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new BadRequestException(USER_PURPOSE_FORBIDDEN);
+    }
+
+    return this.prisma.workExperience.update({
+      where: { id: workExperienceId },
+      data: dto,
+    });
+  }
+
+  async deleteWorkExperience(
+    authorizationHeader: string | undefined,
+    workExperienceId: string,
+  ) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    const existing = await this.prisma.workExperience.findFirst({
+      where: { id: workExperienceId, userId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new BadRequestException(USER_PURPOSE_FORBIDDEN);
+    }
+
+    await this.prisma.workExperience.delete({
+      where: { id: workExperienceId },
+    });
+
+    return { message: 'Work experience deleted' };
   }
 }
