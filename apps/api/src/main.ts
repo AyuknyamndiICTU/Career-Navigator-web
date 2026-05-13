@@ -26,9 +26,7 @@ async function bootstrap() {
 
   app.use(
     rateLimit({
-      windowMs: Number.isFinite(rateLimitWindowMs)
-        ? rateLimitWindowMs
-        : 60_000,
+      windowMs: Number.isFinite(rateLimitWindowMs) ? rateLimitWindowMs : 60_000,
       limit: Number.isFinite(rateLimitMax) ? rateLimitMax : 200,
       standardHeaders: true,
       legacyHeaders: false,
