@@ -1,9 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { RedisIoAdapter } from './realtime/redis-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl) {
+    app.useWebSocketAdapter(new RedisIoAdapter(app, redisUrl));
+  }
 
   const config = new DocumentBuilder()
     .setTitle('Career Navigator API')
