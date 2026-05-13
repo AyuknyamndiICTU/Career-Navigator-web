@@ -30,7 +30,8 @@ async function bootstrap() {
       limit: Number.isFinite(rateLimitMax) ? rateLimitMax : 200,
       standardHeaders: true,
       legacyHeaders: false,
-      skip: (req) => req.path.startsWith('/api-docs') || req.path.startsWith('/health'),
+      skip: (req) =>
+        req.path.startsWith('/api-docs') || req.path.startsWith('/health'),
     }),
   );
 
