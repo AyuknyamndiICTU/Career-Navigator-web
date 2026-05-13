@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cn-api
+  labels:
+    app: cn-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cn-api
+  template:
+    metadata:
+      labels:
+        app: cn-api
+    spec:
+      containers:
+        - name: cn-api
+          image: cn-api:latest # <-- build/push this image first
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            # Core envs (must be set in your real cluster via Secrets/ConfigMaps)
+            - name: DATABASE_URL
+              value: "REPLACE_ME"
+            - name: JWT_ACCESS_SECRET
+              value: "REPLACE_ME"
+            - name: JWT_REFRESH_SECRET
+              value: "REPLACE_ME"
+            - name: OLLAMA_BASE_URL
+              value: "REPLACE_ME"
+            - name: OLLAMA_MODEL
+              value: "llama3"
+            - name: AGORA_APP_ID
+              value: "REPLACE_ME"
+            - name: AGORA_APP_CERTIFICATE
+              value: "REPLACE_ME"
+            - name: BREVO_API_KEY
+              value: "REPLACE_ME"
+            - name: BREVO_SENDER_EMAIL
+              value: "REPLACE_ME"
+            - name: REDIS_URL
+              value: "redis://cn-redis:6379"
+          readinessProbe:
+            httpGet:
+              path: /api-docs
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api-docs
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20

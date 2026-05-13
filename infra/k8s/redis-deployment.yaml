@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cn-redis
+  labels:
+    app: cn-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cn-redis
+  template:
+    metadata:
+      labels:
+        app: cn-redis
+    spec:
+      containers:
+        - name: cn-redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 15
+            periodSeconds: 20
