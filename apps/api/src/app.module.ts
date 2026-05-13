@@ -10,6 +10,9 @@ import { MentorsModule } from './mentors/mentors.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { AiModule } from './ai/ai.module';
+import { AdminModule } from './admin/admin.module';
+import { AgoraModule } from './agora/agora.module';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { NotificationsModule } from './notifications/notifications.module';
     ConversationsModule,
     RealtimeModule,
     NotificationsModule,
+    AiModule,
+    AdminModule,
+    AgoraModule,
   ],
   controllers: [AppController],
   providers: [AppService],
