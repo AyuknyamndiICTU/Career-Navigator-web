@@ -64,8 +64,8 @@
 ### Milestone 4 — Realtime Chat + Notifications
 - [x] 4.1 REST fallback for conversations + message history
 - [x] 4.2 Socket.IO events (typing, online/offline, new messages)
-- [ ] 4.3 Notifications CRUD + mark read
-- [ ] 4.4 Worker-driven notification updates
+- [x] 4.3 Notifications CRUD + mark read
+- [x] 4.4 Worker-driven notification updates
 
 ### Milestone 5 — Career-path restricted AI Chat + Interview prep
 - [ ] 5.1 Enforce “career-path-only” policy
