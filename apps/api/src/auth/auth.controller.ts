@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { Body, Controller, Get, Headers, Post } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
