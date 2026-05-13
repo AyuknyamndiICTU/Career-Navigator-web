@@ -9,6 +9,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { MentorsModule } from './mentors/mentors.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     MentorsModule,
     ConversationsModule,
     RealtimeModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
