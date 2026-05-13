@@ -1,0 +1,10 @@
+
+> api@0.0.1 lint
+> eslint "{src,apps,libs,test}/**/*.ts" --fix
+
+
+C:\Career Navigator web\apps\api\src\realtime\messaging.gateway.ts
+  15:6  error  'AuthPayload' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (1 error, 0 warnings)
+
