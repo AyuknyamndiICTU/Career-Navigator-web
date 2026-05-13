@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cn-web
+  labels:
+    app: cn-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cn-web
+  template:
+    metadata:
+      labels:
+        app: cn-web
+    spec:
+      containers:
+        - name: cn-web
+          image: cn-web-ui:latest # <-- build/push this image first
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            # Your web app should call the API through this base URL
+            - name: NEXT_PUBLIC_API_BASE_URL
+              value: "http://cn-api"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
