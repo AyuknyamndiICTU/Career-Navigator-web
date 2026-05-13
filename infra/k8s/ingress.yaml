@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cn-ingress
+  labels:
+    app: cn
+spec:
+  tls:
+    - hosts:
+        - REPLACE_ME_DOMAIN
+      secretName: cn-tls
+  rules:
+    - host: REPLACE_ME_DOMAIN
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: cn-api
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cn-web
+                port:
+                  number: 80
