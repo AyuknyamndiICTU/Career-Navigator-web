@@ -68,20 +68,25 @@
 - [x] 4.4 Worker-driven notification updates
 
 ### Milestone 5 — Career-path restricted AI Chat + Interview prep
-- [ ] 5.1 Enforce “career-path-only” policy
-- [ ] 5.2 AI chat endpoint (`/ai/chat`)
-- [ ] 5.3 Mock interview endpoint (`/ai/mock-interview`)
-- [ ] 5.4 Course recommendations mapping (Coursera/Simplilearn/edX/Udemy/Alison)
+- [x] 5.1 Enforce “career-path-only” policy
+- [x] 5.2 AI chat endpoint (`/ai/chat`)
+- [x] 5.3 Mock interview endpoint (`/ai/mock-interview`)
+- [x] 5.4 Course recommendations mapping (Coursera/Simplilearn/edX/Udemy/Alison)
 
 ### Milestone 6 — Video calling (Agora)
-- [ ] 6.1 Start/join/end video sessions (token minting)
-- [ ] 6.2 Store session metadata (optional)
-- [ ] 6.3 UI integration in dashboard style
+- [x] 6.1 Start/join/end video sessions (token minting)
+- [x] 6.2 Store session metadata (optional)
+- [x] 6.3 UI integration in dashboard style
+
+### Auth + AI + Admin UI coverage (web)
+- [x] Core auth pages: login, register, verify-otp, password reset request/confirm, logout
+- [x] AI chat page
+- [x] Admin analytics page (engagement)
 
 ### Milestone 7 — Admin + Analytics
-- [ ] 7.1 Admin user management + feedback moderation
-- [ ] 7.2 Analytics endpoints for engagement metrics
-- [ ] 7.3 RBAC guard enforcement
+- [x] 7.1 Admin user management + feedback moderation
+- [x] 7.2 Analytics endpoints for engagement metrics
+- [x] 7.3 RBAC guard enforcement
 
 ### Milestone 8 — Docker + Kubernetes + Performance hardening
 - [ ] 8.1 Containerize services
@@ -91,7 +96,7 @@
 
 ---
 
-## Implementation Checklist (major steps)
+## Milestone 9 - Implementation Checklist (major steps)
 - [ ] Create directories: `/apps/web`, `/apps/api`, `/infra/docker`, `/infra/k8s`
 - [ ] Initialize backend with NestJS + Swagger
 - [ ] Add Prisma schema + migrations strategy
