@@ -92,7 +92,7 @@
 - [x] 8.1 Containerize services
 - [x] 8.2 Kubernetes deployments + services + ingress/TLS
 - [x] 8.3 WebSocket scaling strategy (Socket.IO + adapter)
-- [ ] 8.4 Rate limiting + production hardening validation
+- [x] 8.4 Rate limiting + production hardening validation
 
 ---
 
