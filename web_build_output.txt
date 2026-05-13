@@ -1,0 +1,75 @@
+
+> web-ui@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.5
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/14) ...
+ ⨯ useSearchParams() should be wrapped in a suspense boundary at page "/auth/verify-otp". Read more: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+    at l (C:\Career Navigator web\apps\web\web-ui\.next\server\chunks\737.js:1:11181)
+    at c (C:\Career Navigator web\apps\web\web-ui\.next\server\chunks\737.js:1:22131)
+    at i (C:\Career Navigator web\apps\web\web-ui\.next\server\app\auth\verify-otp\page.js:1:3082)
+    at nj (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:46251)
+    at nM (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:47571)
+    at nN (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:64546)
+    at nI (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:47010)
+    at nM (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:47717)
+    at nM (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:61546)
+    at nN (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:64546)
+
+Error occurred prerendering page "/auth/verify-otp". Read more: https://nextjs.org/docs/messages/prerender-error
+
+   Generating static pages (3/14) 
+ ⨯ useSearchParams() should be wrapped in a suspense boundary at page "/auth/password-reset/confirm". Read more: https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+    at l (C:\Career Navigator web\apps\web\web-ui\.next\server\chunks\737.js:1:11181)
+    at c (C:\Career Navigator web\apps\web\web-ui\.next\server\chunks\737.js:1:22131)
+    at l (C:\Career Navigator web\apps\web\web-ui\.next\server\app\auth\password-reset\confirm\page.js:1:3173)
+    at nj (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:46251)
+    at nM (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:47571)
+    at nN (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:64546)
+    at nI (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:47010)
+    at nM (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:47717)
+    at nM (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:61546)
+    at nN (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:64546)
+
+Error occurred prerendering page "/auth/password-reset/confirm". Read more: https://nextjs.org/docs/messages/prerender-error
+
+   Generating static pages (6/14) 
+   Generating static pages (10/14) 
+ReferenceError: window is not defined
+    at new <anonymous> (C:\Career Navigator web\apps\web\web-ui\.next\server\app\agora\page.js:1:203746)
+    at t (C:\Career Navigator web\apps\web\web-ui\.next\server\app\agora\page.js:1:203221)
+    at 3745 (C:\Career Navigator web\apps\web\web-ui\.next\server\app\agora\page.js:1:1510136)
+    at t (C:\Career Navigator web\apps\web\web-ui\.next\server\webpack-runtime.js:1:128)
+    at 928 (C:\Career Navigator web\apps\web\web-ui\.next\server\app\agora\page.js:9:2133)
+    at Object.t [as require] (C:\Career Navigator web\apps\web\web-ui\.next\server\webpack-runtime.js:1:128)
+    at require (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:16:18490)
+    at I (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:94362)
+    at C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:96668
+    at F._fromJSON (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:97106) {
+  digest: '1386941287'
+}
+
+Error occurred prerendering page "/agora". Read more: https://nextjs.org/docs/messages/prerender-error
+
+ReferenceError: window is not defined
+    at new <anonymous> (C:\Career Navigator web\apps\web\web-ui\.next\server\app\agora\page.js:1:203746)
+    at t (C:\Career Navigator web\apps\web\web-ui\.next\server\app\agora\page.js:1:203221)
+    at 3745 (C:\Career Navigator web\apps\web\web-ui\.next\server\app\agora\page.js:1:1510136)
+    at t (C:\Career Navigator web\apps\web\web-ui\.next\server\webpack-runtime.js:1:128)
+    at 928 (C:\Career Navigator web\apps\web\web-ui\.next\server\app\agora\page.js:9:2133)
+    at Object.t [as require] (C:\Career Navigator web\apps\web\web-ui\.next\server\webpack-runtime.js:1:128)
+    at require (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:16:18490)
+    at I (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:94362)
+    at C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:96668
+    at F._fromJSON (C:\Career Navigator web\apps\web\web-ui\node_modules\next\dist\compiled\next-server\app-page.runtime.prod.js:12:97106)
+ ✓ Generating static pages (14/14)
+
+> Export encountered errors on following paths:
+	/agora/page: /agora
+	/auth/password-reset/confirm/page: /auth/password-reset/confirm
+	/auth/verify-otp/page: /auth/verify-otp
