@@ -12,8 +12,6 @@ import type { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 import { verifyAccessToken } from '../auth/jwt/jwt-utils';
 
-type AuthPayload = { sub: string };
-
 function extractToken(socket: Socket): string | undefined {
   const authToken =
     socket.handshake.auth && typeof socket.handshake.auth === 'object'
