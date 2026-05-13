@@ -48,22 +48,22 @@
 - [x] 1.5 Theme preference persistence (dark/light)
 
 ### Milestone 2 — Profile CRUD + Resume/CV
-- [/] 2.1 Personal info + Education CRUD
-- [ ] 2.2 Work experience CRUD
-- [ ] 2.3 Profile picture + CV upload to MinIO
-- [ ] 2.4 Resume builder (structured templates)
-- [ ] 2.5 CV scan orchestration (BullMQ + Ollama extraction)
+- [x] 2.1 Personal info + Education CRUD
+- [x] 2.2 Work experience CRUD
+- [x] 2.3 Profile picture + CV upload to MinIO
+- [x] 2.4 Resume builder (structured templates)
+- [x] 2.5 CV scan orchestration (BullMQ + Ollama extraction)
 
 ### Milestone 3 — Jobs system + Mentor matching + Recommendations
-- [ ] 3.1 Job browse with filters + search + pagination
-- [ ] 3.2 Apply with cover letters
-- [ ] 3.3 Mentor search by skills/expertise
-- [ ] 3.4 Ingest job demand into OpenSearch index
-- [ ] 3.5 AI reranking + explanations + notifications fanout
+- [x] 3.1 Job browse with filters + search + pagination
+- [x] 3.2 Apply with cover letters
+- [x] 3.3 Mentor search by skills/expertise
+- [x] 3.4 Ingest job demand into OpenSearch index
+- [x] 3.5 AI reranking + explanations + notifications fanout
 
 ### Milestone 4 — Realtime Chat + Notifications
-- [ ] 4.1 REST fallback for conversations + message history
-- [ ] 4.2 Socket.IO events (typing, online/offline, new messages)
+- [x] 4.1 REST fallback for conversations + message history
+- [x] 4.2 Socket.IO events (typing, online/offline, new messages)
 - [ ] 4.3 Notifications CRUD + mark read
 - [ ] 4.4 Worker-driven notification updates
 
