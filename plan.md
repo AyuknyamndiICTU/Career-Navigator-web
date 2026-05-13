@@ -97,27 +97,31 @@
 ---
 
 ## Milestone 9 - Implementation Checklist (major steps)
-- [ ] Create directories: `/apps/web`, `/apps/api`, `/infra/docker`, `/infra/k8s`
-- [ ] Initialize backend with NestJS + Swagger
-- [ ] Add Prisma schema + migrations strategy
-- [ ] Implement auth flows (OTP → activate → JWT login → refresh rotation)
-- [ ] Implement profile CRUD + resume upload + CV scan pipeline
-- [ ] Implement job/mentor search + OpenSearch indexing
-- [ ] Implement AI recommendations and AI chat policy constraints
-- [ ] Implement Socket.IO chat + notifications
-- [ ] Implement Agora video calling token service
-- [ ] Add admin + analytics endpoints
-- [ ] Add Dockerfiles + Kubernetes manifests
-- [ ] Run lint/test/build and smoke test end-to-end
+- [x] Create directories: `/apps/web`, `/apps/api`, `/infra/docker`, `/infra/k8s`
+- [x] Initialize backend with NestJS + Swagger
+- [x] Add Prisma schema + migrations strategy
+- [x] Implement auth flows (OTP → activate → JWT login → refresh rotation)
+- [x] Implement profile CRUD + resume upload + CV scan pipeline
+- [x] Implement job/mentor search + OpenSearch indexing
+- [x] Implement AI recommendations and AI chat policy constraints
+- [x] Implement Socket.IO chat + notifications
+- [x] Implement Agora video calling token service
+- [x] Add admin + analytics endpoints
+- [x] Add Dockerfiles + Kubernetes manifests
+- [x] Run lint/test/build and smoke test end-to-end
 
 ---
 
 ## UI/Theming Notes (from screenshots)
 Use these references as style guide:
-- Layout: left sidebar + top bar + card-based dashboards
-- Provide dark/light mode toggle (persisted user preference)
-- Apply Framer Motion for page transitions and micro-interactions
-- Add light Three.js accents only where it won’t block performance (lazy-load)
+
+- **Layout:** left sidebar + top bar + card-based dashboards (consistent spacing/alignment across pages)
+- **Brutalist cartoon styling:** bold black outlines, flat solid colors, chunky typography, and chunky drop shadows; **avoid gradients**
+- **Typography:** strong hierarchy for headings; button/label text must stay readable and never clip
+- **Motion:** Framer Motion for page transitions + small micro-interactions (keep animations subtle to avoid layout shift)
+- **Dark/light mode:** toggle persisted in user preference (server-rendered defaults should match client state)
+- **Three.js accents:** minimal decorative accents only; lazy-load so pages don’t block
+- **Responsiveness:** no horizontal overflow; test at least one mobile width
 
 Logo usage:
 - Brand header/sidebar: `logo/logo.png`
