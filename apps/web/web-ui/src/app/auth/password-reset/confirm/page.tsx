@@ -1,11 +1,11 @@
- // @ts-nocheck
+// @ts-nocheck
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/auth';
 
-export default function PasswordResetConfirmPage() {
+function PasswordResetConfirmForm() {
   const router = useRouter();
   const params = useSearchParams();
   const email = params.get('email') || '';
@@ -16,7 +16,7 @@ export default function PasswordResetConfirmPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  async function onSubmit(e) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setMessage('');
@@ -61,12 +61,12 @@ export default function PasswordResetConfirmPage() {
           React.createElement('div', { className: 'mb-1 text-sm font-black' }, '6-digit code'),
           React.createElement('input', {
             value: code,
-            onChange: (e) => setCode(e.target.value),
+            onChange: (e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value),
             className:
               'w-full rounded-lg border-2 border-black bg-[#f7f7f7] px-3 py-2 font-mono shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-white',
             placeholder: '123456',
             type: 'text',
-            inputMode: 'numeric',
+            inputMode: 'numeric' as const,
             required: true,
             maxLength: 6,
           })
@@ -77,7 +77,7 @@ export default function PasswordResetConfirmPage() {
           React.createElement('div', { className: 'mb-1 text-sm font-black' }, 'New password'),
           React.createElement('input', {
             value: newPassword,
-            onChange: (e) => setNewPassword(e.target.value),
+            onChange: (e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value),
             className:
               'w-full rounded-lg border-2 border-black bg-[#f7f7f7] px-3 py-2 font-mono shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-white',
             placeholder: 'Minimum 8 characters',
@@ -127,5 +127,13 @@ export default function PasswordResetConfirmPage() {
         )
       )
     )
+  );
+}
+
+export default function PasswordResetConfirmPage() {
+  return React.createElement(
+    Suspense,
+    { fallback: React.createElement('div', { className: 'p-6 text-center font-bold' }, 'Loading…') },
+    React.createElement(PasswordResetConfirmForm)
   );
 }
