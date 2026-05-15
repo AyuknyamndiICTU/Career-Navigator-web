@@ -3,12 +3,12 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY . .
-RUN npm ci
+RUN npm ci || npm ci || npm ci
 
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app ./
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate --schema=apps/api/prisma/schema.prisma
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" node apps/api/node_modules/prisma/build/index.js generate --schema=apps/api/prisma/schema.prisma
 RUN npm run build --workspace=apps/api
 
 FROM node:20-alpine AS runner
