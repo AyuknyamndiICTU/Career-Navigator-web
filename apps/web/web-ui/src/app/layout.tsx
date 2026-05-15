@@ -1,7 +1,7 @@
-// @ts-nocheck
+import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 import Link from "next/link";
-void require("./globals.css");
+import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -10,7 +10,7 @@ export const metadata = {
   description: "Career Navigator",
 };
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className={inter.className}>

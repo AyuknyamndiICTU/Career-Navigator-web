@@ -1,11 +1,11 @@
- // @ts-nocheck
+// @ts-nocheck
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/auth';
 
-export default function VerifyOtpPage() {
+function VerifyOtpForm() {
   const router = useRouter();
   const params = useSearchParams();
   const email = params.get('email') || '';
@@ -14,7 +14,7 @@ export default function VerifyOtpPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  async function onSubmit(e) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setIsLoading(true);
@@ -59,11 +59,11 @@ export default function VerifyOtpPage() {
           ),
           React.createElement('input', {
             value: code,
-            onChange: (e) => setCode(e.target.value),
+            onChange: (e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value),
             className:
               'w-full rounded-lg border-2 border-black bg-[#f7f7f7] px-3 py-2 font-mono shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-white',
             type: 'text',
-            inputMode: 'numeric',
+            inputMode: 'numeric' as const,
             placeholder: '123456',
             required: true,
             maxLength: 6,
@@ -104,5 +104,13 @@ export default function VerifyOtpPage() {
         )
       )
     )
+  );
+}
+
+export default function VerifyOtpPage() {
+  return React.createElement(
+    Suspense,
+    { fallback: React.createElement('div', { className: 'p-6 text-center font-bold' }, 'Loading…') },
+    React.createElement(VerifyOtpForm)
   );
 }
