@@ -2,7 +2,8 @@
   "name": "career-navigator",
   "private": true,
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "apps/web/*"
   ],
   "scripts": {
     "dev": "npm -ws run dev",
