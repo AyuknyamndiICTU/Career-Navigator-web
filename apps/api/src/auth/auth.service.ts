@@ -84,8 +84,8 @@ export class AuthService {
 
     const emailer = new BrevoEmailer();
     await emailer.sendOtpEmail({
-      apiKey: brevoApiKey,
-      senderEmail: brevoSenderEmail,
+      apiKey: brevoApiKey!,
+      senderEmail: brevoSenderEmail!,
       toEmail: email,
       otpCode: code,
     });
@@ -360,8 +360,8 @@ export class AuthService {
 
     const emailer = new BrevoEmailer();
     await emailer.sendOtpEmail({
-      apiKey: brevoApiKey,
-      senderEmail: brevoSenderEmail,
+      apiKey: brevoApiKey!,
+      senderEmail: brevoSenderEmail!,
       toEmail: email,
       otpCode: code,
     });
