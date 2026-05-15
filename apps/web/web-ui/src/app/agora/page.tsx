@@ -2,7 +2,12 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { VideoCallClient } from '@/components/agora/VideoCallClient';
+import dynamic from 'next/dynamic';
+
+const VideoCallClient = dynamic(
+  () => import('@/components/agora/VideoCallClient').then((m) => m.VideoCallClient),
+  { ssr: false, loading: () => <div className="p-4 text-center font-bold">Loading video…</div> }
+);
 
 export default function AgoraPage() {
   const [channelName, setChannelName] = useState('career-demo');
