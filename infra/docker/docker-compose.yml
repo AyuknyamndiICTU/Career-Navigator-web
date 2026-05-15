@@ -1,0 +1,149 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: career_navigator
+    ports:
+      - "5432:5432"
+    volumes:
+      - cn-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - cn-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Optional but recommended for AI chat
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - cn-ollama:/root/.ollama
+    # Container command left default; first run will need model pulls on-demand.
+
+  api:
+    build:
+      context: ../../
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+
+      # JWT
+      JWT_ACCESS_SECRET: "dev-access-secret"
+      JWT_ACCESS_EXPIRES_IN: "15m"
+      JWT_REFRESH_SECRET: "dev-refresh-secret"
+      JWT_REFRESH_EXPIRES_IN: "30d"
+
+      # DB
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/career_navigator?schema=public"
+
+      # Redis (BullMQ + socket adapter)
+      REDIS_URL: "redis://redis:6379"
+
+      # OpenSearch (only used by jobs endpoints; included to avoid runtime failures)
+      OPENSEARCH_URL: "http://opensearch:9200"
+      OPENSEARCH_USERNAME: "admin"
+      OPENSEARCH_PASSWORD: "admin"
+
+      # MinIO (only used by upload/CV features; included to avoid runtime failures)
+      MINIO_ENDPOINT: "http://minio:9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"
+      MINIO_BUCKET: "resumes"
+
+      # OTP: local/dev mode (log OTP instead of calling Brevo)
+      OTP_EMAIL_LOG_ONLY: "true"
+      BREVO_API_KEY: "dev"
+      BREVO_SENDER_EMAIL: "no-reply@example.com"
+
+      # Ollama
+      OLLAMA_BASE_URL: "http://ollama:11434"
+      OLLAMA_MODEL: "llama3"
+
+      # Agora (not required to sign in; placeholders to satisfy env checks)
+      AGORA_APP_ID: "dev"
+      AGORA_APP_CERTIFICATE: "dev"
+
+      # CORS for browser
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000"
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../../
+      dockerfile: apps/web/web-ui/Dockerfile
+    environment:
+      NODE_ENV: production
+      # Browser should call host-mapped API port
+      NEXT_PUBLIC_API_BASE_URL: "http://localhost:3001"
+      NEXT_PUBLIC_SOCKET_URL: "http://localhost:3001"
+      NEXT_PUBLIC_AGORA_APP_ID: "dev"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  # Included to support jobs/recommendations flows without “missing env” failures.
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    environment:
+      discovery.type: single-node
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      OPENSEARCH_USERNAME: admin
+      OPENSEARCH_PASSWORD: admin
+      plugins.security.disabled: "true"
+    ports:
+      - "9200:9200"
+    volumes:
+      - cn-opensearch:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - cn-minio:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  cn-postgres:
+  cn-redis:
+  cn-ollama:
+  cn-opensearch:
+  cn-minio:
