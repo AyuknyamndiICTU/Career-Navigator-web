@@ -24,7 +24,6 @@ RUN npm ci --ignore-scripts --omit=dev
 
 # Copy generated Prisma client from builder
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
 
 # App build output
 COPY --from=builder /app/apps/api/dist ./dist
