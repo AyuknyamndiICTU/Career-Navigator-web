@@ -36,10 +36,12 @@ export class AuthService {
   async register(dto: RegisterDto): Promise<{ message: string }> {
     const { email, password } = dto;
 
+    const otpEmailLogOnly = process.env.OTP_EMAIL_LOG_ONLY === 'true';
+
     const brevoApiKey = process.env.BREVO_API_KEY;
     const brevoSenderEmail = process.env.BREVO_SENDER_EMAIL;
 
-    if (!brevoApiKey || !brevoSenderEmail) {
+    if (!otpEmailLogOnly && (!brevoApiKey || !brevoSenderEmail)) {
       throw new BadRequestException('Email OTP configuration is missing');
     }
 
@@ -72,6 +74,13 @@ export class AuthService {
         attempts: 0,
       },
     });
+
+    if (otpEmailLogOnly) {
+      // Local/dev mode: don't call external email provider.
+      // eslint-disable-next-line no-console
+      console.log(`[DEV OTP] Register OTP for ${email}: ${code}`);
+      return { message: 'OTP generated (check server logs)' };
+    }
 
     const emailer = new BrevoEmailer();
     await emailer.sendOtpEmail({
@@ -307,10 +316,12 @@ export class AuthService {
   ): Promise<{ message: string }> {
     const { email } = dto;
 
+    const otpEmailLogOnly = process.env.OTP_EMAIL_LOG_ONLY === 'true';
+
     const brevoApiKey = process.env.BREVO_API_KEY;
     const brevoSenderEmail = process.env.BREVO_SENDER_EMAIL;
 
-    if (!brevoApiKey || !brevoSenderEmail) {
+    if (!otpEmailLogOnly && (!brevoApiKey || !brevoSenderEmail)) {
       throw new BadRequestException('Email OTP configuration is missing');
     }
 
@@ -337,6 +348,15 @@ export class AuthService {
         attempts: 0,
       },
     });
+
+    if (otpEmailLogOnly) {
+      // eslint-disable-next-line no-console
+      console.log(`[DEV OTP] Password reset OTP for ${email}: ${code}`);
+      return {
+        message:
+          'If the account exists, a reset code was generated (check server logs).',
+      };
+    }
 
     const emailer = new BrevoEmailer();
     await emailer.sendOtpEmail({
