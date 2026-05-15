@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import AgoraRTC from 'agora-rtc-sdk-ng';
 import { endAgoraSession, startAgoraSession } from '@/lib/api/agora';
 
 type AgoraRole = 'publisher' | 'subscriber';
@@ -25,6 +24,7 @@ function getAgoraAppId(): string {
 export function VideoCallClient({ channelName, uid, role }: Props) {
   const appId = useMemo(() => getAgoraAppId(), []);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
+  const agoraRef = useRef<typeof import('agora-rtc-sdk-ng').default | null>(null);
 
   const localVideoEl = useRef<HTMLVideoElement | null>(null);
   const remoteVideoEls = useRef<Record<number, HTMLVideoElement | null>>({});
@@ -44,9 +44,18 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
 
+  async function getAgora() {
+    if (!agoraRef.current) {
+      const mod = await import('agora-rtc-sdk-ng');
+      agoraRef.current = mod.default;
+    }
+    return agoraRef.current;
+  }
+
   async function publishLocalTracks(
     client: IAgoraRTCClient,
   ): Promise<void> {
+    const AgoraRTC = await getAgora();
     const { createCameraVideoTrack, createMicrophoneAudioTrack } = AgoraRTC;
 
     const [videoTrack, audioTrack] = await Promise.all([
@@ -129,6 +138,8 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
     setCallState('joining');
 
     try {
+      const AgoraRTC = await getAgora();
+
       const start = await startAgoraSession({
         channelName,
         uid,
@@ -217,7 +228,7 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
           >
             <div className="text-3xl font-black leading-none">JOINING…</div>
             <div className="mt-2 text-sm font-bold opacity-80">
-              We’re cracking the channel open. Don’t blink.
+              We're cracking the channel open. Don't blink.
             </div>
           </motion.div>
         )}
@@ -301,7 +312,7 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
                       <div className="font-black">
                         No one joined yet.
                         <div className="mt-1 text-sm font-bold opacity-70">
-                          Send a summon: “come online!”
+                          Send a summon: "come online!"
                         </div>
                       </div>
                     </div>
