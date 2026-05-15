@@ -3,7 +3,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY . .
-RUN npm ci --ignore-scripts
+RUN npm ci --ignore-scripts || npm ci --ignore-scripts || npm ci --ignore-scripts
 
 FROM node:20-alpine AS builder
 WORKDIR /app
