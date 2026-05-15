@@ -2,19 +2,14 @@
 
 FROM node:20-alpine AS deps
 WORKDIR /app
-
-# Install deps first (better layer caching)
-COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
+COPY . .
+RUN npm ci
 
 FROM node:20-alpine AS builder
 WORKDIR /app
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-
-# Build Nest app
-RUN npm run build
+COPY --from=deps /app ./
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate --schema=apps/api/prisma/schema.prisma
+RUN npm run build --workspace=apps/api
 
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -27,11 +22,12 @@ COPY --from=builder /app/package-lock.json ./package-lock.json
 # Install only production deps
 RUN npm ci --ignore-scripts --omit=dev
 
-COPY --from=builder /app/dist ./dist
+# Copy generated Prisma client from builder
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
 
-# If you use prisma at runtime, you'll need the generated client.
-# This repo uses Prisma Service; ensure migrations/client generation happen appropriately in your pipeline.
-# COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# App build output
+COPY --from=builder /app/apps/api/dist ./dist
 
 EXPOSE 3000
 CMD ["node", "dist/main.js"]
