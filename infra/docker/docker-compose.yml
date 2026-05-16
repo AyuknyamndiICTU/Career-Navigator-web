@@ -67,8 +67,8 @@ services:
       MINIO_SECRET_KEY: "minioadmin"
       MINIO_BUCKET: "resumes"
 
-      # OTP: local/dev mode (log OTP instead of calling Brevo)
-      OTP_EMAIL_LOG_ONLY: "true"
+      # OTP: when true, OTP is only logged to server console (no email is sent)
+      OTP_EMAIL_LOG_ONLY: "false"
       BREVO_API_KEY: "dev"
       BREVO_SENDER_EMAIL: "no-reply@example.com"
 
