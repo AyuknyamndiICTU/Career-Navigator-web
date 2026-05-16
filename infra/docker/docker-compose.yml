@@ -68,7 +68,7 @@ services:
       MINIO_BUCKET: "resumes"
 
       # OTP: when true, OTP is only logged to server console (no email is sent)
-      OTP_EMAIL_LOG_ONLY: "false"
+      OTP_EMAIL_LOG_ONLY: "true"
       BREVO_API_KEY: "dev"
       BREVO_SENDER_EMAIL: "no-reply@example.com"
 
