@@ -1,252 +1,306 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
+import DashboardLayout from '@/components/DashboardLayout';
 
 const features = [
   {
     title: 'AI Career Chat',
     description: 'Get career-path guidance from our AI assistant. Ask about your next step, skill gaps, and more.',
     href: '/ai/chat',
-    icon: '🤖',
-    color: 'bg-purple-200',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+      </svg>
+    ),
+    gradient: 'from-violet-500 to-purple-600',
+    bgLight: 'bg-violet-50',
   },
   {
     title: 'Job Board',
     description: 'Browse jobs, apply with cover letters, and get AI-powered recommendations.',
     href: '/auth/login',
-    icon: '💼',
-    color: 'bg-blue-200',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.193 23.193 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+    ),
+    gradient: 'from-blue-500 to-cyan-500',
+    bgLight: 'bg-blue-50',
   },
   {
     title: 'Mentor Matching',
     description: 'Connect with mentors who match your skills and career interests.',
     href: '/auth/login',
-    icon: '🧑‍🏫',
-    color: 'bg-green-200',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+    gradient: 'from-emerald-500 to-teal-500',
+    bgLight: 'bg-emerald-50',
   },
   {
     title: 'Video Sessions',
     description: 'Join live video calls with mentors and career advisors via Agora.',
     href: '/agora',
-    icon: '📹',
-    color: 'bg-pink-200',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+      </svg>
+    ),
+    gradient: 'from-pink-500 to-rose-500',
+    bgLight: 'bg-pink-50',
   },
   {
     title: 'Resume Builder',
     description: 'Build structured resumes and scan your CV with AI extraction.',
     href: '/auth/login',
-    icon: '📄',
-    color: 'bg-orange-200',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+    gradient: 'from-amber-500 to-orange-500',
+    bgLight: 'bg-amber-50',
   },
   {
     title: 'Admin Analytics',
     description: 'View engagement metrics and manage users and feedback.',
     href: '/admin/analytics',
-    icon: '📊',
-    color: 'bg-yellow-200',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
+    gradient: 'from-indigo-500 to-blue-600',
+    bgLight: 'bg-indigo-50',
   },
 ];
 
 const stats = [
-  { label: 'Active Jobs', value: '500+', icon: '💼' },
-  { label: 'Mentors', value: '120+', icon: '🧑‍🏫' },
-  { label: 'AI Chats', value: '10K+', icon: '💬' },
-  { label: 'Users', value: '2K+', icon: '👥' },
+  { label: 'Active Jobs', value: '500+', color: 'text-blue-600', bg: 'bg-blue-50', icon: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.193 23.193 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+  )},
+  { label: 'Mentors', value: '120+', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  )},
+  { label: 'AI Chats', value: '10K+', color: 'text-violet-600', bg: 'bg-violet-50', icon: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+    </svg>
+  )},
+  { label: 'Users', value: '2K+', color: 'text-amber-600', bg: 'bg-amber-50', icon: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+  )},
 ];
 
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.08 },
+    transition: { staggerChildren: 0.06 },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 16 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
 };
 
 export default function Home() {
   return (
-    <main className="min-h-screen pb-12">
-      {/* Hero Section */}
-      <motion.section
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="px-4 pt-10 pb-8 text-center"
-      >
-        <div className="mx-auto max-w-3xl">
-          <div className="mb-4 inline-block rounded-xl border-4 border-black bg-yellow-300 px-5 py-2 text-sm font-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-            🚀 YOUR CAREER STARTS HERE
-          </div>
-          <h1 className="mt-4 text-5xl font-black leading-tight tracking-tight md:text-6xl">
-            Navigate Your
-            <span className="relative mx-2 inline-block">
-              <span className="relative z-10">Career</span>
-              <span className="absolute bottom-1 left-0 -z-0 h-4 w-full bg-yellow-300/70"></span>
-            </span>
-            Path
-          </h1>
-          <p className="mx-auto mt-5 max-w-xl text-lg font-bold opacity-70">
-            AI-powered career guidance, job matching, mentor connections, resume building, and video coaching — all in one brutally good platform.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/auth/register"
-              className="rounded-xl border-4 border-black bg-yellow-300 px-8 py-3 text-sm font-black shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] transition-transform hover:-translate-y-[2px] active:translate-y-[0px]"
-            >
-              GET STARTED FREE
-            </Link>
-            <Link
-              href="/auth/login"
-              className="rounded-xl border-4 border-black bg-white px-8 py-3 text-sm font-black shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] transition-transform hover:-translate-y-[2px] active:translate-y-[0px]"
-            >
-              SIGN IN
-            </Link>
-          </div>
-        </div>
-      </motion.section>
-
-      {/* Stats Row */}
-      <motion.section
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="mx-auto grid max-w-4xl grid-cols-2 gap-4 px-4 md:grid-cols-4"
-      >
-        {stats.map((stat) => (
-          <motion.div
-            key={stat.label}
-            variants={itemVariants}
-            className="rounded-xl border-3 border-black bg-white p-4 text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
-          >
-            <div className="text-2xl">{stat.icon}</div>
-            <div className="mt-1 text-2xl font-black">{stat.value}</div>
-            <div className="text-xs font-bold opacity-60">{stat.label}</div>
-          </motion.div>
-        ))}
-      </motion.section>
-
-      {/* Features Grid */}
-      <motion.section
-        variants={containerVariants}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, amount: 0.1 }}
-        className="mx-auto mt-12 max-w-5xl px-4"
-      >
-        <div className="mb-6 text-center">
-          <h2 className="text-3xl font-black">EVERYTHING YOU NEED</h2>
-          <p className="mt-1 text-sm font-bold opacity-60">
-            One platform. All the career tools. No fluff.
-          </p>
-        </div>
-
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => (
-            <motion.div key={feature.title} variants={itemVariants}>
-              <Link href={feature.href} className="group block">
-                <div
-                  className={`rounded-xl border-4 border-black ${feature.color} p-5 shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] transition-all duration-200 group-hover:-translate-y-[3px] group-hover:shadow-[7px_7px_0px_0px_rgba(0,0,0,1)]`}
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg border-3 border-black bg-white text-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                    {feature.icon}
-                  </div>
-                  <h3 className="mt-3 text-lg font-black">{feature.title}</h3>
-                  <p className="mt-1 text-sm font-bold leading-snug opacity-70">
-                    {feature.description}
-                  </p>
-                  <div className="mt-3 inline-flex items-center text-xs font-black opacity-80">
-                    EXPLORE →
-                  </div>
-                </div>
+    <DashboardLayout>
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Welcome Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary-600 via-primary-500 to-indigo-400 p-8 text-white"
+        >
+          <div className="relative z-10 max-w-lg">
+            <h1 className="text-3xl font-bold leading-tight">
+              Welcome to Career Navigator!
+            </h1>
+            <p className="mt-3 text-white/80 text-sm leading-relaxed">
+              AI-powered career guidance, job matching, mentor connections, resume building, and video coaching — all in one platform. Let&apos;s get started!
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                href="/auth/register"
+                className="inline-flex items-center px-5 py-2.5 bg-white text-primary-600 rounded-xl text-sm font-semibold hover:bg-white/90 transition-colors shadow-soft"
+              >
+                Get Started Free
               </Link>
-            </motion.div>
-          ))}
-        </div>
-      </motion.section>
-
-      {/* How It Works */}
-      <motion.section
-        variants={containerVariants}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, amount: 0.1 }}
-        className="mx-auto mt-16 max-w-4xl px-4"
-      >
-        <div className="mb-8 text-center">
-          <h2 className="text-3xl font-black">HOW IT WORKS</h2>
-          <p className="mt-1 text-sm font-bold opacity-60">Three steps to your dream career</p>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-3">
-          {[
-            {
-              step: '01',
-              title: 'Create Profile',
-              desc: 'Sign up, upload your CV, and let AI extract your skills automatically.',
-              bg: 'bg-blue-100',
-            },
-            {
-              step: '02',
-              title: 'Get Matched',
-              desc: 'AI matches you with jobs, mentors, and courses tailored to your goals.',
-              bg: 'bg-green-100',
-            },
-            {
-              step: '03',
-              title: 'Level Up',
-              desc: 'Chat with AI, join video sessions, and track your career progress.',
-              bg: 'bg-purple-100',
-            },
-          ].map((item) => (
-            <motion.div
-              key={item.step}
-              variants={itemVariants}
-              className={`rounded-xl border-4 border-black ${item.bg} p-5 shadow-[5px_5px_0px_0px_rgba(0,0,0,1)]`}
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg border-3 border-black bg-black text-sm font-black text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)]">
-                {item.step}
-              </div>
-              <h3 className="mt-3 text-lg font-black">{item.title}</h3>
-              <p className="mt-1 text-sm font-bold leading-snug opacity-70">{item.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </motion.section>
-
-      {/* CTA */}
-      <motion.section
-        initial={{ opacity: 0, scale: 0.97 }}
-        whileInView={{ opacity: 1, scale: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.4 }}
-        className="mx-auto mt-16 max-w-3xl px-4"
-      >
-        <div className="rounded-2xl border-4 border-black bg-black p-8 text-center text-white shadow-[8px_8px_0px_0px_rgba(250,204,21,1)]">
-          <h2 className="text-3xl font-black">READY TO START?</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm font-bold opacity-70">
-            Join thousands of professionals using Career Navigator to find their path. It&apos;s free to get started.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-4">
-            <Link
-              href="/auth/register"
-              className="rounded-xl border-4 border-yellow-300 bg-yellow-300 px-8 py-3 text-sm font-black text-black shadow-[4px_4px_0px_0px_rgba(255,255,255,0.3)] transition-transform hover:-translate-y-[2px]"
-            >
-              SIGN UP NOW
-            </Link>
-            <Link
-              href="/ai/chat"
-              className="rounded-xl border-4 border-white/30 bg-white/10 px-8 py-3 text-sm font-black text-white shadow-[4px_4px_0px_0px_rgba(255,255,255,0.1)] transition-transform hover:-translate-y-[2px]"
-            >
-              TRY AI CHAT
-            </Link>
+              <Link
+                href="/auth/login"
+                className="inline-flex items-center px-5 py-2.5 bg-white/15 text-white rounded-xl text-sm font-semibold hover:bg-white/25 transition-colors backdrop-blur-sm"
+              >
+                Sign In
+              </Link>
+            </div>
           </div>
-        </div>
-      </motion.section>
-    </main>
+          {/* Decorative circles */}
+          <div className="absolute -right-8 -top-8 w-48 h-48 bg-white/10 rounded-full" />
+          <div className="absolute -right-4 -bottom-10 w-32 h-32 bg-white/5 rounded-full" />
+          <div className="absolute right-28 top-4 w-20 h-20 bg-white/10 rounded-full" />
+        </motion.div>
+
+        {/* Stats Row */}
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-2 md:grid-cols-4 gap-4"
+        >
+          {stats.map((stat) => (
+            <motion.div
+              key={stat.label}
+              variants={itemVariants}
+              className="bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-shadow duration-300"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center`}>
+                  {stat.icon}
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-slate-800">{stat.value}</div>
+                  <div className="text-xs text-slate-500 font-medium">{stat.label}</div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* Features Grid */}
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.1 }}
+        >
+          <div className="mb-5">
+            <h2 className="text-xl font-bold text-slate-800">Everything You Need</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              One platform. All the career tools.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature) => (
+              <motion.div key={feature.title} variants={itemVariants}>
+                <Link href={feature.href} className="group block">
+                  <div className="bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-all duration-300 group-hover:-translate-y-0.5 h-full">
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center text-white shadow-soft`}>
+                      {feature.icon}
+                    </div>
+                    <h3 className="mt-4 text-base font-semibold text-slate-800">{feature.title}</h3>
+                    <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">
+                      {feature.description}
+                    </p>
+                    <div className="mt-3 inline-flex items-center text-xs font-semibold text-primary-600 group-hover:gap-2 transition-all">
+                      Explore
+                      <svg className="w-3.5 h-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* How It Works */}
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.1 }}
+        >
+          <div className="mb-5">
+            <h2 className="text-xl font-bold text-slate-800">How It Works</h2>
+            <p className="mt-1 text-sm text-slate-500">Three steps to your dream career</p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              {
+                step: '01',
+                title: 'Create Profile',
+                desc: 'Sign up, upload your CV, and let AI extract your skills automatically.',
+                gradient: 'from-blue-500 to-indigo-500',
+              },
+              {
+                step: '02',
+                title: 'Get Matched',
+                desc: 'AI matches you with jobs, mentors, and courses tailored to your goals.',
+                gradient: 'from-emerald-500 to-teal-500',
+              },
+              {
+                step: '03',
+                title: 'Level Up',
+                desc: 'Chat with AI, join video sessions, and track your career progress.',
+                gradient: 'from-violet-500 to-purple-500',
+              },
+            ].map((item) => (
+              <motion.div
+                key={item.step}
+                variants={itemVariants}
+                className="bg-white rounded-2xl p-6 shadow-card hover:shadow-card-hover transition-shadow duration-300"
+              >
+                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center text-white text-sm font-bold shadow-soft`}>
+                  {item.step}
+                </div>
+                <h3 className="mt-4 text-base font-semibold text-slate-800">{item.title}</h3>
+                <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">{item.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* CTA */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.4 }}
+        >
+          <div className="rounded-2xl bg-gradient-to-r from-primary-700 via-primary-600 to-indigo-500 p-8 text-center text-white relative overflow-hidden">
+            <div className="absolute -left-10 -top-10 w-40 h-40 bg-white/5 rounded-full" />
+            <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/5 rounded-full" />
+            <div className="relative z-10">
+              <h2 className="text-2xl font-bold">Ready to Start?</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm text-white/70">
+                Join thousands of professionals using Career Navigator to find their path. It&apos;s free to get started.
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <Link
+                  href="/auth/register"
+                  className="inline-flex items-center px-6 py-2.5 bg-white text-primary-600 rounded-xl text-sm font-semibold hover:bg-white/90 transition-colors shadow-soft"
+                >
+                  Sign Up Now
+                </Link>
+                <Link
+                  href="/ai/chat"
+                  className="inline-flex items-center px-6 py-2.5 bg-white/15 text-white rounded-xl text-sm font-semibold hover:bg-white/25 transition-colors backdrop-blur-sm"
+                >
+                  Try AI Chat
+                </Link>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </DashboardLayout>
   );
 }

@@ -1,8 +1,10 @@
 // @ts-nocheck
 'use client';
 
-import React, { Suspense, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/auth';
 
 function VerifyOtpForm() {
@@ -24,8 +26,6 @@ function VerifyOtpForm() {
         method: 'POST',
         body: { email, code },
       });
-
-      // No tokens are returned by this endpoint; route user to login.
       router.push('/auth/login');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'OTP verification failed');
@@ -34,83 +34,78 @@ function VerifyOtpForm() {
     }
   }
 
-  return React.createElement(
-    'main',
-    { className: 'mx-auto max-w-md p-6' },
-    React.createElement(
-      'div',
-      { className: 'rounded-xl border-4 border-black bg-white p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]' },
-      React.createElement('div', { className: 'text-3xl font-black' }, 'VERIFY OTP'),
-      React.createElement(
-        'div',
-        { className: 'mt-2 text-sm font-bold opacity-80' },
-        email ? `Enter the 6-digit code for ${email}` : 'Enter the 6-digit code'
-      ),
-      React.createElement(
-        'form',
-        { className: 'mt-5 space-y-4', onSubmit: onSubmit },
-        React.createElement(
-          'label',
-          { className: 'block' },
-          React.createElement(
-            'div',
-            { className: 'mb-1 text-sm font-black' },
-            'OTP Code'
-          ),
-          React.createElement('input', {
-            value: code,
-            onChange: (e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value),
-            className:
-              'w-full rounded-lg border-2 border-black bg-[#f7f7f7] px-3 py-2 font-mono shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-white',
-            type: 'text',
-            inputMode: 'numeric' as const,
-            placeholder: '123456',
-            required: true,
-            maxLength: 6,
-          })
-        ),
-        error
-          ? React.createElement(
-              'div',
-              {
-                className:
-                  'rounded-lg border-2 border-black bg-red-100 p-3 text-sm font-bold',
-              },
-              error
-            )
-          : null,
-        React.createElement(
-          'button',
-          {
-            disabled: isLoading,
-            className:
-              'w-full rounded-lg border-4 border-black bg-yellow-300 px-4 py-3 text-center text-sm font-black shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-[1px] active:translate-y-[0px] disabled:opacity-60',
-            type: 'submit',
-          },
-          isLoading ? 'VERIFYING…' : 'VERIFY'
-        ),
-        React.createElement(
-          'div',
-          { className: 'pt-2 text-center text-xs font-bold opacity-70' },
-          React.createElement(
-            'button',
-            {
-              type: 'button',
-              onClick: () => router.push('/auth/login'),
-              className: 'underline',
-            },
-            'Back to login'
-          )
-        )
-      )
-    )
+  return (
+    <div className="min-h-screen bg-surface flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="relative w-12 h-12 rounded-2xl overflow-hidden shadow-soft">
+              <Image src="/logo.png" alt="Career Navigator" fill className="object-cover" />
+            </div>
+            <div>
+              <div className="text-lg font-bold text-slate-800 leading-tight">Career Navigator</div>
+              <div className="text-xs text-slate-400">Verify your email</div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-card p-8">
+          <h1 className="text-2xl font-bold text-slate-800">Verify OTP</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {email ? `Enter the 6-digit code sent to ${email}` : 'Enter the 6-digit code'}
+          </p>
+
+          <form className="mt-6 space-y-4" onSubmit={onSubmit}>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700 mb-1.5 block">OTP Code</span>
+              <input
+                value={code}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value)}
+                className="w-full px-4 py-2.5 bg-surface rounded-xl text-sm border border-surface-border focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all text-center tracking-[0.3em] font-mono text-lg"
+                type="text"
+                inputMode="numeric"
+                placeholder="000000"
+                required
+                maxLength={6}
+              />
+            </label>
+
+            {error && (
+              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            <button
+              disabled={isLoading}
+              type="submit"
+              className="w-full py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-soft"
+            >
+              {isLoading ? 'Verifying…' : 'Verify'}
+            </button>
+
+            <div className="pt-1 text-center text-xs text-slate-500">
+              <button
+                type="button"
+                onClick={() => router.push('/auth/login')}
+                className="font-medium text-primary-600 hover:text-primary-700 transition-colors"
+              >
+                Back to sign in
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export default function VerifyOtpPage() {
-  return React.createElement(
-    Suspense,
-    { fallback: React.createElement('div', { className: 'p-6 text-center font-bold' }, 'Loading…') },
-    React.createElement(VerifyOtpForm)
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-surface flex items-center justify-center text-slate-500">Loading…</div>}>
+      <VerifyOtpForm />
+    </Suspense>
   );
 }
