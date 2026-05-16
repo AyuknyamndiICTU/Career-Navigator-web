@@ -1,4 +1,4 @@
-import { IsArray, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class ChatRequestDto {
   @IsString()
@@ -8,6 +8,7 @@ export class ChatRequestDto {
 
   // Optional: if provided, we enforce that the AI response stays within these “career path” skills.
   // If omitted, we fall back to deriving skills from the user’s job applications.
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   allowedSkills?: string[];
