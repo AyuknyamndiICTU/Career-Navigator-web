@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e) {
     e.preventDefault();
     setError('');
     setIsLoading(true);
@@ -24,10 +24,24 @@ export default function LoginPage() {
         method: 'POST',
         body: { email, password },
       });
+
       setTokens(res);
       router.push('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      const msg = err instanceof Error ? err.message : 'Login failed';
+
+      // If the account exists but isn't activated yet, guide the user to OTP verification.
+      if (
+        typeof msg === 'string' &&
+        msg.toLowerCase().includes('account is not active')
+      ) {
+        router.push(
+          '/auth/verify-otp?email=' + encodeURIComponent(email),
+        );
+        return;
+      }
+
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
@@ -40,11 +54,20 @@ export default function LoginPage() {
         <div className="flex justify-center mb-8">
           <Link href="/" className="flex items-center gap-3">
             <div className="relative w-12 h-12 rounded-2xl overflow-hidden shadow-soft">
-              <Image src="/logo.png" alt="Career Navigator" fill className="object-cover" />
+              <Image
+                src="/logo.png"
+                alt="Career Navigator"
+                fill
+                className="object-cover"
+              />
             </div>
             <div>
-              <div className="text-lg font-bold text-slate-800 leading-tight">Career Navigator</div>
-              <div className="text-xs text-slate-400">Sign in to your account</div>
+              <div className="text-lg font-bold text-slate-800 leading-tight">
+                Career Navigator
+              </div>
+              <div className="text-xs text-slate-400">
+                Sign in to your account
+              </div>
             </div>
           </Link>
         </div>
@@ -52,11 +75,15 @@ export default function LoginPage() {
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-card p-8">
           <h1 className="text-2xl font-bold text-slate-800">Welcome back</h1>
-          <p className="mt-1 text-sm text-slate-500">Enter your credentials to continue</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Enter your credentials to continue
+          </p>
 
           <form className="mt-6 space-y-4" onSubmit={onSubmit}>
             <label className="block">
-              <span className="text-sm font-medium text-slate-700 mb-1.5 block">Email</span>
+              <span className="text-sm font-medium text-slate-700 mb-1.5 block">
+                Email
+              </span>
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -68,7 +95,9 @@ export default function LoginPage() {
             </label>
 
             <label className="block">
-              <span className="text-sm font-medium text-slate-700 mb-1.5 block">Password</span>
+              <span className="text-sm font-medium text-slate-700 mb-1.5 block">
+                Password
+              </span>
               <input
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -102,9 +131,12 @@ export default function LoginPage() {
               >
                 Create an account
               </button>
+
               <button
                 type="button"
-                onClick={() => router.push('/auth/password-reset/request')}
+                onClick={() =>
+                  router.push('/auth/password-reset/request')
+                }
                 className="font-medium text-primary-600 hover:text-primary-700 transition-colors"
               >
                 Forgot password?
