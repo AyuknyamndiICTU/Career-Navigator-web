@@ -38,6 +38,9 @@ spec:
               value: "REPLACE_ME"
             - name: AGORA_APP_CERTIFICATE
               value: "REPLACE_ME"
+            # OTP: when true, OTP is only logged to server console (no email is sent)
+            - name: OTP_EMAIL_LOG_ONLY
+              value: "false"
             - name: BREVO_API_KEY
               value: "REPLACE_ME"
             - name: BREVO_SENDER_EMAIL
