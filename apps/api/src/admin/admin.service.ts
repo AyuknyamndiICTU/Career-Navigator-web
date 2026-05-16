@@ -108,4 +108,22 @@ export class AdminService {
       totalMessages,
     };
   }
+
+  async getDashboardKpis() {
+    const [activeJobs, totalMentors, aiChats, totalUsers] = await Promise.all([
+      this.prisma.job.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.mentor.count(),
+      // Proxy for AI chat activity: persisted conversation messages.
+      // (True /ai/chat persistence logging can be added later.)
+      this.prisma.message.count(),
+      this.prisma.user.count(),
+    ]);
+
+    return {
+      activeJobs,
+      totalMentors,
+      aiChats,
+      totalUsers,
+    };
+  }
 }
