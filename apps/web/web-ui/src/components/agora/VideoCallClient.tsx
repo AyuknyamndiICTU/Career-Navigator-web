@@ -79,7 +79,6 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
 
     if (mediaType === 'video') {
       const videoTrack = await client.subscribe(user, 'video');
-      // Create uid->video element if needed
       setRemoteUids((prev) => (prev.includes(Number(user.uid)) ? prev : [...prev, Number(user.uid)]));
       const el = remoteVideoEls.current[Number(user.uid)];
       if (el && typeof (videoTrack as any).play === 'function') {
@@ -216,127 +215,158 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
 
   return (
     <div className="relative w-full">
-      <div className="absolute inset-0 -z-10 bg-black/10" />
       <AnimatePresence mode="wait">
         {callState === 'joining' && (
           <motion.div
             key="joining"
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="rounded-xl border-4 border-black bg-white p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
+            className="bg-white rounded-2xl shadow-card p-8 text-center"
           >
-            <div className="text-3xl font-black leading-none">JOINING…</div>
-            <div className="mt-2 text-sm font-bold opacity-80">
-              We're cracking the channel open. Don't blink.
+            <div className="w-12 h-12 mx-auto rounded-full bg-primary-50 flex items-center justify-center mb-4">
+              <svg className="w-6 h-6 text-primary-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
             </div>
+            <h3 className="text-lg font-semibold text-slate-800">Joining Session…</h3>
+            <p className="mt-1 text-sm text-slate-500">Connecting to the video channel</p>
           </motion.div>
         )}
 
         {(callState === 'connected' || callState === 'ended') && (
           <motion.div
             key="connected"
-            initial={{ opacity: 0, scale: 0.98 }}
+            initial={{ opacity: 0, scale: 0.99 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="rounded-xl border-4 border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+            className="bg-white rounded-2xl shadow-card overflow-hidden"
           >
-            <div className="border-b-4 border-black p-4">
-              <div className="flex items-start justify-between gap-4">
+            {/* Controls bar */}
+            <div className="border-b border-surface-border px-5 py-3">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="text-2xl font-black">VIDEO CALL</div>
-                  <div className="mt-1 text-sm font-bold opacity-80">
-                    channel: <span className="font-mono">{channelName}</span>
+                  <div className="text-base font-semibold text-slate-800">Video Call</div>
+                  <div className="text-xs text-slate-500">
+                    Channel: <span className="font-mono text-primary-600">{channelName}</span>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   {role === 'publisher' && (
                     <>
                       <button
                         onClick={() => setIsMuted((v) => !v)}
-                        className="rounded-lg border-3 border-black bg-yellow-300 px-3 py-2 text-sm font-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[-1px] active:translate-y-[0px]"
+                        className={`p-2.5 rounded-xl text-sm font-medium transition-all ${
+                          isMuted
+                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                            : 'bg-surface text-slate-600 hover:bg-surface-hover'
+                        }`}
+                        title={isMuted ? 'Unmute' : 'Mute'}
                       >
-                        {isMuted ? 'UNMUTE' : 'MUTE'}
+                        {isMuted ? (
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                          </svg>
+                        )}
                       </button>
                       <button
                         onClick={() => setIsCameraOff((v) => !v)}
-                        className="rounded-lg border-3 border-black bg-green-300 px-3 py-2 text-sm font-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[-1px] active:translate-y-[0px]"
+                        className={`p-2.5 rounded-xl text-sm font-medium transition-all ${
+                          isCameraOff
+                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                            : 'bg-surface text-slate-600 hover:bg-surface-hover'
+                        }`}
+                        title={isCameraOff ? 'Turn camera on' : 'Turn camera off'}
                       >
-                        {isCameraOff ? 'CAM ON' : 'CAM OFF'}
+                        {isCameraOff ? (
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
                       </button>
                     </>
                   )}
 
                   <button
                     onClick={() => void hardLeave()}
-                    className="rounded-lg border-3 border-black bg-red-300 px-3 py-2 text-sm font-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[-1px] active:translate-y-[0px]"
+                    className="px-4 py-2.5 bg-red-500 text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition-colors shadow-soft"
                   >
-                    LEAVE
+                    Leave
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="p-4">
+            {/* Video grid */}
+            <div className="p-5">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <motion.div
-                  key="local"
-                  initial={{ opacity: 0, rotate: -1 }}
-                  animate={{ opacity: 1, rotate: 0 }}
-                  className="rounded-lg border-4 border-black bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden"
-                >
-                  <div className="border-b-4 border-black p-2">
-                    <div className="text-sm font-black">
-                      LOCAL {role === 'publisher' ? '(HOST)' : '(SUB)'}
-                    </div>
+                {/* Local video */}
+                <div className="rounded-2xl overflow-hidden bg-slate-900 shadow-soft">
+                  <div className="px-3 py-2 bg-slate-800/80 flex items-center justify-between">
+                    <span className="text-xs font-medium text-white/80">
+                      You {role === 'publisher' ? '(Host)' : '(Viewer)'}
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
                   </div>
                   <video
                     ref={localVideoEl}
-                    className="aspect-video w-full bg-black"
+                    className="aspect-video w-full bg-slate-900"
                     playsInline
                     muted
                     autoPlay
                   />
-                </motion.div>
+                </div>
 
-                <div className="rounded-lg border-4 border-black bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
-                  <div className="border-b-4 border-black p-2">
-                    <div className="text-sm font-black">
-                      REMOTE {remoteUids.length ? `(${remoteUids.length})` : '(WAITING)'}
-                    </div>
+                {/* Remote videos */}
+                <div className="rounded-2xl overflow-hidden bg-slate-900 shadow-soft">
+                  <div className="px-3 py-2 bg-slate-800/80 flex items-center justify-between">
+                    <span className="text-xs font-medium text-white/80">
+                      Remote {remoteUids.length ? `(${remoteUids.length})` : '(Waiting)'}
+                    </span>
+                    {remoteUids.length > 0 && <span className="w-2 h-2 rounded-full bg-emerald-400" />}
                   </div>
 
                   {remoteUids.length === 0 && (
-                    <div className="flex h-[220px] items-center justify-center bg-black/5 p-4 text-center">
-                      <div className="font-black">
-                        No one joined yet.
-                        <div className="mt-1 text-sm font-bold opacity-70">
-                          Send a summon: "come online!"
-                        </div>
+                    <div className="flex h-[220px] items-center justify-center bg-slate-800/50 p-4 text-center">
+                      <div>
+                        <svg className="w-10 h-10 mx-auto text-slate-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <p className="text-sm text-slate-400 font-medium">Waiting for others to join</p>
                       </div>
                     </div>
                   )}
 
                   <AnimatePresence>
-                    <div className="grid gap-3 p-3 sm:grid-cols-2">
+                    <div className="grid gap-2 p-2 sm:grid-cols-2">
                       {remoteUids.map((u) => (
                         <motion.div
                           key={u}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0 }}
-                          className="rounded-lg border-3 border-black overflow-hidden"
+                          className="rounded-xl overflow-hidden"
                         >
-                          <div className="flex items-center justify-between gap-2 border-b-3 border-black px-2 py-1">
-                            <div className="text-xs font-black">UID {u}</div>
-                            <div className="h-2 w-2 rounded-full bg-green-500" />
+                          <div className="flex items-center justify-between gap-2 bg-slate-800/80 px-2 py-1">
+                            <span className="text-xs font-medium text-white/80">UID {u}</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                           </div>
                           <video
                             ref={(el) => {
                               remoteVideoEls.current[u] = el;
                             }}
-                            className="aspect-video w-full bg-black"
+                            className="aspect-video w-full bg-slate-900"
                             playsInline
                             autoPlay
                           />
@@ -353,23 +383,26 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
         {callState === 'error' && (
           <motion.div
             key="error"
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="rounded-xl border-4 border-black bg-white p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
+            className="bg-white rounded-2xl shadow-card p-8 text-center"
           >
-            <div className="text-3xl font-black leading-none">OH NO!</div>
-            <div className="mt-2 text-sm font-bold opacity-80">
-              {error ?? 'Something broke while joining.'}
+            <div className="w-12 h-12 mx-auto rounded-full bg-red-50 flex items-center justify-center mb-4">
+              <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
             </div>
-            <div className="mt-4">
-              <button
-                onClick={() => void join()}
-                className="rounded-lg border-3 border-black bg-yellow-300 px-4 py-2 text-sm font-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[-1px] active:translate-y-[0px]"
-              >
-                RETRY
-              </button>
-            </div>
+            <h3 className="text-lg font-semibold text-slate-800">Connection Failed</h3>
+            <p className="mt-1 text-sm text-slate-500 max-w-sm mx-auto">
+              {error ?? 'Something went wrong while joining the call.'}
+            </p>
+            <button
+              onClick={() => void join()}
+              className="mt-5 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors shadow-soft"
+            >
+              Try Again
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
