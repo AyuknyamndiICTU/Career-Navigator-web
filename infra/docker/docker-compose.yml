@@ -94,9 +94,14 @@ services:
     build:
       context: ../../
       dockerfile: apps/web/web-ui/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: "http://localhost:3001"
+        NEXT_PUBLIC_BACKEND_URL: "http://localhost:3001"
+        NEXT_PUBLIC_SOCKET_URL: "http://localhost:3001"
+        NEXT_PUBLIC_AGORA_APP_ID: "dev"
     environment:
       NODE_ENV: production
-      # Browser should call host-mapped API port
+      # Keep runtime env too (for local runs / any runtime reads)
       NEXT_PUBLIC_API_BASE_URL: "http://localhost:3001"
       NEXT_PUBLIC_SOCKET_URL: "http://localhost:3001"
       NEXT_PUBLIC_AGORA_APP_ID: "dev"
