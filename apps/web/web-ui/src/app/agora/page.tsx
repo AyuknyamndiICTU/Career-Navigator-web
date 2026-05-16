@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
+import DashboardLayout from '@/components/DashboardLayout';
 
 const VideoCallClient = dynamic(
   () => import('@/components/agora/VideoCallClient').then((m) => m.VideoCallClient),
-  { ssr: false, loading: () => <div className="p-4 text-center font-bold">Loading video…</div> }
+  { ssr: false, loading: () => <div className="p-8 text-center text-sm text-slate-500">Loading video module…</div> }
 );
 
 export default function AgoraPage() {
@@ -16,71 +17,76 @@ export default function AgoraPage() {
   const [started, setStarted] = useState(false);
 
   return (
-    <main className="min-h-screen p-6">
-      <div className="mx-auto max-w-5xl">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 rounded-xl border-4 border-black bg-white p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
-        >
-          <div className="text-3xl font-black">VIDEO CALL</div>
-          <div className="mt-1 text-sm font-bold opacity-80">
-            Brutal UI. Real-time vibes. No blinking.
-          </div>
-        </motion.div>
+    <DashboardLayout>
+      <div className="max-w-5xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-slate-800">Video Call</h1>
+          <p className="text-sm text-slate-500">Connect with mentors and career advisors in real-time</p>
+        </div>
 
         {!started ? (
           <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="rounded-xl border-4 border-black bg-white p-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl shadow-card p-6"
           >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <h2 className="text-lg font-semibold text-slate-800 mb-5">Join a Session</h2>
+
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <label className="block">
-                <div className="mb-1 text-sm font-black">Channel name</div>
+                <span className="text-sm font-medium text-slate-700 mb-1.5 block">Channel Name</span>
                 <input
                   value={channelName}
                   onChange={(e) => setChannelName(e.target.value)}
-                  className="w-full rounded-lg border-2 border-black bg-[#f7f7f7] px-3 py-2 font-mono shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-white"
+                  className="w-full px-4 py-2.5 bg-surface rounded-xl text-sm border border-surface-border focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all"
                 />
               </label>
 
               <label className="block">
-                <div className="mb-1 text-sm font-black">UID (0 = any)</div>
+                <span className="text-sm font-medium text-slate-700 mb-1.5 block">UID (0 = auto)</span>
                 <input
                   type="number"
                   value={uid}
                   onChange={(e) => setUid(Number(e.target.value))}
-                  className="w-full rounded-lg border-2 border-black bg-[#f7f7f7] px-3 py-2 font-mono shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-white"
+                  className="w-full px-4 py-2.5 bg-surface rounded-xl text-sm border border-surface-border focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all"
                 />
               </label>
 
               <label className="block">
-                <div className="mb-1 text-sm font-black">Role</div>
+                <span className="text-sm font-medium text-slate-700 mb-1.5 block">Role</span>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  className="w-full rounded-lg border-2 border-black bg-[#f7f7f7] px-3 py-2 font-mono shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-white"
+                  className="w-full px-4 py-2.5 bg-surface rounded-xl text-sm border border-surface-border focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all"
                 >
-                  <option value="publisher">publisher (host)</option>
-                  <option value="subscriber">subscriber (audience)</option>
+                  <option value="publisher">Publisher (Host)</option>
+                  <option value="subscriber">Subscriber (Audience)</option>
                 </select>
               </label>
 
               <div className="flex items-end">
                 <button
                   onClick={() => setStarted(true)}
-                  className="w-full rounded-lg border-4 border-black bg-yellow-300 px-4 py-3 text-center text-sm font-black shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-[1px] active:translate-y-[0px]"
+                  className="w-full py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors shadow-soft"
                 >
-                  SUMMON THE ROOM
+                  Join Session
                 </button>
               </div>
             </div>
 
-            <div className="mt-4 rounded-lg border-2 border-black bg-black/5 p-3">
-              <div className="text-sm font-black">Tip</div>
-              <div className="mt-1 text-sm font-bold opacity-80">
-                Open another tab, set the other user role, and join the same channel name.
+            {/* Tip */}
+            <div className="mt-5 rounded-xl bg-primary-50 border border-primary-100 p-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <div className="text-sm font-medium text-primary-800">Quick Tip</div>
+                  <div className="mt-0.5 text-sm text-primary-600">
+                    Open another tab, set a different role, and join the same channel name to test multi-user calls.
+                  </div>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -88,16 +94,15 @@ export default function AgoraPage() {
           <AnimatePresence mode="wait">
             <motion.div
               key="call"
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="mt-2"
             >
               <VideoCallClient channelName={channelName} uid={uid} role={role} />
             </motion.div>
           </AnimatePresence>
         )}
       </div>
-    </main>
+    </DashboardLayout>
   );
 }

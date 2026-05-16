@@ -1,8 +1,10 @@
 // @ts-nocheck
 'use client';
 
-import React, { Suspense, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/auth';
 
 function PasswordResetConfirmForm() {
@@ -27,7 +29,6 @@ function PasswordResetConfirmForm() {
         method: 'POST',
         body: { email, code, newPassword },
       });
-
       setMessage('Password updated. You can log in now.');
       router.push('/auth/login');
     } catch (err) {
@@ -37,103 +38,95 @@ function PasswordResetConfirmForm() {
     }
   }
 
-  return React.createElement(
-    'main',
-    { className: 'mx-auto max-w-md p-6' },
-    React.createElement(
-      'div',
-      {
-        className:
-          'rounded-xl border-4 border-black bg-white p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]',
-      },
-      React.createElement('div', { className: 'text-3xl font-black' }, 'RESET PASSWORD'),
-      React.createElement(
-        'div',
-        { className: 'mt-2 text-sm font-bold opacity-80' },
-        email ? `Confirm code for ${email}` : 'Confirm your reset code'
-      ),
-      React.createElement(
-        'form',
-        { className: 'mt-5 space-y-4', onSubmit: onSubmit },
-        React.createElement(
-          'label',
-          { className: 'block' },
-          React.createElement('div', { className: 'mb-1 text-sm font-black' }, '6-digit code'),
-          React.createElement('input', {
-            value: code,
-            onChange: (e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value),
-            className:
-              'w-full rounded-lg border-2 border-black bg-[#f7f7f7] px-3 py-2 font-mono shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-white',
-            placeholder: '123456',
-            type: 'text',
-            inputMode: 'numeric' as const,
-            required: true,
-            maxLength: 6,
-          })
-        ),
-        React.createElement(
-          'label',
-          { className: 'block' },
-          React.createElement('div', { className: 'mb-1 text-sm font-black' }, 'New password'),
-          React.createElement('input', {
-            value: newPassword,
-            onChange: (e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value),
-            className:
-              'w-full rounded-lg border-2 border-black bg-[#f7f7f7] px-3 py-2 font-mono shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] outline-none focus:bg-white',
-            placeholder: 'Minimum 8 characters',
-            type: 'password',
-            minLength: 8,
-            required: true,
-          })
-        ),
-        error
-          ? React.createElement(
-              'div',
-              {
-                className:
-                  'rounded-lg border-2 border-black bg-red-100 p-3 text-sm font-bold',
-              },
-              error
-            )
-          : null,
-        message
-          ? React.createElement(
-              'div',
-              {
-                className:
-                  'rounded-lg border-2 border-black bg-yellow-100 p-3 text-sm font-bold',
-              },
-              message
-            )
-          : null,
-        React.createElement(
-          'button',
-          {
-            disabled: isLoading,
-            className:
-              'w-full rounded-lg border-4 border-black bg-yellow-300 px-4 py-3 text-center text-sm font-black shadow-[5px_5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-[1px] active:translate-y-[0px] disabled:opacity-60',
-            type: 'submit',
-          },
-          isLoading ? 'UPDATING…' : 'UPDATE PASSWORD'
-        ),
-        React.createElement(
-          'button',
-          {
-            type: 'button',
-            className: 'w-full rounded-lg border-3 border-black bg-white px-4 py-3 text-sm font-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]',
-            onClick: () => router.push('/auth/login'),
-          },
-          'BACK TO LOGIN'
-        )
-      )
-    )
+  return (
+    <div className="min-h-screen bg-surface flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="relative w-12 h-12 rounded-2xl overflow-hidden shadow-soft">
+              <Image src="/logo.png" alt="Career Navigator" fill className="object-cover" />
+            </div>
+            <div>
+              <div className="text-lg font-bold text-slate-800 leading-tight">Career Navigator</div>
+              <div className="text-xs text-slate-400">Confirm password reset</div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-card p-8">
+          <h1 className="text-2xl font-bold text-slate-800">Reset Password</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {email ? `Confirm code for ${email}` : 'Confirm your reset code'}
+          </p>
+
+          <form className="mt-6 space-y-4" onSubmit={onSubmit}>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700 mb-1.5 block">6-digit Code</span>
+              <input
+                value={code}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value)}
+                className="w-full px-4 py-2.5 bg-surface rounded-xl text-sm border border-surface-border focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all text-center tracking-[0.3em] font-mono text-lg"
+                placeholder="000000"
+                type="text"
+                inputMode="numeric"
+                required
+                maxLength={6}
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700 mb-1.5 block">New Password</span>
+              <input
+                value={newPassword}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
+                className="w-full px-4 py-2.5 bg-surface rounded-xl text-sm border border-surface-border focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all"
+                placeholder="Minimum 8 characters"
+                type="password"
+                minLength={8}
+                required
+              />
+            </label>
+
+            {error && (
+              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            {message && (
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700">
+                {message}
+              </div>
+            )}
+
+            <button
+              disabled={isLoading}
+              type="submit"
+              className="w-full py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-soft"
+            >
+              {isLoading ? 'Updating…' : 'Update Password'}
+            </button>
+
+            <button
+              type="button"
+              className="w-full py-2.5 bg-white text-slate-700 rounded-xl text-sm font-semibold border border-surface-border hover:bg-surface transition-all"
+              onClick={() => router.push('/auth/login')}
+            >
+              Back to Sign In
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export default function PasswordResetConfirmPage() {
-  return React.createElement(
-    Suspense,
-    { fallback: React.createElement('div', { className: 'p-6 text-center font-bold' }, 'Loading…') },
-    React.createElement(PasswordResetConfirmForm)
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-surface flex items-center justify-center text-slate-500">Loading…</div>}>
+      <PasswordResetConfirmForm />
+    </Suspense>
   );
 }
