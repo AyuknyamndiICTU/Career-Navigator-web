@@ -76,4 +76,12 @@ export class AdminController {
   async engagementAnalytics() {
     return this.adminService.getEngagementAnalytics();
   }
+
+  @UseGuards(RolesGuard)
+  @Roles('USER', 'ADMIN')
+  @Get('analytics/dashboard')
+  @ApiOkResponse({ description: 'Dashboard KPI counters (USER/Admin).' })
+  async dashboardAnalytics() {
+    return this.adminService.getDashboardKpis();
+  }
 }
