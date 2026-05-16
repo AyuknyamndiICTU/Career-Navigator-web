@@ -16,8 +16,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/apps/web/web-ui/.next ./.next
-COPY --from=builder /app/apps/web/web-ui/public ./public
+COPY --from=builder /app/apps/web/web-ui/package.json ./apps/web/web-ui/package.json
+COPY --from=builder /app/apps/web/web-ui/.next ./apps/web/web-ui/.next
+COPY --from=builder /app/apps/web/web-ui/public ./apps/web/web-ui/public
 
 # Next.js needs package.json for runtime; we’ll install production deps only.
 COPY --from=builder /app/package-lock.json ./package-lock.json
