@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
+import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/DashboardLayout';
+import { apiFetch } from '@/lib/auth';
 
 const features = [
   {
@@ -80,8 +82,16 @@ const features = [
   },
 ];
 
-const stats = [
-  { label: 'Active Jobs', value: '500+', color: 'text-blue-600', bg: 'bg-blue-50', icon: (
+type Stat = {
+  label: string;
+  value: string;
+  color: string;
+  bg: string;
+  icon: ReactNode;
+};
+
+const defaultStats: Stat[] = [
+  { label: 'Active Jobs', value: '—', color: 'text-blue-600', bg: 'bg-blue-50', icon: (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.193 23.193 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
     </svg>
@@ -117,6 +127,57 @@ const itemVariants = {
 };
 
 export default function Home() {
+  const [stats, setStats] = useState<Stat[]>(defaultStats);
+
+  function formatKpi(value: number | null | undefined): string {
+    if (!Number.isFinite(value as number)) return '—';
+    const n = Number(value);
+
+    if (n >= 1000) return `${Math.round(n / 1000)}K+`;
+    return `${Math.max(0, n)}+`;
+  }
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function load() {
+      try {
+        const res = (await apiFetch('/admin/analytics/dashboard', {
+          method: 'GET',
+        })) as {
+          activeJobs?: number;
+          totalMentors?: number;
+          aiChats?: number;
+          totalUsers?: number;
+        };
+
+        if (!mounted) return;
+
+        setStats((prev) =>
+          prev.map((s) => {
+            if (s.label === 'Active Jobs')
+              return { ...s, value: formatKpi(res.activeJobs) };
+            if (s.label === 'Mentors')
+              return { ...s, value: formatKpi(res.totalMentors) };
+            if (s.label === 'AI Chats')
+              return { ...s, value: formatKpi(res.aiChats) };
+            if (s.label === 'Users')
+              return { ...s, value: formatKpi(res.totalUsers) };
+            return s;
+          }),
+        );
+      } catch {
+        // If the endpoint is protected and no token exists, keep placeholders.
+      }
+    }
+
+    void load();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <DashboardLayout>
       <div className="max-w-6xl mx-auto space-y-8">
