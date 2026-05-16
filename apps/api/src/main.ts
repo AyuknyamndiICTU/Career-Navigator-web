@@ -9,6 +9,17 @@ import rateLimit from 'express-rate-limit';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // CORS — allow the web frontend to call the API cross-origin
+  const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS;
+  app.enableCors({
+    origin: allowedOrigins
+      ? allowedOrigins.split(',').map((o) => o.trim())
+      : '*',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
   const redisUrl = process.env.REDIS_URL;
   if (redisUrl) {
     app.useWebSocketAdapter(new RedisIoAdapter(app, redisUrl));
