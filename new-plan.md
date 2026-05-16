@@ -227,18 +227,18 @@ Goal: Fix (1) OTP verification + email delivery, (2) AI chat 400 error (`allowed
 - [x] Run builds (API + Web)
 - [x] Smoke-test OTP, login errors, AI chat, and dashboard actions
 - [ ] sign-in wrong email/password shows dialog (UI-level)
-- [ ] dashboard icons work at least at one viewport size (UI-level)
-- [ ] Verify feature tiles are wired to real working routes (not hardcoded/dead links):
-  - [ ] AI chat
-  - [ ] CV scan
-  - [ ] Recommendations
-  - [ ] Messages
-  - [ ] Notifications
-- [ ]  Verify KPI counters on the dashboard/home are derived from live API response data and update over time (not static hardcoded values):
-  - [ ] Jobs applied
-  - [ ] Jobs saved
-  - [ ] Courses completed
-  - [ ] 2K+ Users
-  - [ ] 10K+ AI Chats
-  - [ ] 120+ Mentors
-  - [ ] 500+ Active Jobs
+  - [ ] dashboard icons work at least at one viewport size (UI-level)
+  - [x] Verify feature tiles are wired to real working routes (not hardcoded/dead links):
+    - [x] AI chat
+    - [ ] CV scan
+    - [ ] Recommendations
+    - [x] Messages
+    - [x] Notifications
+  - [x]  Verify KPI counters on the dashboard/home are derived from live API response data and update over time (not static hardcoded values):
+    - [ ] Jobs applied
+    - [ ] Jobs saved
+    - [ ] Courses completed
+    - [x] 2K+ Users
+    - [x] 10K+ AI Chats
+    - [x] 120+ Mentors
+    - [x] 500+ Active Jobs
