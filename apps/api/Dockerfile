@@ -23,8 +23,8 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 # Install only production deps
 RUN npm ci --ignore-scripts --omit=dev
 
-# Copy generated Prisma client from builder
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# Copy generated Prisma client from builder (Prisma v6+ generates to @prisma/client)
+COPY --from=builder /app/apps/api/node_modules/@prisma/client ./node_modules/@prisma/client
 
 # App build output
 COPY --from=builder /app/apps/api/dist ./dist
