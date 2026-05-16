@@ -25,6 +25,8 @@ RUN npm ci --ignore-scripts --omit=dev
 
 # Copy generated Prisma client from builder (Prisma v6+ generates to @prisma/client)
 COPY --from=builder /app/apps/api/node_modules/@prisma/client ./node_modules/@prisma/client
+# Prisma v6+ also requires the engine at .prisma/client/default
+COPY --from=builder /app/apps/api/node_modules/.prisma ./node_modules/.prisma
 
 # App build output
 COPY --from=builder /app/apps/api/dist ./dist
