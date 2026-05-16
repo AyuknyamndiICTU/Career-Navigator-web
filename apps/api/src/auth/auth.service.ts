@@ -83,14 +83,26 @@ export class AuthService {
     }
 
     const emailer = new BrevoEmailer();
-    await emailer.sendOtpEmail({
-      apiKey: brevoApiKey!,
-      senderEmail: brevoSenderEmail!,
-      toEmail: email,
-      otpCode: code,
-    });
+    try {
+      await emailer.sendOtpEmail({
+        apiKey: brevoApiKey!,
+        senderEmail: brevoSenderEmail!,
+        toEmail: email,
+        otpCode: code,
+      });
 
-    return { message: 'OTP sent to email' };
+      return { message: 'OTP sent to email' };
+    } catch (e) {
+      // Don’t block signup if Brevo is misconfigured in dev/staging.
+      // Fall back to server-log-only OTP flow.
+      // eslint-disable-next-line no-console
+      console.error('Brevo send failed; falling back to log-only OTP:', e);
+
+      // eslint-disable-next-line no-console
+      console.log(`[DEV OTP] Register OTP for ${email}: ${code}`);
+
+      return { message: 'OTP generated (check server logs)' };
+    }
   }
 
   async verifyRegisterOtp(

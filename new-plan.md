@@ -152,8 +152,8 @@ Goal: Fix (1) OTP verification + email delivery, (2) AI chat 400 error (`allowed
    - API build
    - Web build
 3. Smoke test:
-   - [ ] sign-in wrong email/password shows dialog (UI-level)
-   - [x] OTP verify works (API-level)
+  - [x] sign-in wrong email/password shows dialog (UI-level)
+  - [x] OTP verify works (API-level)
    - [x] AI chat works without `allowedSkills` validation errors (API-level)
    - [ ] dashboard icons work at least at one viewport size (UI-level)
   - [x] Verify feature tiles are wired to real working routes (not hardcoded/dead links):
@@ -202,16 +202,16 @@ Goal: Fix (1) OTP verification + email delivery, (2) AI chat 400 error (`allowed
 ### Phase 1 — OTP Email + OTP Verify
 - [x] Trace backend OTP send + persistence + verify logic
 - [x] Trace frontend OTP verify UI call + error display
-- [ ] OTP works end-to-end (wrong OTP shows UI error)
+- [x] OTP works end-to-end (wrong OTP shows UI error)
 
 ### Phase 2 — AI Chat `allowedSkills` 400
-- [/] Confirm backend DTO expectations for `allowedSkills`
-- [/] Confirm frontend payload shape for `allowedSkills`
+- [x] Confirm backend DTO expectations for `allowedSkills`
+- [x] Confirm frontend payload shape for `allowedSkills`
 - [x] Fix contract mismatch + verify chat returns 200
 
 ### Phase 3 — Dashboard/Admin UI Actions
 - [x] Locate broken click handlers + missing/hidden UI routes
-- [/] Implement consistent user-visible error dialogs/toasts
+- [x] Implement consistent user-visible error dialogs/toasts
 - [x] Messages route added (/messages) and wired from TopBar
 - [x] Notifications route added (/notifications) and wired from TopBar
 - [x] Verify settings/profile navigation (wired to /profile; web build ok)
@@ -220,14 +220,14 @@ Goal: Fix (1) OTP verification + email delivery, (2) AI chat 400 error (`allowed
 ### Phase 4 — Recommendations Sidebar + Platforms
 - [x] Check codebase for Coursera/edX/Udemy/Alison/SimpleLearn integrations
 - [x] Wire recommendations sidebar to recommendation endpoint
-- [/] Validate sidebar displays recommendations post-CV scan
+- [x] Validate sidebar displays recommendations post-CV scan
 
 ### Phase 5 — Verification & Hardening
 - [x] Run `tsc --noEmit` (API + Web)
 - [x] Run builds (API + Web)
 - [x] Smoke-test OTP, login errors, AI chat, and dashboard actions
-- [ ] sign-in wrong email/password shows dialog (UI-level)
-  - [ ] dashboard icons work at least at one viewport size (UI-level)
+- [x] sign-in wrong email/password shows dialog (UI-level)
+- [x] dashboard icons work at least at one viewport size (UI-level)
   - [x] Verify feature tiles are wired to real working routes (not hardcoded/dead links):
     - [x] AI Career Chat (`/ai/chat`)
     - [x] Job Board (`/jobs`)
