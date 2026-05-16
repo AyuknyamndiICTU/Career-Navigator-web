@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { verifyAccessToken } from '../auth/jwt/jwt-utils';
 import { PrismaService } from '../prisma/prisma.service';
+import { CvScanStatus, MediaType } from '@prisma/client';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import { MockInterviewRequestDto } from './dto/mock-interview-request.dto';
 import { CourseRecommendationsRequestDto } from './dto/course-recommendations-request.dto';
@@ -55,7 +56,41 @@ export class AiService {
   }
 
   private async deriveCareerAllowedSkills(userId: string): Promise<string[]> {
-    // JobApplication -> Job includes skills[] (career path proxy)
+    // Prefer CV-scan extracted skills when available:
+    // worker stores JSON text in UploadMedia.cvExtractedText with format:
+    // { skills: string[], ... }
+    const cvMedia = await this.prisma.uploadMedia.findMany({
+      where: {
+        userId,
+        type: MediaType.CV,
+        cvScanStatus: CvScanStatus.COMPLETED,
+        cvExtractedText: { not: null },
+      },
+      select: { cvExtractedText: true, cvScanCompletedAt: true },
+      orderBy: { cvScanCompletedAt: 'desc' },
+      take: 1,
+    });
+
+    const cvExtractedText = cvMedia?.[0]?.cvExtractedText;
+    if (typeof cvExtractedText === 'string' && cvExtractedText.trim()) {
+      try {
+        const parsed = JSON.parse(cvExtractedText) as {
+          skills?: unknown;
+        };
+
+        const skills = Array.isArray(parsed?.skills) ? parsed.skills : [];
+        const cleaned = skills
+          .map((s) => (typeof s === 'string' ? s.trim() : ''))
+          .filter(Boolean);
+
+        const unique = Array.from(new Set(cleaned));
+        if (unique.length > 0) return unique;
+      } catch {
+        // If CV JSON is malformed/unparseable, fall back to job applications.
+      }
+    }
+
+    // Fallback: JobApplication -> Job includes skills[] (career path proxy)
     const applications = await this.prisma.jobApplication.findMany({
       where: { userId },
       select: {
