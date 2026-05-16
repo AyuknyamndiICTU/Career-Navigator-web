@@ -229,11 +229,15 @@ Goal: Fix (1) OTP verification + email delivery, (2) AI chat 400 error (`allowed
 - [ ] sign-in wrong email/password shows dialog (UI-level)
   - [ ] dashboard icons work at least at one viewport size (UI-level)
   - [x] Verify feature tiles are wired to real working routes (not hardcoded/dead links):
-    - [x] AI chat
-    - [ ] CV scan
-    - [ ] Recommendations
-    - [x] Messages
-    - [x] Notifications
+    - [x] AI Career Chat (`/ai/chat`)
+    - [x] Job Board (`/jobs`)
+    - [x] Mentor Matching (`/mentors`)
+    - [x] Video Sessions (`/agora`)
+    - [x] Resume Builder (`/resume`)
+    - [x] Admin Analytics (`/admin/analytics`)
+    - [x] Create Profile (`/auth/register`)
+    - [x] Get Matched (`/get-matched`)
+    - [x] Level Up (`/level-up`)
   - [x]  Verify KPI counters on the dashboard/home are derived from live API response data and update over time (not static hardcoded values):
     - [ ] Jobs applied
     - [ ] Jobs saved
