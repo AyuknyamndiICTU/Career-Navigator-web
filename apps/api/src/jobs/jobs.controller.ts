@@ -89,4 +89,28 @@ export class JobsController {
   ): Promise<unknown> {
     return this.jobsService.rerankJobs(authorization, dto);
   }
+
+  @Post('matched')
+  @ApiOkResponse({
+    description: 'Derive career-path skills from the user and return matched ranked jobs.',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid bearer token.',
+  })
+  async matchedJobs(
+    @Headers('authorization') authorization?: string,
+  ): Promise<unknown> {
+    return this.jobsService.matchedJobs(authorization);
+  }
+
+  @Get('my-applications')
+  @ApiOkResponse({
+    description: 'List current user job applications (for Level Up progress).',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async myApplications(
+    @Headers('authorization') authorization?: string,
+  ): Promise<unknown> {
+    return this.jobsService.myApplications(authorization);
+  }
 }
