@@ -1,10 +1,13 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 interface TopBarProps {
   onMenuClick: () => void;
 }
 
 export default function TopBar({ onMenuClick }: TopBarProps) {
+  const router = useRouter();
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-surface-border">
       <div className="flex items-center justify-between gap-4 px-6 h-16">
@@ -35,7 +38,11 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
         {/* Right: actions */}
         <div className="flex items-center gap-2">
           {/* Notification bell */}
-          <button className="relative p-2 rounded-xl hover:bg-surface-hover text-slate-500 transition-colors">
+          <button
+            onClick={() => router.push('/notifications')}
+            className="relative p-2 rounded-xl hover:bg-surface-hover text-slate-500 transition-colors"
+            aria-label="Notifications"
+          >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
@@ -43,7 +50,11 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
           </button>
 
           {/* Mail */}
-          <button className="p-2 rounded-xl hover:bg-surface-hover text-slate-500 transition-colors">
+          <button
+            onClick={() => router.push('/messages')}
+            className="p-2 rounded-xl hover:bg-surface-hover text-slate-500 transition-colors"
+            aria-label="Messages"
+          >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
@@ -53,7 +64,10 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
           <div className="w-px h-8 bg-surface-border mx-1" />
 
           {/* User avatar */}
-          <button className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl hover:bg-surface-hover transition-colors">
+          <button
+            onClick={() => router.push('/profile')}
+            className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl hover:bg-surface-hover transition-colors"
+          >
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-bold">
               U
             </div>
