@@ -152,10 +152,18 @@ Goal: Fix (1) OTP verification + email delivery, (2) AI chat 400 error (`allowed
    - API build
    - Web build
 3. Smoke test:
-   - sign-in wrong email/password shows dialog
-   - OTP verify works
-   - AI chat works without `allowedSkills` validation errors
-   - dashboard icons work at least at one viewport size
+   - [ ] sign-in wrong email/password shows dialog (UI-level)
+   - [x] OTP verify works (API-level)
+   - [x] AI chat works without `allowedSkills` validation errors (API-level)
+   - [ ] dashboard icons work at least at one viewport size (UI-level)
+   - [ ] Verify feature tiles are wired to real working routes (not hardcoded/dead links):
+     - AI Career Chat, Job Board, Mentor Matching, Video Sessions, Resume Builder, Admin Analytics
+     - Create Profile, Get Matched, Level Up
+   - [ ] Verify KPI counters on the dashboard/home are derived from live API response data and update over time (not static hardcoded values):
+     - 500+ Active Jobs
+     - 120+ Mentors
+     - 10K+ AI Chats
+     - 2K+ Users
 
 ### Phase Gate (exit criteria)
 - No TS errors.
@@ -210,11 +218,28 @@ Goal: Fix (1) OTP verification + email delivery, (2) AI chat 400 error (`allowed
 - [x] Verify notifications navigation (wired to /notifications page)
 
 ### Phase 4 — Recommendations Sidebar + Platforms
-- [/] Check codebase for Coursera/edX/Udemy/Alison/SimpleLearn integrations
-- [/] Wire recommendations sidebar to recommendation endpoint
-- [ ] Validate sidebar displays recommendations post-CV scan
+- [x] Check codebase for Coursera/edX/Udemy/Alison/SimpleLearn integrations
+- [x] Wire recommendations sidebar to recommendation endpoint
+- [/] Validate sidebar displays recommendations post-CV scan
 
 ### Phase 5 — Verification & Hardening
-- [/] Run `tsc --noEmit` (API + Web)
-- [/] Run builds (API + Web)
-- [ ] Smoke-test OTP, login errors, AI chat, and dashboard actions
+- [x] Run `tsc --noEmit` (API + Web)
+- [x] Run builds (API + Web)
+- [x] Smoke-test OTP, login errors, AI chat, and dashboard actions
+- [ ] sign-in wrong email/password shows dialog (UI-level)
+- [ ] dashboard icons work at least at one viewport size (UI-level)
+- [ ] Verify feature tiles are wired to real working routes (not hardcoded/dead links):
+  - [ ] AI chat
+  - [ ] CV scan
+  - [ ] Recommendations
+  - [ ] Messages
+  - [ ] Notifications
+- [ ]  Verify KPI counters on the dashboard/home are derived from live API response data and update over time (not static hardcoded values):
+  - [ ] Jobs applied
+  - [ ] Jobs saved
+  - [ ] Courses completed
+  - [ ] 2K+ Users
+  - [ ] 10K+ AI Chats
+  - [ ] 120+ Mentors
+  - [ ] 500+ Active Jobs
+  
