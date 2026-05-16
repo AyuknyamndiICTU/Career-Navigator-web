@@ -7,6 +7,18 @@ RUN npm ci --ignore-scripts || npm ci --ignore-scripts || npm ci --ignore-script
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+# Inject NEXT_PUBLIC_* values at build time so the compiled client uses the right API URLs.
+ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_BACKEND_URL
+ARG NEXT_PUBLIC_SOCKET_URL
+ARG NEXT_PUBLIC_AGORA_APP_ID
+
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+ENV NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
+ENV NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL}
+ENV NEXT_PUBLIC_AGORA_APP_ID=${NEXT_PUBLIC_AGORA_APP_ID}
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build --workspace=web-ui
