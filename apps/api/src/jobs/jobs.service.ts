@@ -409,4 +409,50 @@ export class JobsService {
       notificationsCreated: notifyTargets.length,
     };
   }
+
+  async myApplications(
+    authorizationHeader: string | undefined,
+  ): Promise<unknown> {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    const apps = await this.prisma.jobApplication.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        createdAt: true,
+        job: {
+          select: {
+            id: true,
+            title: true,
+            company: true,
+            location: true,
+            status: true,
+            skills: true,
+          },
+        },
+      },
+    });
+
+    const items = apps.map((a) => ({
+      applicationId: a.id,
+      appliedAt: a.createdAt,
+      jobId: a.job.id,
+      title: a.job.title,
+      company: a.job.company,
+      location: a.job.location,
+      jobStatus: a.job.status,
+      matchedSkills: Array.isArray(a.job.skills) ? a.job.skills : [],
+    }));
+
+    // Also return a lightweight “career skills” proxy for Level Up summaries.
+    const allSkills = items.flatMap((i) => i.matchedSkills);
+    const uniqueSkills = Array.from(
+      new Set(allSkills.map((s) => String(s).trim())),
+    )
+      .filter(Boolean)
+      .slice(0, 50);
+
+    return { items, careerSkills: uniqueSkills };
+  }
 }
