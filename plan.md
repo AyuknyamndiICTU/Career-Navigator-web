@@ -116,12 +116,10 @@
 Use these references as style guide:
 
 - **Layout:** left sidebar + top bar + card-based dashboards (consistent spacing/alignment across pages)
-- **Brutalist cartoon styling:** bold black outlines, flat solid colors, chunky typography, and chunky drop shadows; **avoid gradients**
-- **Typography:** strong hierarchy for headings; button/label text must stay readable and never clip
-- **Motion:** Framer Motion for page transitions + small micro-interactions (keep animations subtle to avoid layout shift)
-- **Dark/light mode:** toggle persisted in user preference (server-rendered defaults should match client state)
-- **Three.js accents:** minimal decorative accents only; lazy-load so pages don’t block
-- **Responsiveness:** no horizontal overflow; test at least one mobile width
+- **Modern Dashboard Styling:** clean white surfaces, soft indigo primary colors (`#5B5FC7`), rounded corners (2xl), and subtle soft drop shadows. **Avoid brutalist hard borders.**
+- **Typography:** clean sans-serif (Inter), strong hierarchy for headings; clean form inputs.
+- **Motion:** Framer Motion for page transitions + soft hover interactions (e.g., cards floating up slightly on hover).
+- **Responsiveness:** fluid layouts that collapse cleanly to mobile view (sidebar turns into hamburger menu overlay).
 
 Logo usage:
 - Brand header/sidebar: `logo/logo.png`
