@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import RecommendedSkillsCard from './RecommendedSkillsCard';
 
 const navItems = [
   {
@@ -127,6 +128,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             );
           })}
         </nav>
+
+        <div className="px-0 pt-2">
+          <RecommendedSkillsCard />
+        </div>
 
         {/* Bottom */}
         <div className="px-3 pb-6 space-y-1 border-t border-white/10 pt-4 mt-2">
