@@ -58,8 +58,27 @@ export async function apiFetch(path, init = {}) {
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(text || `Request failed: ${res.status}`);
+    // NestJS usually responds with JSON like: { statusCode, message, error }
+    // We want a clean, user-friendly message.
+    let errorText = '';
+    let status = res.status;
+
+    try {
+      const body = await res.json().catch(() => null);
+
+      if (body) {
+        const msg = body.message ?? body.error ?? '';
+        const readable =
+          Array.isArray(msg) ? msg.join(', ') : typeof msg === 'string' ? msg : '';
+        throw new Error(readable || `Request failed: ${status}`);
+      }
+    } catch {
+      // Fall back to raw text if JSON parsing fails
+      errorText = await res.text().catch(() => '');
+      throw new Error(errorText || `Request failed: ${status}`);
+    }
+
+    throw new Error(errorText || `Request failed: ${status}`);
   }
 
   return res.json();
