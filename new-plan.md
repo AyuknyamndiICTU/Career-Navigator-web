@@ -156,14 +156,14 @@ Goal: Fix (1) OTP verification + email delivery, (2) AI chat 400 error (`allowed
    - [x] OTP verify works (API-level)
    - [x] AI chat works without `allowedSkills` validation errors (API-level)
    - [ ] dashboard icons work at least at one viewport size (UI-level)
-   - [ ] Verify feature tiles are wired to real working routes (not hardcoded/dead links):
-     - AI Career Chat, Job Board, Mentor Matching, Video Sessions, Resume Builder, Admin Analytics
-     - Create Profile, Get Matched, Level Up
-   - [ ] Verify KPI counters on the dashboard/home are derived from live API response data and update over time (not static hardcoded values):
-     - 500+ Active Jobs
-     - 120+ Mentors
-     - 10K+ AI Chats
-     - 2K+ Users
+  - [x] Verify feature tiles are wired to real working routes (not hardcoded/dead links):
+    - AI Career Chat, Job Board, Mentor Matching, Video Sessions, Resume Builder, Admin Analytics
+    - Create Profile, Get Matched, Level Up
+  - [x] Verify KPI counters on the dashboard/home are derived from live API response data and update over time (not static hardcoded values):
+    - 500+ Active Jobs
+    - 120+ Mentors
+    - 10K+ AI Chats
+    - 2K+ Users
 
 ### Phase Gate (exit criteria)
 - No TS errors.
@@ -242,4 +242,3 @@ Goal: Fix (1) OTP verification + email delivery, (2) AI chat 400 error (`allowed
   - [ ] 10K+ AI Chats
   - [ ] 120+ Mentors
   - [ ] 500+ Active Jobs
-  
