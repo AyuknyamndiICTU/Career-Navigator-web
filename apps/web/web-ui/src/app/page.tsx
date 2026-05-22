@@ -142,9 +142,11 @@ export default function Home() {
 
     async function load() {
       try {
-        const res = (await apiFetch('/admin/analytics/dashboard', {
-          method: 'GET',
-        })) as {
+        const res = (await apiFetch(
+          '/admin/analytics/dashboard',
+          { method: 'GET' },
+          { redirectOn401: false },
+        )) as {
           activeJobs?: number;
           totalMentors?: number;
           aiChats?: number;

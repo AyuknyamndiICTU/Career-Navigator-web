@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 // @ts-nocheck
 'use client';
 
@@ -39,13 +40,17 @@ export default function AiChatPage() {
       const text = typeof res === 'string' ? res : (res?.reply || res?.response || JSON.stringify(res, null, 2));
       setHistory((prev) => [...prev, { role: 'assistant', content: text }]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'AI chat failed');
+      const msg = e instanceof Error ? e.message : 'AI chat failed';
+      if (!msg) return;
+      // Prevent showing "Request failed: 401" banners; apiFetch should redirect/clear tokens.
+      if (msg.toLowerCase().includes('401') || msg.toLowerCase().includes('unauthorized')) return;
+      setError(msg);
     } finally {
       setBusy(false);
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
+  function handleKeyDown(e: any) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send();

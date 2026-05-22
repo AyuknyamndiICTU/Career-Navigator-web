@@ -46,7 +46,11 @@ export function authHeaders() {
  * @param {any} [init]
  * @returns {Promise<T>}
  */
-export async function apiFetch(path, init = {}) {
+export async function apiFetch(
+  path,
+  init = {},
+  options?: { redirectOn401?: boolean },
+) {
   const res = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     headers: {
@@ -58,27 +62,55 @@ export async function apiFetch(path, init = {}) {
   });
 
   if (!res.ok) {
-    // NestJS usually responds with JSON like: { statusCode, message, error }
-    // We want a clean, user-friendly message.
-    let errorText = '';
-    let status = res.status;
+    const status = res.status;
 
+    let body: any = null;
     try {
-      const body = await res.json().catch(() => null);
-
-      if (body) {
-        const msg = body.message ?? body.error ?? '';
-        const readable =
-          Array.isArray(msg) ? msg.join(', ') : typeof msg === 'string' ? msg : '';
-        throw new Error(readable || `Request failed: ${status}`);
-      }
+      body = await res.json();
     } catch {
-      // Fall back to raw text if JSON parsing fails
-      errorText = await res.text().catch(() => '');
-      throw new Error(errorText || `Request failed: ${status}`);
+      // ignore - we'll fall back to text below
     }
 
-    throw new Error(errorText || `Request failed: ${status}`);
+    const msg = body?.message ?? body?.error ?? '';
+    const readable =
+      Array.isArray(msg)
+        ? msg.join(', ')
+        : typeof msg === 'string'
+          ? msg
+          : '';
+
+    let errorText = '';
+    try {
+      errorText = await res.text();
+    } catch {
+      errorText = '';
+    }
+
+    const messageToThrow =
+      readable ||
+      errorText ||
+      (status === 401 ? 'Unauthorized' : `Request failed: ${status}`);
+
+    // Global UX: on 401, ensure the user re-authenticates instead of seeing “Request failed: 401”.
+    // Allow callers to suppress navigation for non-critical calls (e.g. homepage counters).
+    if (
+      status === 401 &&
+      typeof window !== 'undefined' &&
+      options?.redirectOn401 !== false
+    ) {
+      clearTokens();
+      window.location.href = '/auth/login';
+      // Prevent UI pages from rendering a red “Request failed: 401” banner
+      // while the redirect is happening.
+      throw new Error('');
+    }
+
+    // If we are not redirecting, still clear stale tokens to avoid loops.
+    if (status === 401 && typeof window !== 'undefined') {
+      clearTokens();
+    }
+
+    throw new Error(messageToThrow);
   }
 
   return res.json();
