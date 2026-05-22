@@ -8,7 +8,9 @@ RUN npm ci || npm ci || npm ci
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app ./
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" node apps/api/node_modules/prisma/build/index.js generate --schema=apps/api/prisma/schema.prisma
+# Prisma client generation (and query engine download) is expected to have
+# already happened during `npm ci` in the deps stage. Avoid re-running `prisma generate`
+# here to keep Docker builds resilient to transient DNS failures to binaries.prisma.sh.
 RUN npm run build --workspace=apps/api
 
 FROM node:20-alpine AS runner
