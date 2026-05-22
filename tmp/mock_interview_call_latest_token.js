@@ -12,21 +12,36 @@ if (!token) {
   process.exit(1);
 }
 
-(async () => {
-  const res = await fetch('http://localhost:3001/ai/mock-interview', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      role: 'Gardening manager',
-      allowedSkills: ['node', 'typescript'],
-      difficulty: 'beginner',
-    }),
-  });
+function timeoutSignal(ms) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(new Error(`timeout_after_${ms}ms`)), ms);
+  return { signal: controller.signal, cleanup: () => clearTimeout(id) };
+}
 
-  const text = await res.text();
-  console.log('HTTP', res.status);
-  console.log(text);
+(async () => {
+  const { signal, cleanup } = timeoutSignal(20000);
+
+  try {
+    const res = await fetch('http://localhost:3001/ai/mock-interview', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        role: 'Gardening manager',
+        allowedSkills: ['node', 'typescript'],
+        difficulty: 'beginner',
+      }),
+      signal,
+    });
+
+    const text = await res.text();
+    console.log('HTTP', res.status);
+    console.log(text);
+  } catch (e) {
+    console.log('FETCH_ERROR', String(e && e.message ? e.message : e));
+  } finally {
+    cleanup();
+  }
 })();
