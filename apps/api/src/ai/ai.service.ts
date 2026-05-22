@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
+  OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
 import { verifyAccessToken } from '../auth/jwt/jwt-utils';
@@ -18,8 +20,51 @@ function extractBearerToken(authorizationHeader: string | undefined): string {
 }
 
 @Injectable()
-export class AiService {
+export class AiService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit() {
+    // Fire-and-forget warmup: never block API startup (prevents ECONNRESET from client retries).
+    void this.warmupOllama().catch((err) => {
+      console.warn('[AiService] Ollama warmup failed:', err);
+    });
+  }
+
+  private async warmupOllama(): Promise<void> {
+    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
+    if (!ollamaBaseUrl) return;
+
+    const model = process.env.OLLAMA_MODEL ?? 'llama3';
+    const base = ollamaBaseUrl.replace(/\/+$/, '');
+
+    const controller = new AbortController();
+    const timeoutMs = Number(process.env.OLLAMA_WARMUP_TIMEOUT_MS ?? '5000');
+    const id = setTimeout(
+      () => controller.abort(new Error(`warmup_timeout_${timeoutMs}ms`)),
+      timeoutMs,
+    );
+
+    try {
+      await fetch(`${base}/api/tags`, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+
+      await fetch(`${base}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          prompt: 'Hello',
+          stream: false,
+          options: { num_predict: 1 },
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(id);
+    }
+  }
 
   private getAuthUser(authorizationHeader: string | undefined): AuthUser {
     const accessSecret = process.env.JWT_ACCESS_SECRET;
@@ -172,6 +217,9 @@ ${dto.message}
 
     const base = ollamaBaseUrl.replace(/\/+$/, '');
 
+    const ollamaNumPredict = Number(process.env.OLLAMA_NUM_PREDICT ?? '180');
+    const safeNumPredict = Math.max(1, Math.min(ollamaNumPredict, 1));
+
     const res = await fetch(`${base}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -179,6 +227,7 @@ ${dto.message}
         model: ollamaModel,
         prompt,
         stream: false,
+        options: { num_predict: safeNumPredict },
       }),
     });
 
@@ -278,13 +327,17 @@ ${userMessage}
     const ollamaModel = process.env.OLLAMA_MODEL ?? 'llama3';
     const base = ollamaBaseUrl.replace(/\/+$/, '');
 
+    const ollamaNumPredict = Number(process.env.OLLAMA_NUM_PREDICT ?? '180');
+    const safeNumPredict = Math.max(1, Math.min(ollamaNumPredict, 1));
+
     const res = await fetch(`${base}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: ollamaModel,
         prompt,
-        stream: false,
+        stream: true,
+        options: { num_predict: safeNumPredict },
       }),
     });
 
@@ -295,8 +348,48 @@ ${userMessage}
       );
     }
 
-    const data = (await res.json()) as { response?: string };
-    return data?.response ?? '';
+    const reader = res.body?.getReader();
+    if (!reader) {
+      // Fallback: if no stream body, try normal JSON.
+      const data = (await res.json()) as { response?: string };
+      return data?.response ?? '';
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let responseText = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // Ollama stream returns newline-delimited JSON objects.
+      let nlIndex = buffer.indexOf('\n');
+      while (nlIndex >= 0) {
+        const line = buffer.slice(0, nlIndex).trim();
+        buffer = buffer.slice(nlIndex + 1);
+        nlIndex = buffer.indexOf('\n');
+
+        if (!line) continue;
+
+        try {
+          const parsed = JSON.parse(line) as {
+            response?: string;
+            done?: boolean;
+          };
+          if (typeof parsed.response === 'string') responseText += parsed.response;
+          if (parsed.done) return responseText;
+        } catch {
+          // Incomplete JSON line; put it back into the buffer.
+          buffer = line + '\n' + buffer;
+          break;
+        }
+      }
+    }
+
+    return responseText;
   }
 
   private guardResponseMentionsAllowedSkills(
@@ -322,47 +415,65 @@ ${userMessage}
     authorizationHeader: string | undefined,
     dto: MockInterviewRequestDto,
   ): Promise<unknown> {
-    if (
-      !dto?.role ||
-      typeof dto.role !== 'string' ||
-      dto.role.trim().length === 0
-    ) {
-      throw new BadRequestException('role must be a non-empty string');
-    }
+    try {
+      if (
+        !dto?.role ||
+        typeof dto.role !== 'string' ||
+        dto.role.trim().length === 0
+      ) {
+        throw new BadRequestException('role must be a non-empty string');
+      }
 
-    const allowedSkills = await this.resolveAllowedSkills(
-      authorizationHeader,
-      dto.allowedSkills,
-    );
+      const allowedSkills = await this.resolveAllowedSkills(
+        authorizationHeader,
+        dto.allowedSkills,
+      );
 
-    const prompt = this.buildCareerPathPrompt(
-      allowedSkills,
-      `Task:
+      const prompt = this.buildCareerPathPrompt(
+        allowedSkills,
+        `Task:
 - Create a mock interview for the role: ${dto.role}
 - Difficulty: ${dto.difficulty ?? 'intermediate'}
-- Ask 5 questions (one at a time) and include a brief “what a good answer includes” for each.
+- Ask 2 questions (one at a time) and include a brief “what a good answer includes” for each.
 - Keep the focus on practical skills aligned to the allowed skills.
 - Do NOT output or suggest content outside the allowed skills.`,
-      dto.role,
-    );
+        dto.role,
+      );
 
-    const responseText = await this.generateWithOllama(prompt);
+      const responseText = await this.generateWithOllama(prompt);
 
-    const guard = this.guardResponseMentionsAllowedSkills(
-      responseText,
-      allowedSkills,
-    );
+      const guard = this.guardResponseMentionsAllowedSkills(
+        responseText,
+        allowedSkills,
+      );
 
-    if (!guard.ok) {
-      return { response: guard.refusal, allowedSkills, role: dto.role };
+      if (!guard.ok) {
+        return { response: guard.refusal, allowedSkills, role: dto.role };
+      }
+
+      return {
+        response: responseText,
+        allowedSkills,
+        role: dto.role,
+        difficulty: dto.difficulty ?? 'intermediate',
+      };
+    } catch (err) {
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+            ? err
+            : null;
+
+      throw new InternalServerErrorException({
+        message: 'Internal server error',
+        cause: message,
+      });
     }
-
-    return {
-      response: responseText,
-      allowedSkills,
-      role: dto.role,
-      difficulty: dto.difficulty ?? 'intermediate',
-    };
   }
 
   async recommendCourses(
