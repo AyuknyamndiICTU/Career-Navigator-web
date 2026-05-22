@@ -1,0 +1,25 @@
+HTTP/1.1 500 Internal Server Error
+Vary: Origin
+Access-Control-Allow-Credentials: true
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=15552000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+RateLimit-Policy: 200;w=60
+RateLimit-Limit: 200
+RateLimit-Remaining: 198
+RateLimit-Reset: 38
+Content-Type: application/json; charset=utf-8
+Content-Length: 52
+ETag: W/"34-rlKccw1E+/fV8niQk4oFitDfPro"
+Date: Fri, 22 May 2026 15:27:02 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
