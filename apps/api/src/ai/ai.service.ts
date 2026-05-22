@@ -337,7 +337,9 @@ ${userMessage}
         model: ollamaModel,
         prompt,
         stream: true,
-        options: { num_predict: safeNumPredict },
+        options: {
+          num_predict: safeNumPredict,
+        },
       }),
     });
 
@@ -379,7 +381,9 @@ ${userMessage}
             response?: string;
             done?: boolean;
           };
-          if (typeof parsed.response === 'string') responseText += parsed.response;
+          if (typeof parsed.response === 'string') {
+            responseText += parsed.response;
+          }
           if (parsed.done) return responseText;
         } catch {
           // Incomplete JSON line; put it back into the buffer.
