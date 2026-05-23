@@ -47,18 +47,34 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const user = await this.prisma.user.upsert({
+    const existingUser = await this.prisma.user.findUnique({
       where: { email },
-      create: {
-        email,
-        passwordHash,
-        isActive: false,
-      },
-      update: {
-        // Keep user inactive until OTP is verified.
-        isActive: false,
-        passwordHash,
-      },
+    });
+
+    if (existingUser) {
+      if (existingUser.isActive) {
+        throw new BadRequestException(
+          'This email address is already registered. Please log in instead.',
+        );
+      }
+      // If inactive, update their pending password and resend OTP
+      await this.prisma.user.update({
+        where: { id: existingUser.id },
+        data: { passwordHash },
+      });
+    } else {
+      await this.prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          isActive: false,
+        },
+      });
+    }
+
+    // Get the user ID (either newly created or updated)
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { email },
     });
 
     const code = generate6DigitCode();
