@@ -147,27 +147,54 @@ export class AiService {
       },
     };
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const maxRetries = 3;
 
-    if (!res.ok) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as {
+          candidates?: Array<{
+            content?: { parts?: Array<{ text?: string }> };
+          }>;
+        };
+
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        return text;
+      }
+
+      // Retry on rate-limit (429) or service unavailable (503)
+      if ((res.status === 429 || res.status === 503) && attempt < maxRetries) {
+        const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000);
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        continue;
+      }
+
+      // Final failure — provide a user-friendly message
+      if (res.status === 429) {
+        throw new BadRequestException(
+          'The AI service is currently at capacity. Please wait a moment and try again.',
+        );
+      }
+      if (res.status === 503) {
+        throw new BadRequestException(
+          'The AI service is temporarily unavailable due to high demand. Please try again in a few seconds.',
+        );
+      }
+
       const errorBody = await res.text().catch(() => '');
       throw new BadRequestException(
-        `Gemini API error: ${res.status} ${errorBody}`.trim(),
+        `AI generation failed: ${res.status} ${errorBody}`.trim(),
       );
     }
 
-    const data = (await res.json()) as {
-      candidates?: Array<{
-        content?: { parts?: Array<{ text?: string }> };
-      }>;
-    };
-
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    return text;
+    throw new BadRequestException(
+      'The AI service is temporarily unavailable. Please try again shortly.',
+    );
   }
 
   // ─── Chat ──────────────────────────────────────────────────────────
