@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { apiFetch, setTokens } from '@/lib/auth';
+import ErrorAlert from '@/components/ErrorAlert';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -109,11 +110,7 @@ export default function LoginPage() {
               />
             </label>
 
-            {error && (
-              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
+            <ErrorAlert error={error} />
 
             <button
               disabled={isLoading}
