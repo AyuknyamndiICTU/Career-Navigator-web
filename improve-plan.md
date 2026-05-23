@@ -229,15 +229,15 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 
 ### Phase 7 — Dashboard/Admin + RBAC + Routing
 **Milestone 7.1 — Dashboard navigation correctness**
-- [ ] Ensure sidebar/topbar actions route to real pages
-- [ ] Ensure click handlers are attached (no overlay intercept)
+- [x] Ensure sidebar/topbar actions route to real pages
+- [x] Ensure click handlers are attached (no overlay intercept)
 
 **Milestone 7.2 — Admin analytics + RBAC**
-- [ ] Confirm user denied access returns 403 with friendly UI message
-- [ ] Confirm admin analytics route works and is protected
+- [x] Confirm user denied access returns 403 with friendly UI message
+- [x] Confirm admin analytics route works and is protected
 
 **Milestone 7.3 — Resilience**
-- [ ] Confirm 401/403/400 errors don’t result in blank screens
+- [x] Confirm 401/403/400 errors don’t result in blank screens
 
 **Exit criteria for Phase 7**
 - All dashboard icons/buttons function and render without silent failures.
@@ -276,7 +276,7 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 - [x] Phase 4 complete (jobs/mentors/rerank/notifications + offline-safe course sidebar)
 - [x] Phase 5 complete (realtime + notifications UX)
 - [x] Phase 6 complete (Agora session lifecycle)
-- [ ] Phase 7 complete (dashboard/admin routing + RBAC)
+- [x] Phase 7 complete (dashboard/admin routing + RBAC)
 - [ ] Phase 8 complete (typecheck/build/smoke/hardening)
 
 ---
