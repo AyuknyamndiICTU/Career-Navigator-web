@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { apiFetch } from '@/lib/auth';
 import DashboardLayout from '@/components/DashboardLayout';
+import ErrorAlert from '@/components/ErrorAlert';
 
 type Difficulty = 'beginner' | 'intermediate' | 'advanced';
 
@@ -100,11 +101,7 @@ export default function MockInterviewPage() {
             </label>
 
             {/* Error */}
-            {error && (
-              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
+            <ErrorAlert error={error} />
 
             {/* Submit */}
             <button
