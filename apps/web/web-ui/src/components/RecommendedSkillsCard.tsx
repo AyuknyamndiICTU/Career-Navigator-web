@@ -21,10 +21,11 @@ export default function RecommendedSkillsCard() {
     setError('');
     try {
       // allowedSkills + studentGoal are optional. Backend will derive allowed skills from user’s job-app skills.
-      const res = (await apiFetch('/ai/course-recommendations', {
-        method: 'POST',
-        body: {},
-      })) as RecommendationResponse;
+      const res = (await apiFetch(
+        '/ai/course-recommendations',
+        { method: 'POST' },
+        { redirectOn401: false }
+      )) as RecommendationResponse;
 
       if (typeof res?.response === 'string') setText(res.response);
       else setText(typeof res === 'string' ? res : JSON.stringify(res, null, 2));
