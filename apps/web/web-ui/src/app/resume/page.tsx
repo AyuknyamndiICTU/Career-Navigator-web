@@ -52,11 +52,7 @@ export default function ResumeBuilderPage() {
           <p className="text-sm text-slate-500">Generate a structured resume from your profile.</p>
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <ErrorAlert error={error} />
 
         <div className="bg-white rounded-2xl shadow-card overflow-hidden border border-surface-border mb-6">
           <div className="px-6 py-4 border-b border-surface-border flex flex-wrap items-end justify-between gap-3">
