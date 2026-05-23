@@ -5,6 +5,7 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { apiFetch } from '@/lib/auth';
 import ErrorAlert from '@/components/ErrorAlert';
 
@@ -36,72 +37,77 @@ function VerifyOtpForm() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated Background Blobs */}
+      <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/20 blur-[120px] animate-pulse" style={{ animationDuration: '8s' }} />
+      <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-cyan-500/20 blur-[120px] animate-pulse" style={{ animationDuration: '10s' }} />
+      
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
+        className="w-full max-w-md relative z-10"
+      >
         {/* Logo */}
         <div className="flex justify-center mb-8">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="relative w-12 h-12 rounded-2xl overflow-hidden shadow-soft">
+          <Link href="/" className="flex flex-col items-center gap-3 group">
+            <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-lg group-hover:shadow-xl group-hover:-translate-y-1 transition-all duration-300 ring-4 ring-white/50">
               <Image src="/logo.png" alt="Career Navigator" fill className="object-cover" />
-            </div>
-            <div>
-              <div className="text-lg font-bold text-slate-800 leading-tight">Career Navigator</div>
-              <div className="text-xs text-slate-400">Verify your email</div>
             </div>
           </Link>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-card p-8">
-          <h1 className="text-2xl font-bold text-slate-800">Verify OTP</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {email ? `Enter the 6-digit code sent to ${email}` : 'Enter the 6-digit code'}
+        <div className="bg-white/80 backdrop-blur-2xl rounded-3xl shadow-2xl p-8 md:p-10 border border-white text-center">
+          <h1 className="text-2xl font-bold text-slate-800">Verify Your Email</h1>
+          <p className="mt-2 text-sm text-slate-500 font-medium">
+            {email ? `Enter the 6-digit code sent to ${email}` : 'Enter the 6-digit code sent to your email'}
           </p>
 
-          <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700 mb-1.5 block">OTP Code</span>
+          <form className="mt-8 space-y-6" onSubmit={onSubmit}>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-3 text-left ml-1">OTP Code</label>
               <input
                 value={code}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCode(e.target.value)}
-                className="w-full px-4 py-2.5 bg-surface rounded-xl text-sm border border-surface-border focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 transition-all text-center tracking-[0.3em] font-mono text-lg"
+                className="w-full px-5 py-4 bg-slate-50/50 rounded-2xl text-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all text-center tracking-[0.5em] font-mono font-bold text-slate-800 shadow-sm"
                 type="text"
                 inputMode="numeric"
                 placeholder="000000"
                 required
                 maxLength={6}
               />
-            </label>
+            </div>
 
             <ErrorAlert error={error} />
 
             <button
-              disabled={isLoading}
+              disabled={isLoading || code.length !== 6}
               type="submit"
-              className="w-full py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-soft"
+              className="w-full py-3.5 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-2xl text-sm font-bold hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-md"
             >
-              {isLoading ? 'Verifying…' : 'Verify'}
+              {isLoading ? 'Verifying…' : 'Verify Email'}
             </button>
 
-            <div className="pt-1 text-center text-xs text-slate-500">
+            <div className="pt-2 text-center">
               <button
                 type="button"
                 onClick={() => router.push('/auth/login')}
-                className="font-medium text-primary-600 hover:text-primary-700 transition-colors"
+                className="text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
               >
-                Back to sign in
+                Cancel and back to sign in
               </button>
             </div>
           </form>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
 
 export default function VerifyOtpPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-surface flex items-center justify-center text-slate-500">Loading…</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-bold">Loading...</div>}>
       <VerifyOtpForm />
     </Suspense>
   );
