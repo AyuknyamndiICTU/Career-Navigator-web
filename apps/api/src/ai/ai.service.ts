@@ -154,7 +154,13 @@ export class AiService implements OnModuleInit {
     });
 
     const all = applications.flatMap((a) => a.job.skills);
-    return Array.from(new Set(all.map((s) => s.trim()))).filter(Boolean);
+    const uniqueSkills = Array.from(new Set(all.map((s) => s.trim()))).filter(Boolean);
+
+    if (uniqueSkills.length === 0) {
+      return ['General Career Guidance', 'Resume Building', 'Interview Preparation', 'Job Search Strategies', 'Professional Development'];
+    }
+
+    return uniqueSkills;
   }
 
   async chat(authorizationHeader: string | undefined, dto: ChatRequestDto) {
