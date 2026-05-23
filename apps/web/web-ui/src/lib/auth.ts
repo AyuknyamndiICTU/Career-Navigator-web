@@ -75,6 +75,10 @@ export async function apiFetchFile(
   });
 
 
+  return handleResponse(res, options?.redirectOn401);
+}
+
+async function handleResponse(res: Response, redirectOn401?: boolean) {
   if (!res.ok) {
     const status = res.status;
 
@@ -82,16 +86,15 @@ export async function apiFetchFile(
     try {
       body = await res.json();
     } catch {
-      // ignore - we'll fall back to text below
+      // ignore
     }
 
     const msg = body?.message ?? body?.error ?? '';
-    const readable =
-      Array.isArray(msg)
-        ? msg.join(', ')
-        : typeof msg === 'string'
-          ? msg
-          : '';
+    const readable = Array.isArray(msg)
+      ? msg.join(', ')
+      : typeof msg === 'string'
+      ? msg
+      : '';
 
     let errorText = '';
     try {
@@ -101,25 +104,18 @@ export async function apiFetchFile(
     }
 
     const messageToThrow =
-      readable ||
-      errorText ||
-      (status === 401 ? 'Unauthorized' : `Request failed: ${status}`);
+      readable || errorText || (status === 401 ? 'Unauthorized' : `Request failed: ${status}`);
 
-    // Global UX: on 401, ensure the user re-authenticates instead of seeing “Request failed: 401”.
-    // Allow callers to suppress navigation for non-critical calls (e.g. homepage counters).
     if (
       status === 401 &&
       typeof window !== 'undefined' &&
-      options?.redirectOn401 !== false
+      redirectOn401 !== false
     ) {
       clearTokens();
       window.location.href = '/auth/login';
-      // Prevent UI pages from rendering a red “Request failed: 401” banner
-      // while the redirect is happening.
       throw new Error('');
     }
 
-    // If we are not redirecting, still clear stale tokens to avoid loops.
     if (status === 401 && typeof window !== 'undefined') {
       clearTokens();
     }
