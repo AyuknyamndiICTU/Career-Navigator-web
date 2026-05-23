@@ -141,7 +141,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Logo Area */}
         <div className="flex items-center gap-3 px-6 pt-8 pb-8">
           <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm border border-[#1a2235] flex-shrink-0">
-            <Image src="/logo.png" alt="Career Navigator" fill className="object-cover" />
+            <Image src="/logo.png" alt="Career Navigator" fill sizes="40px" className="object-cover" />
           </div>
           <div>
             <div className="text-white font-extrabold text-base leading-tight tracking-tight">Career</div>
