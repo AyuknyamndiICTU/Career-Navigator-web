@@ -6,7 +6,7 @@
 export const ACCESS_TOKEN_KEY = 'accessToken';
 export const REFRESH_TOKEN_KEY = 'refreshToken';
 
-function getApiBaseUrl() {
+export function getApiBaseUrl() {
   const v =
     process.env.NEXT_PUBLIC_API_BASE_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
