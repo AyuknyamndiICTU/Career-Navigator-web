@@ -35,11 +35,7 @@ export default function MessagesPage() {
           <p className="text-sm text-slate-500">Your conversation threads</p>
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <ErrorAlert error={error} />
 
         <div className="bg-white rounded-2xl shadow-card overflow-hidden">
           <div className="px-6 py-4 border-b border-surface-border">
@@ -60,18 +56,16 @@ export default function MessagesPage() {
             ) : (
               <div className="space-y-3">
                 {conversations.map((c) => (
-                  <div
+                  <a
+                    href={`/messages/${c.id}`}
                     key={c.id}
-                    className="rounded-xl border border-surface-border p-4 bg-surface"
+                    className="block rounded-xl border border-surface-border p-4 bg-white hover:bg-surface transition-colors cursor-pointer"
                   >
-                    <div className="text-sm font-semibold text-slate-800">Conversation {c.id}</div>
+                    <div className="text-sm font-semibold text-slate-800">Conversation {c.id.slice(0, 8)}</div>
                     <div className="text-xs text-slate-500 mt-1">
                       Updated: {new Date(c.updatedAt).toLocaleString()}
                     </div>
-                    <div className="text-xs text-slate-500 mt-3">
-                      (Conversation thread view coming next)
-                    </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             )}

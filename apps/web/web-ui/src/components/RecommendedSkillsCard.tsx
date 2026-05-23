@@ -55,11 +55,7 @@ export default function RecommendedSkillsCard() {
               </svg>
               Loading…
             </div>
-          ) : error ? (
-            <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
-              {error}
-            </div>
-          ) : text ? (
+          ) : error ? <ErrorAlert error={error} /> : text ? (
             <pre className="text-xs text-slate-700 whitespace-pre-wrap break-words leading-relaxed font-mono">
               {text}
             </pre>
