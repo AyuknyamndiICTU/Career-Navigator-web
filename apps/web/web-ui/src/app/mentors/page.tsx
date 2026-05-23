@@ -64,11 +64,7 @@ export default function MentorsPage() {
           <p className="text-sm text-slate-500">Search mentors by skills and expertise.</p>
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <ErrorAlert error={error} />
 
         {/* Filters */}
         <div className="bg-white rounded-2xl shadow-card overflow-hidden border border-surface-border mb-6">
