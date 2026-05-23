@@ -30,6 +30,7 @@ export default function LoginPage() {
       setTokens(res);
       router.push('/');
     } catch (err) {
+      console.error('Login error:', err);
       const msg = err instanceof Error ? err.message : 'Login failed';
 
       if (
@@ -42,7 +43,7 @@ export default function LoginPage() {
         return;
       }
 
-      setError(msg);
+      setError(msg || 'Login failed. Please check your credentials and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -69,6 +70,7 @@ export default function LoginPage() {
                 src="/logo.png"
                 alt="Career Navigator"
                 fill
+                sizes="64px"
                 className="object-cover"
               />
             </div>
