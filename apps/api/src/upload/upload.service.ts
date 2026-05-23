@@ -201,6 +201,8 @@ export class UploadService {
         objectKey,
         contentType: contentType ?? null,
         originalFilename: originalFilename ?? null,
+        cvScanStatus: 'PENDING',
+        cvScanRequestedAt: new Date(),
       },
       create: {
         userId,
@@ -208,6 +210,8 @@ export class UploadService {
         objectKey,
         contentType: contentType ?? null,
         originalFilename: originalFilename ?? null,
+        cvScanStatus: 'PENDING',
+        cvScanRequestedAt: new Date(),
       },
     });
 
@@ -218,5 +222,29 @@ export class UploadService {
     });
 
     return { message: 'CV uploaded', objectKey };
+  }
+
+  async getCvStatus(authorizationHeader: string | undefined): Promise<{ status: string | null; error: string | null; skills: string[] }> {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+    const media = await this.prisma.uploadMedia.findUnique({
+      where: { userId_type: { userId, type: MEDIA_TYPE_CV } },
+      select: { cvScanStatus: true, cvScanError: true, cvExtractedText: true },
+    });
+
+    if (!media) return { status: null, error: null, skills: [] };
+
+    let skills: string[] = [];
+    if (media.cvExtractedText) {
+      try {
+        const parsed = JSON.parse(media.cvExtractedText) as { skills?: string[] };
+        if (Array.isArray(parsed.skills)) skills = parsed.skills;
+      } catch {}
+    }
+
+    return {
+      status: media.cvScanStatus,
+      error: media.cvScanError,
+      skills,
+    };
   }
 }
