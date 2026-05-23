@@ -11,10 +11,18 @@ async function bootstrap() {
 
   // CORS — allow the web frontend to call the API cross-origin
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS;
+
+  let corsOrigin: boolean | string | string[];
+  if (!allowedOrigins || allowedOrigins.trim() === '*') {
+    // When credentials: true, the spec forbids the literal "*" header.
+    // Setting origin to `true` makes Express reflect the request's Origin.
+    corsOrigin = true;
+  } else {
+    corsOrigin = allowedOrigins.split(',').map((o) => o.trim());
+  }
+
   app.enableCors({
-    origin: allowedOrigins
-      ? allowedOrigins.split(',').map((o) => o.trim())
-      : '*',
+    origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
