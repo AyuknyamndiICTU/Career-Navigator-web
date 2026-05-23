@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { apiFetch } from '@/lib/auth';
 import DashboardLayout from '@/components/DashboardLayout';
+import ErrorAlert from '@/components/ErrorAlert';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -125,11 +126,7 @@ export default function AiChatPage() {
           </div>
 
           {/* Error */}
-          {error && (
-            <div className="mx-6 mb-3 rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
+          <ErrorAlert error={error} />
 
           {/* Input area */}
           <div className="border-t border-surface-border p-4">
