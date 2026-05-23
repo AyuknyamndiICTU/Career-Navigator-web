@@ -168,19 +168,19 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 
 ### Phase 4 — Jobs + Mentors + Recommendations (functional without OpenSearch)
 **Milestone 4.1 — Jobs browse & apply**
-- [ ] Confirm filters/search/pagination work
-- [ ] Confirm apply endpoint works and prevents double-applications
+- [x] Confirm filters/search/pagination work
+- [x] Confirm apply endpoint works and prevents double-applications
 
 **Milestone 4.2 — Mentors matching**
-- [ ] Confirm mentor search works based on skill/expertise arrays
+- [x] Confirm mentor search works based on skill/expertise arrays
 
 **Milestone 4.3 — Reranking + notifications**
-- [ ] Confirm rerank returns ranked items
-- [ ] Confirm notifications are created for matches
+- [x] Confirm rerank returns ranked items
+- [x] Confirm notifications are created for matches
 
 **Milestone 4.4 — Recommendations sidebar (offline-safe)**
-- [ ] Ensure course recommendations are generated via Ollama offline
-- [ ] Confirm provider names are “suggested”, not fetched from remote APIs
+- [x] Ensure course recommendations are generated via Ollama offline
+- [x] Confirm provider names are “suggested”, not fetched from remote APIs
   - (unless you implement a future curated course DB / integrations)
 
 **Exit criteria for Phase 4**
@@ -192,15 +192,15 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 
 ### Phase 5 — Realtime Chat + Notifications UX
 **Milestone 5.1 — Socket.IO basic reliability**
-- [ ] Confirm typing/online/offline events do not crash under load
-- [ ] Confirm message send works with REST fallback and/or history loading
+- [x] Confirm typing/online/offline events do not crash under load
+- [x] Confirm message send works with REST fallback and/or history loading
 
 **Milestone 5.2 — Notifications lifecycle**
-- [ ] Confirm notifications CRUD
-- [ ] Confirm “mark read” works and UI updates immediately
+- [x] Confirm notifications CRUD
+- [x] Confirm “mark read” works and UI updates immediately
 
 **Milestone 5.3 — Error UX consistency**
-- [ ] Add a shared UI error presentation pattern (toast/modal/banner)
+- [x] Add a shared UI error presentation pattern (toast/modal/banner)
 
 **Exit criteria for Phase 5**
 - Realtime chat works
@@ -211,15 +211,15 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 
 ### Phase 6 — Agora Video Calling (feature-complete, costs acknowledged)
 **Milestone 6.1 — Token mint + session lifecycle**
-- [ ] Start/join/end flows work
-- [ ] Store session metadata (if enabled) without errors
+- [x] Start/join/end flows work
+- [x] Store session metadata (if enabled) without errors
 
 **Milestone 6.2 — UI integration**
-- [ ] Confirm video UI doesn’t break dashboard layout
-- [ ] Confirm responsive behavior (mobile widths at least partially)
+- [x] Confirm video UI doesn’t break dashboard layout
+- [x] Confirm responsive behavior (mobile widths at least partially)
 
 **Milestone 6.3 — Production safety checks**
-- [ ] Confirm env variables exist and token minting errors are user-visible
+- [x] Confirm env variables exist and token minting errors are user-visible
 
 **Exit criteria for Phase 6**
 - Video sessions are functional when Agora credentials are present
@@ -273,9 +273,9 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 - [x] Phase 1 complete (OTP + refresh rotation)
 - [x] Phase 2 complete (AI contract alignment + career-path policy + other AI endpoints)
 - [x] Phase 3 complete (CV upload + BullMQ + Ollama structured extraction + sidebar wiring)
-- [ ] Phase 4 complete (jobs/mentors/rerank/notifications + offline-safe course sidebar)
-- [ ] Phase 5 complete (realtime + notifications UX)
-- [ ] Phase 6 complete (Agora session lifecycle)
+- [x] Phase 4 complete (jobs/mentors/rerank/notifications + offline-safe course sidebar)
+- [x] Phase 5 complete (realtime + notifications UX)
+- [x] Phase 6 complete (Agora session lifecycle)
 - [ ] Phase 7 complete (dashboard/admin routing + RBAC)
 - [ ] Phase 8 complete (typecheck/build/smoke/hardening)
 
