@@ -60,6 +60,20 @@ export async function apiFetch(
     },
     body: init.body ? JSON.stringify(init.body) : init.body,
   });
+  return handleResponse(res, options?.redirectOn401);
+}
+
+export async function apiFetchFile(
+  path: string,
+  formData: FormData,
+  options?: { redirectOn401?: boolean },
+) {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: formData,
+  });
+
 
   if (!res.ok) {
     const status = res.status;
