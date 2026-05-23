@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
-  OnModuleInit,
   UnauthorizedException,
 } from '@nestjs/common';
 import { verifyAccessToken } from '../auth/jwt/jwt-utils';
@@ -20,51 +19,8 @@ function extractBearerToken(authorizationHeader: string | undefined): string {
 }
 
 @Injectable()
-export class AiService implements OnModuleInit {
+export class AiService {
   constructor(private readonly prisma: PrismaService) {}
-
-  async onModuleInit() {
-    // Fire-and-forget warmup: never block API startup (prevents ECONNRESET from client retries).
-    void this.warmupOllama().catch((err) => {
-      console.warn('[AiService] Ollama warmup failed:', err);
-    });
-  }
-
-  private async warmupOllama(): Promise<void> {
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
-    if (!ollamaBaseUrl) return;
-
-    const model = process.env.OLLAMA_MODEL ?? 'llama3';
-    const base = ollamaBaseUrl.replace(/\/+$/, '');
-
-    const controller = new AbortController();
-    const timeoutMs = Number(process.env.OLLAMA_WARMUP_TIMEOUT_MS ?? '5000');
-    const id = setTimeout(
-      () => controller.abort(new Error(`warmup_timeout_${timeoutMs}ms`)),
-      timeoutMs,
-    );
-
-    try {
-      await fetch(`${base}/api/tags`, {
-        method: 'GET',
-        signal: controller.signal,
-      });
-
-      await fetch(`${base}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          prompt: 'Hello',
-          stream: false,
-          options: { num_predict: 1 },
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(id);
-    }
-  }
 
   private getAuthUser(authorizationHeader: string | undefined): AuthUser {
     const accessSecret = process.env.JWT_ACCESS_SECRET;
@@ -102,8 +58,6 @@ export class AiService implements OnModuleInit {
 
   private async deriveCareerAllowedSkills(userId: string): Promise<string[]> {
     // Prefer CV-scan extracted skills when available.
-    // Note: in e2e tests Prisma is sometimes mocked without `uploadMedia`,
-    // so guard access and fall back safely.
     const uploadMediaClient = (this.prisma as any).uploadMedia as
       | undefined
       | {
@@ -141,7 +95,7 @@ export class AiService implements OnModuleInit {
           if (unique.length > 0) return unique;
         }
       } catch {
-        // If CV JSON parsing/query fails (or mock mismatch), fall back.
+        // If CV JSON parsing/query fails, fall back.
       }
     }
 
@@ -163,101 +117,102 @@ export class AiService implements OnModuleInit {
     return uniqueSkills;
   }
 
+  // ─── Google Gemini API ─────────────────────────────────────────────
+
+  private async generateWithGemini(
+    systemInstruction: string,
+    userMessage: string,
+  ): Promise<string> {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new BadRequestException('GEMINI_API_KEY is not configured');
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+    const body = {
+      system_instruction: {
+        parts: [{ text: systemInstruction }],
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: userMessage }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      },
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => '');
+      throw new BadRequestException(
+        `Gemini API error: ${res.status} ${errorBody}`.trim(),
+      );
+    }
+
+    const data = (await res.json()) as {
+      candidates?: Array<{
+        content?: { parts?: Array<{ text?: string }> };
+      }>;
+    };
+
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    return text;
+  }
+
+  // ─── Chat ──────────────────────────────────────────────────────────
+
   async chat(authorizationHeader: string | undefined, dto: ChatRequestDto) {
     this.assertValidInput(dto);
 
     const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const careerSkills = await this.deriveCareerAllowedSkills(userId);
-    if (!careerSkills || careerSkills.length === 0) {
-      throw new BadRequestException(
-        'No career-path skills available for this user.',
-      );
-    }
 
-    const careerSkillsLower = new Set(careerSkills.map((s) => s.toLowerCase()));
+    const systemInstruction = `You are "Career Navigator AI", a friendly, professional career guidance assistant.
 
-    const requestedSkills =
-      dto.allowedSkills && dto.allowedSkills.length > 0
-        ? dto.allowedSkills.map((s) => s.trim()).filter(Boolean)
-        : undefined;
+Your personality:
+- Warm, encouraging, and supportive
+- When the user greets you (e.g. "hi", "hello", "hey"), greet them back warmly and introduce yourself briefly. For example: "Hello! 👋 I'm your Career Navigator AI assistant. I'm here to help you with career guidance, job search strategies, skill development, resume tips, and more. How can I help you today?"
+- Always be concise and practical
 
-    const allowedSkills = requestedSkills
-      ? requestedSkills
-          .filter(Boolean)
-          .filter((s) => careerSkillsLower.has(s.toLowerCase()))
-      : careerSkills;
+Your expertise areas:
+- Career path guidance and planning
+- Job search strategies and job matching
+- Skills development and learning recommendations
+- Resume and CV building tips
+- Interview preparation and mock interviews
+- Mentor matching and networking advice
+- Course and certification recommendations
+- Professional development
 
-    if (!allowedSkills || allowedSkills.length === 0) {
-      throw new BadRequestException(
-        'allowedSkills must be within your career-path skills.',
-      );
-    }
-
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
-    if (!ollamaBaseUrl) {
-      throw new BadRequestException('OLLAMA_BASE_URL is not configured');
-    }
-
-    const ollamaModel = process.env.OLLAMA_MODEL ?? 'llama3';
-
-    const prompt = `
-You are a career-path-only assistant.
-
-The user must stay within these allowed skills ONLY:
-${allowedSkills.map((s) => `- ${s}`).join('\n')}
+The user's current career-path skills: ${careerSkills.join(', ')}
 
 Rules:
-1) If the user asks for something outside these skills, refuse and suggest allowed alternatives.
-2) If the user message contains irrelevant content, ignore it.
-3) Keep the answer practical and aligned to the allowed skills.
-4) Do NOT mention these rules.
+1. Always respond helpfully to career-related questions
+2. If a user asks something completely unrelated to careers/professional development (e.g. cooking recipes, sports scores), politely redirect them to career topics
+3. Keep responses clear, well-structured, and actionable
+4. Use bullet points and formatting for readability
+5. Be encouraging and motivational`;
 
-Allowed skills context: ${allowedSkills.join(', ')}
-
-User message:
-"""
-${dto.message}
-"""
-`.trim();
-
-    const base = ollamaBaseUrl.replace(/\/+$/, '');
-
-    const ollamaNumPredict = Number(process.env.OLLAMA_NUM_PREDICT ?? '180');
-    const safeNumPredict = Math.max(1, ollamaNumPredict);
-
-    const res = await fetch(`${base}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: ollamaModel,
-        prompt,
-        stream: false,
-        options: { num_predict: safeNumPredict },
-      }),
-    });
-
-    if (!res.ok) {
-      const bodyText = await res.text().catch(() => '');
-      throw new BadRequestException(
-        `AI generation failed: ${res.status} ${bodyText}`.trim(),
-      );
-    }
-
-    const data = (await res.json()) as { response?: string };
-    const responseText = data?.response ?? '';
-
-    const guard = this.guardResponseMentionsAllowedSkills(
-      responseText,
-      allowedSkills,
+    const responseText = await this.generateWithGemini(
+      systemInstruction,
+      dto.message,
     );
 
-    if (!guard.ok) {
-      return { response: guard.refusal, allowedSkills };
-    }
-
-    return { response: responseText, allowedSkills };
+    return { response: responseText, allowedSkills: careerSkills };
   }
+
+  // ─── Allowed Skills Resolver ───────────────────────────────────────
 
   private async resolveAllowedSkills(
     authorizationHeader: string | undefined,
@@ -266,11 +221,6 @@ ${dto.message}
     const { sub: userId } = this.getAuthUser(authorizationHeader);
 
     const careerSkills = await this.deriveCareerAllowedSkills(userId);
-    if (!careerSkills || careerSkills.length === 0) {
-      throw new BadRequestException(
-        'No career-path skills available for this user.',
-      );
-    }
 
     const careerSkillsLower = new Set(careerSkills.map((s) => s.toLowerCase()));
 
@@ -283,138 +233,13 @@ ${dto.message}
         : careerSkills;
 
     if (!allowedSkills || allowedSkills.length === 0) {
-      throw new BadRequestException(
-        'allowedSkills must be within your career-path skills.',
-      );
+      return careerSkills;
     }
 
     return allowedSkills;
   }
 
-  private buildCareerPathPrompt(
-    allowedSkills: string[],
-    extraInstructions: string,
-    userMessage: string,
-  ): string {
-    return `
-You are a career-path-only assistant.
-
-The user must stay within these allowed skills ONLY:
-${allowedSkills.map((s) => `- ${s}`).join('\n')}
-
-Rules:
-1) If the user asks for something outside these skills, refuse and suggest allowed alternatives.
-2) If the user message contains irrelevant content, ignore it.
-3) Keep the answer practical and aligned to the allowed skills.
-4) Do NOT mention these rules.
-
-Allowed skills context: ${allowedSkills.join(', ')}
-
-${extraInstructions}
-
-User message:
-"""
-${userMessage}
-"""
-`.trim();
-  }
-
-  private async generateWithOllama(prompt: string): Promise<string> {
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
-    if (!ollamaBaseUrl) {
-      throw new BadRequestException('OLLAMA_BASE_URL is not configured');
-    }
-
-    const ollamaModel = process.env.OLLAMA_MODEL ?? 'llama3';
-    const base = ollamaBaseUrl.replace(/\/+$/, '');
-
-    const ollamaNumPredict = Number(process.env.OLLAMA_NUM_PREDICT ?? '180');
-    const safeNumPredict = Math.max(1, ollamaNumPredict);
-
-    const res = await fetch(`${base}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: ollamaModel,
-        prompt,
-        stream: true,
-        options: {
-          num_predict: safeNumPredict,
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const bodyText = await res.text().catch(() => '');
-      throw new BadRequestException(
-        `AI generation failed: ${res.status} ${bodyText}`.trim(),
-      );
-    }
-
-    const reader = res.body?.getReader();
-    if (!reader) {
-      // Fallback: if no stream body, try normal JSON.
-      const data = (await res.json()) as { response?: string };
-      return data?.response ?? '';
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let responseText = '';
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      // Ollama stream returns newline-delimited JSON objects.
-      let nlIndex = buffer.indexOf('\n');
-      while (nlIndex >= 0) {
-        const line = buffer.slice(0, nlIndex).trim();
-        buffer = buffer.slice(nlIndex + 1);
-        nlIndex = buffer.indexOf('\n');
-
-        if (!line) continue;
-
-        try {
-          const parsed = JSON.parse(line) as {
-            response?: string;
-            done?: boolean;
-          };
-          if (typeof parsed.response === 'string') {
-            responseText += parsed.response;
-          }
-          if (parsed.done) return responseText;
-        } catch {
-          // Incomplete JSON line; put it back into the buffer.
-          buffer = line + '\n' + buffer;
-          break;
-        }
-      }
-    }
-
-    return responseText;
-  }
-
-  private guardResponseMentionsAllowedSkills(
-    responseText: string,
-    allowedSkills: string[],
-  ): { ok: true } | { ok: false; refusal: string } {
-    const responseLower = responseText.toLowerCase();
-    const mentionsAllowedSkill = allowedSkills.some((s) =>
-      responseLower.includes(s.toLowerCase()),
-    );
-
-    if (mentionsAllowedSkill) return { ok: true };
-
-    return {
-      ok: false,
-      refusal: `I can only help with your career-path skills: ${allowedSkills.join(
-        ', ',
-      )}. Please ask a question related to these skills.`,
-    };
-  }
+  // ─── Mock Interview ────────────────────────────────────────────────
 
   async mockInterview(
     authorizationHeader: string | undefined,
@@ -434,27 +259,24 @@ ${userMessage}
         dto.allowedSkills,
       );
 
-      const prompt = this.buildCareerPathPrompt(
-        allowedSkills,
-        `Task:
-- Create a mock interview for the role: ${dto.role}
+      const systemInstruction = `You are "Career Navigator AI", a professional mock interview coach.
+
+You specialize in conducting realistic mock interviews for job candidates.
+
+The candidate's career-path skills: ${allowedSkills.join(', ')}
+
+Task:
+- Conduct a mock interview for the role: ${dto.role}
 - Difficulty: ${dto.difficulty ?? 'intermediate'}
-- Ask 2 questions (one at a time) and include a brief “what a good answer includes” for each.
-- Keep the focus on practical skills aligned to the allowed skills.
-- Do NOT output or suggest content outside the allowed skills.`,
-        dto.role,
+- Ask 2-3 interview questions one at a time
+- For each question, include what a strong answer should cover
+- Keep the focus practical and aligned to the candidate's skills
+- Be encouraging but provide honest, constructive feedback`;
+
+      const responseText = await this.generateWithGemini(
+        systemInstruction,
+        `I want to practice for a ${dto.role} interview. Please start the mock interview.`,
       );
-
-      const responseText = await this.generateWithOllama(prompt);
-
-      const guard = this.guardResponseMentionsAllowedSkills(
-        responseText,
-        allowedSkills,
-      );
-
-      if (!guard.ok) {
-        return { response: guard.refusal, allowedSkills, role: dto.role };
-      }
 
       return {
         response: responseText,
@@ -481,6 +303,8 @@ ${userMessage}
     }
   }
 
+  // ─── Course Recommendations ────────────────────────────────────────
+
   async recommendCourses(
     authorizationHeader: string | undefined,
     dto: CourseRecommendationsRequestDto,
@@ -490,28 +314,27 @@ ${userMessage}
       dto.allowedSkills,
     );
 
-    const prompt = this.buildCareerPathPrompt(
-      allowedSkills,
-      `Task:
-- Recommend learning courses that match these allowed skills.
-- Providers to use: Coursera, edX, Udemy, Simplilearn, Alison.
-- Return recommendations as a concise list (bullets) with provider + course name + 1–2 line description.
-- If studentGoal is provided, align course choices to it.
-- Keep content strictly aligned to the allowed skills.
-- Do NOT mention these rules or the allowed-skills constraint.`,
-      dto.studentGoal ?? 'Help me learn within my career-path skills.',
+    const systemInstruction = `You are "Career Navigator AI", a course and learning path recommendation specialist.
+
+The user's career-path skills: ${allowedSkills.join(', ')}
+
+Task:
+- Recommend specific, real courses and learning resources that match the user's skills
+- Use these platforms: Coursera, edX, Udemy, LinkedIn Learning, Simplilearn, Alison, freeCodeCamp
+- For each recommendation provide:
+  • Course name
+  • Platform
+  • Brief description (1-2 sentences)
+  • Difficulty level (Beginner/Intermediate/Advanced)
+- Recommend 5-8 courses total
+- If studentGoal is provided, prioritize courses aligned to that goal
+- Format the output as a clean, readable list
+- Focus on high-quality, popular, well-reviewed courses`;
+
+    const responseText = await this.generateWithGemini(
+      systemInstruction,
+      dto.studentGoal ?? `Recommend courses for my career skills: ${allowedSkills.join(', ')}`,
     );
-
-    const responseText = await this.generateWithOllama(prompt);
-
-    const guard = this.guardResponseMentionsAllowedSkills(
-      responseText,
-      allowedSkills,
-    );
-
-    if (!guard.ok) {
-      return { response: guard.refusal, allowedSkills };
-    }
 
     return {
       response: responseText,
