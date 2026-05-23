@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiFetch } from '@/lib/auth';
+import ErrorAlert from '@/components/ErrorAlert';
 
 export default function LevelUpPage() {
   const [busy, setBusy] = useState(false);
