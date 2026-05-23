@@ -102,7 +102,7 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 
 ### Phase 1 — Auth + OTP Flow (stability before AI/UI)
 **Milestone 1.1 — OTP send works**
-- [ ] Confirm frontend hits the correct backend OTP-send route
+- [x] Confirm frontend hits the correct backend OTP-send route
 - [x] Confirm OTP is persisted and expiration is correct
 - [x] Confirm Brevo is not used when `OTP_EMAIL_LOG_ONLY=true`
 
@@ -127,12 +127,12 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 - [x] Align both so `allowedSkills` is always valid (type + shape)
 
 **Milestone 2.2 — Enforce career-path-only behavior**
-- [ ] Verify assistant refuses out-of-scope content per your guard logic
-- [ ] Verify allowed responses actually align to allowed skills
+- [x] Verify assistant refuses out-of-scope content per your guard logic
+- [x] Verify allowed responses actually align to allowed skills
 
 **Milestone 2.3 — Mock interview + course recommendations**
-- [ ] Confirm `/ai/mock-interview` works without validation errors
-- [ ] Confirm `/ai/course-recommendations` works and returns consistent structure
+- [x] Confirm `/ai/mock-interview` works without validation errors
+- [x] Confirm `/ai/course-recommendations` works and returns consistent structure
 
 **Exit criteria for Phase 2**
 - AI chat returns 200 (no `allowedSkills` 400)
@@ -143,20 +143,20 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 
 ### Phase 3 — CV Upload + Scan Pipeline (Media + Jobs + Ollama structured extraction)
 **Milestone 3.1 — MinIO upload works**
-- [ ] Confirm CV upload endpoint writes to MinIO
-- [ ] Confirm uploaded objectKey is saved in DB
+- [x] Confirm CV upload endpoint writes to MinIO
+- [x] Confirm uploaded objectKey is saved in DB
 
 **Milestone 3.2 — BullMQ CV scan orchestration**
-- [ ] Confirm enqueue happens
-- [ ] Confirm worker runs (`CV_SCAN_ENABLED=true` if used)
-- [ ] Confirm worker updates `cvScanStatus` transitions correctly
+- [x] Confirm enqueue happens
+- [x] Confirm worker runs (`CV_SCAN_ENABLED=true` if used)
+- [x] Confirm worker updates `cvScanStatus` transitions correctly
 
 **Milestone 3.3 — Ollama extraction produces valid structured JSON**
-- [ ] Confirm structured extraction is stored in `cvExtractedText`
-- [ ] Confirm JSON parsing strategy doesn’t break if model returns extra text
+- [x] Confirm structured extraction is stored in `cvExtractedText`
+- [x] Confirm JSON parsing strategy doesn’t break if model returns extra text
 
 **Milestone 3.4 — Sidebar data plumbing**
-- [ ] Ensure extracted skills feed into:
+- [x] Ensure extracted skills feed into:
   - AI allowed skills derivation
   - recommendations sidebar content
 
@@ -271,8 +271,8 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 ## Progress Tracker (edit as you go)
 - [x] Phase 0 complete (Compose baseline + swap + safe env defaults)
 - [x] Phase 1 complete (OTP + refresh rotation)
-- [ ] Phase 2 complete (AI contract alignment + career-path policy + other AI endpoints)
-- [ ] Phase 3 complete (CV upload + BullMQ + Ollama structured extraction + sidebar wiring)
+- [x] Phase 2 complete (AI contract alignment + career-path policy + other AI endpoints)
+- [x] Phase 3 complete (CV upload + BullMQ + Ollama structured extraction + sidebar wiring)
 - [ ] Phase 4 complete (jobs/mentors/rerank/notifications + offline-safe course sidebar)
 - [ ] Phase 5 complete (realtime + notifications UX)
 - [ ] Phase 6 complete (Agora session lifecycle)
