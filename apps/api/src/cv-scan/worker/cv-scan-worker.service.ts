@@ -82,7 +82,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
       return;
     }
 
-    const concurrency = Number(process.env.CV_SCAN_WORKER_CONCURRENCY ?? '2');
+    const concurrency = Number(process.env.CV_SCAN_WORKER_CONCURRENCY ?? '1');
 
     // Lazy require so TS doesn't need bullmq installed during typecheck/tests.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -271,7 +271,7 @@ ${cvText}
       JSON.parse(jsonText);
       return jsonText;
     } catch {
-      return responseText;
+      return JSON.stringify({ skills: [] });
     }
   }
 }
