@@ -330,11 +330,9 @@ export class JobsService {
       .filter(Boolean)
       .slice(0, 50);
 
-    if (allowedSkills.length === 0) {
-      throw new BadRequestException(
-        'No career-path skills available for this user.',
-      );
-    }
+    const fallbackSkills = allowedSkills.length > 0 
+      ? allowedSkills 
+      : ['General Career Guidance', 'Resume Building', 'Interview Preparation', 'Job Search Strategies', 'Professional Development'];
 
     const activeJobs = await this.prisma.job.findMany({
       where: { status: 'ACTIVE' },
@@ -361,7 +359,7 @@ export class JobsService {
       updatedAt: Date;
     };
 
-    const allowedLower = new Set(allowedSkills.map((s) => s.toLowerCase()));
+    const allowedLower = new Set(fallbackSkills.map((s) => s.toLowerCase()));
 
     const rankedAll: Ranked[] = activeJobs
       .map((job) => {
