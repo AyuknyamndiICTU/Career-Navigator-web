@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/auth';
+import ErrorAlert from '@/components/ErrorAlert';
 
 type RecommendationResponse = {
   response?: string;
