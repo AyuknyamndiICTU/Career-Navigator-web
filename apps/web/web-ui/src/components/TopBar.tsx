@@ -1,6 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { getAccessToken } from '@/lib/auth';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -8,6 +10,23 @@ interface TopBarProps {
 
 export default function TopBar({ onMenuClick }: TopBarProps) {
   const router = useRouter();
+  const [username, setUsername] = useState('User');
+
+  useEffect(() => {
+    const token = getAccessToken();
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.email) {
+          const namePart = payload.email.split('@')[0];
+          setUsername(namePart);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, []);
+
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-surface-border">
       <div className="flex items-center justify-between gap-4 px-6 h-16">
@@ -68,12 +87,13 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
             onClick={() => router.push('/profile')}
             className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl hover:bg-surface-hover transition-colors"
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-bold">
-              U
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-xs font-bold uppercase">
+              {username[0]}
             </div>
             <div className="hidden md:block text-left">
-              <div className="text-sm font-semibold text-slate-700 leading-tight">User</div>
-              <div className="text-xs text-slate-400 leading-tight">Student</div>
+              <div className="text-sm font-semibold text-slate-700 leading-tight">
+                {username}
+              </div>
             </div>
             <svg className="w-4 h-4 text-slate-400 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
