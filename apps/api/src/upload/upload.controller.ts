@@ -3,6 +3,7 @@ import {
   Headers,
   HttpCode,
   Post,
+  Get,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -83,5 +84,12 @@ export class UploadController {
     @Headers('authorization') authorization?: string,
   ): Promise<unknown> {
     return this.uploadService.uploadCv(authorization, file);
+  }
+
+  @Get('cv/status')
+  @ApiOkResponse({ description: 'Get CV scan status.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  getCvStatus(@Headers('authorization') authorization?: string): Promise<unknown> {
+    return this.uploadService.getCvStatus(authorization);
   }
 }
