@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiFetch } from '@/lib/auth';
+import ErrorAlert from '@/components/ErrorAlert';
 
 type ResumeResponse = unknown;
 
