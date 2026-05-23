@@ -185,37 +185,41 @@ export default function Home() {
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Welcome Banner */}
         <motion.div
-          initial={{ opacity: 0, y: -8 }}
+          initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary-600 via-primary-500 to-indigo-400 p-8 text-white"
+          transition={{ duration: 0.6 }}
+          className="relative overflow-hidden rounded-3xl p-8 md:p-10"
+          style={{
+            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 30%, #a855f7 60%, #d946ef 100%)',
+          }}
         >
           <div className="relative z-10 max-w-lg">
-            <h1 className="text-3xl font-bold leading-tight">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
               Welcome to Career Navigator!
             </h1>
-            <p className="mt-3 text-white/80 text-sm leading-relaxed">
+            <p className="mt-3 text-white/80 text-sm md:text-base leading-relaxed max-w-lg">
               AI-powered career guidance, job matching, mentor connections, resume building, and video coaching — all in one platform. Let&apos;s get started!
             </p>
-            <div className="mt-5 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap gap-3">
               <Link
                 href="/auth/register"
-                className="inline-flex items-center px-5 py-2.5 bg-white text-primary-600 rounded-xl text-sm font-semibold hover:bg-white/90 transition-colors shadow-soft"
+                className="px-6 py-3 bg-white text-purple-600 rounded-xl text-sm font-bold hover:bg-white/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
               >
                 Get Started Free
               </Link>
               <Link
                 href="/auth/login"
-                className="inline-flex items-center px-5 py-2.5 bg-white/15 text-white rounded-xl text-sm font-semibold hover:bg-white/25 transition-colors backdrop-blur-sm"
+                className="px-6 py-3 bg-white/15 text-white rounded-xl text-sm font-bold border border-white/20 hover:bg-white/25 transition-all backdrop-blur-sm hover:-translate-y-0.5"
               >
                 Sign In
               </Link>
             </div>
           </div>
           {/* Decorative circles */}
-          <div className="absolute -right-8 -top-8 w-48 h-48 bg-white/10 rounded-full" />
-          <div className="absolute -right-4 -bottom-10 w-32 h-32 bg-white/5 rounded-full" />
-          <div className="absolute right-28 top-4 w-20 h-20 bg-white/10 rounded-full" />
+          <div className="absolute -right-16 -top-16 w-64 h-64 bg-white/5 rounded-full" />
+          <div className="absolute -right-8 -bottom-20 w-48 h-48 bg-white/5 rounded-full" />
+          <div className="absolute right-32 top-8 w-24 h-24 bg-white/10 rounded-full blur-xl" />
+          <div className="absolute left-1/2 -bottom-8 w-32 h-32 bg-pink-400/20 rounded-full blur-2xl" />
         </motion.div>
 
         {/* Stats Row */}
@@ -229,10 +233,11 @@ export default function Home() {
             <motion.div
               key={stat.label}
               variants={itemVariants}
-              className="bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-shadow duration-300"
+              whileHover={{ y: -4, scale: 1.02 }}
+              className="bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-all duration-300 border border-surface-border group"
             >
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center`}>
+                <div className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-soft`}>
                   {stat.icon}
                 </div>
                 <div>
@@ -259,11 +264,14 @@ export default function Home() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature) => (
-              <motion.div key={feature.title} variants={itemVariants}>
-                <Link href={feature.href} className="group block">
-                  <div className="bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-all duration-300 group-hover:-translate-y-0.5 h-full">
-                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center text-white shadow-soft`}>
+            {features.map((feature, i) => (
+              <motion.div key={feature.title} variants={itemVariants} whileHover={{ y: -4, scale: 1.01 }}>
+                <Link href={feature.href} className="group block h-full">
+                  <div className="bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-all duration-300 h-full border border-surface-border relative overflow-hidden">
+                    {/* Gradient accent bar */}
+                    <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${feature.gradient} opacity-80`} />
+
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center text-white shadow-soft group-hover:scale-110 transition-transform`}>
                       {feature.icon}
                     </div>
                     <h3 className="mt-4 text-base font-semibold text-slate-800">{feature.title}</h3>
