@@ -42,11 +42,7 @@ export default function GetMatchedPage() {
           <p className="text-sm text-slate-500">AI-ranked jobs based on your career-path skills.</p>
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <ErrorAlert error={error} />
 
         <div className="bg-white rounded-2xl shadow-card overflow-hidden border border-surface-border">
           <div className="px-6 py-4 border-b border-surface-border">
