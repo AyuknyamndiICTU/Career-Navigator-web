@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/auth';
+import ErrorAlert from '@/components/ErrorAlert';
 
 export default function PasswordResetRequestPage() {
   const router = useRouter();
@@ -68,11 +69,7 @@ export default function PasswordResetRequestPage() {
               />
             </label>
 
-            {error && (
-              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
+            <ErrorAlert error={error} />
 
             {message && (
               <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700">
