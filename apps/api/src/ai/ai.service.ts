@@ -218,7 +218,7 @@ ${dto.message}
     const base = ollamaBaseUrl.replace(/\/+$/, '');
 
     const ollamaNumPredict = Number(process.env.OLLAMA_NUM_PREDICT ?? '180');
-    const safeNumPredict = Math.max(1, Math.min(ollamaNumPredict, 1));
+    const safeNumPredict = Math.max(1, ollamaNumPredict);
 
     const res = await fetch(`${base}/api/generate`, {
       method: 'POST',
@@ -241,18 +241,13 @@ ${dto.message}
     const data = (await res.json()) as { response?: string };
     const responseText = data?.response ?? '';
 
-    const responseLower = responseText.toLowerCase();
-    const mentionsAllowedSkill = allowedSkills.some((s) =>
-      responseLower.includes(s.toLowerCase()),
+    const guard = this.guardResponseMentionsAllowedSkills(
+      responseText,
+      allowedSkills,
     );
 
-    if (!mentionsAllowedSkill) {
-      return {
-        response: `I can only help with your career-path skills: ${allowedSkills.join(
-          ', ',
-        )}. Please ask a question related to these skills.`,
-        allowedSkills,
-      };
+    if (!guard.ok) {
+      return { response: guard.refusal, allowedSkills };
     }
 
     return { response: responseText, allowedSkills };
@@ -328,7 +323,7 @@ ${userMessage}
     const base = ollamaBaseUrl.replace(/\/+$/, '');
 
     const ollamaNumPredict = Number(process.env.OLLAMA_NUM_PREDICT ?? '180');
-    const safeNumPredict = Math.max(1, Math.min(ollamaNumPredict, 1));
+    const safeNumPredict = Math.max(1, ollamaNumPredict);
 
     const res = await fetch(`${base}/api/generate`, {
       method: 'POST',
