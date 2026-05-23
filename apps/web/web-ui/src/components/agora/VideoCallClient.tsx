@@ -15,14 +15,8 @@ type Props = {
   role: AgoraRole; // publisher/subscriber
 };
 
-function getAgoraAppId(): string {
-  const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID;
-  if (!appId) throw new Error('Missing NEXT_PUBLIC_AGORA_APP_ID');
-  return appId;
-}
-
 export function VideoCallClient({ channelName, uid, role }: Props) {
-  const appId = useMemo(() => getAgoraAppId(), []);
+  const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || '';
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const agoraRef = useRef<typeof import('agora-rtc-sdk-ng').default | null>(null);
 
@@ -135,6 +129,12 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
   async function join() {
     setError(null);
     setCallState('joining');
+
+    if (!appId) {
+      setError('Missing NEXT_PUBLIC_AGORA_APP_ID configuration. Please check your environment variables.');
+      setCallState('error');
+      return;
+    }
 
     try {
       const AgoraRTC = await getAgora();
