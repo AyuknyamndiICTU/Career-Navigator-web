@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/auth';
 import DashboardLayout from '@/components/DashboardLayout';
+import ErrorAlert from '@/components/ErrorAlert';
 
 export default function AdminAnalyticsPage() {
   const [busy, setBusy] = useState(false);
@@ -113,11 +114,7 @@ export default function AdminAnalyticsPage() {
               </div>
             )}
 
-            {error && (
-              <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-                {error}
-              </div>
-            )}
+            <ErrorAlert error={error} />
 
             {data && (
               <div className="rounded-xl bg-surface border border-surface-border p-4 overflow-auto">
