@@ -28,11 +28,17 @@ export default function NotificationsPage() {
   }, []);
 
   async function markRead(id: string) {
+    // Optimistic UI update
+    setItems((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+    );
+
     try {
       await apiFetch(`/notifications/${id}/read`, { method: 'POST' });
-      await load();
     } catch (e) {
+      // Revert on error
       setError(e instanceof Error ? e.message : 'Failed to mark as read');
+      void load();
     }
   }
 
@@ -44,11 +50,7 @@ export default function NotificationsPage() {
           <p className="text-sm text-slate-500">Your recent updates</p>
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <ErrorAlert error={error} />
 
         <div className="bg-white rounded-2xl shadow-card overflow-hidden">
           <div className="px-6 py-4 border-b border-surface-border">

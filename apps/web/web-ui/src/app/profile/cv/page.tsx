@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiFetch, apiFetchFile } from '@/lib/auth';
+import ErrorAlert from '@/components/ErrorAlert';
 
 type CvScanStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
 
@@ -99,11 +100,7 @@ export default function CvUploadPage() {
           </p>
         </div>
 
-        {error && (
-          <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <ErrorAlert error={error} />
 
         <div className="bg-white rounded-2xl shadow-card overflow-hidden border border-surface-border">
           <div className="px-6 py-4 border-b border-surface-border">
