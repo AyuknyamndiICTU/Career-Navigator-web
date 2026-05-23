@@ -6,9 +6,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig = {
   turbopack: {
-    // Force Turbopack to treat this Next app folder as the root.
-    // Must be absolute, otherwise Turbopack may resolve relative to src/.
-    root: __dirname,
+    // Force Turbopack to resolve from the monorepo root
+    root: path.join(__dirname, '../../..'),
   },
 };
 
