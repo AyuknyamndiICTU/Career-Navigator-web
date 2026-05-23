@@ -89,7 +89,11 @@ export default function ProfilePage() {
       <div className="max-w-3xl mx-auto">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-slate-800">Profile</h1>
-          <p className="text-sm text-slate-500">Manage your personal details</p>
+          <p className="text-sm text-slate-500 mb-4">Manage your personal details</p>
+          <div className="flex gap-4">
+            <a href="/profile" className="text-sm font-semibold text-primary-600 border-b-2 border-primary-600 pb-1">Personal Details</a>
+            <a href="/profile/cv" className="text-sm font-semibold text-slate-500 hover:text-slate-800 pb-1">CV & Skills Analysis</a>
+          </div>
         </div>
 
         {error && (
