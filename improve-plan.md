@@ -246,22 +246,22 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 
 ### Phase 8 — Verification & Hardening (prove it won’t regress)
 **Milestone 8.1 — TypeScript checks**
-- [ ] Run `tsc --noEmit`
+- [x] Run `tsc --noEmit`
 
 **Milestone 8.2 — Build**
-- [ ] API build
-- [ ] Web build
+- [x] API build
+- [x] Web build
 
 **Milestone 8.3 — E2E sanity smoke**
-- [ ] OTP flow: wrong OTP shows clear UI error
-- [ ] AI chat: no validation/DTO errors
-- [ ] CV scan: structured output saved
-- [ ] Jobs rerank: creates notifications
-- [ ] Recommendations sidebar: renders post-CV scan
+- [x] OTP flow: wrong OTP shows clear UI error
+- [x] AI chat: no validation/DTO errors
+- [x] CV scan: structured output saved
+- [x] Jobs rerank: creates notifications
+- [x] Recommendations sidebar: renders post-CV scan
 
 **Milestone 8.4 — Load/memory sanity**
-- [ ] Verify Ollama responsiveness during a CV scan
-- [ ] Verify worker concurrency caps prevent API starvation
+- [x] Verify Ollama responsiveness during a CV scan
+- [x] Verify worker concurrency caps prevent API starvation
 
 **Exit criteria for Phase 8**
 - Gate A + Gate B + Gate C satisfied.
@@ -277,7 +277,7 @@ Treat Agora video as “works when configured”, but costs depend on Agora usag
 - [x] Phase 5 complete (realtime + notifications UX)
 - [x] Phase 6 complete (Agora session lifecycle)
 - [x] Phase 7 complete (dashboard/admin routing + RBAC)
-- [ ] Phase 8 complete (typecheck/build/smoke/hardening)
+- [x] Phase 8 complete (typecheck/build/smoke/hardening)
 
 ---
 
