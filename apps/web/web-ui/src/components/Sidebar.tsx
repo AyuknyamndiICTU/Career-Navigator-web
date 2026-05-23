@@ -132,7 +132,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <aside
         className={`
           fixed top-0 left-0 z-50 h-screen w-[260px]
-          bg-white border-r border-slate-200 flex flex-col
+          bg-[#0a0f1c] border-r border-[#1a2235] flex flex-col
           transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none
           lg:translate-x-0 lg:static lg:z-auto
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -140,14 +140,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         {/* Logo Area */}
         <div className="flex items-center gap-3 px-6 pt-8 pb-8">
-          <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm border border-slate-100 flex-shrink-0">
+          <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-sm border border-[#1a2235] flex-shrink-0">
             <Image src="/logo.png" alt="Career Navigator" fill className="object-cover" />
           </div>
           <div>
-            <div className="text-slate-800 font-extrabold text-base leading-tight tracking-tight">Career</div>
-            <div className="text-indigo-600 text-xs font-bold leading-tight tracking-wider uppercase">Navigator</div>
+            <div className="text-white font-extrabold text-base leading-tight tracking-tight">Career</div>
+            <div className="text-indigo-400 text-xs font-bold leading-tight tracking-wider uppercase">Navigator</div>
           </div>
-          <button onClick={onClose} className="ml-auto lg:hidden text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="ml-auto lg:hidden text-slate-400 hover:text-white">
              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
              </svg>
@@ -167,15 +167,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 group relative
                   ${
                     isActive
-                      ? 'text-indigo-700 bg-indigo-50'
-                      : 'text-slate-600 hover:text-indigo-600 hover:bg-slate-50'
+                      ? 'text-white bg-[#1a2235]'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
                   }
                 `}
               >
                 {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-600 rounded-r-full shadow-sm" />
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-500 rounded-r-full shadow-sm" />
                 )}
-                <div className={`transition-transform duration-200 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-500'}`}>
+                <div className={`transition-transform duration-200 ${isActive ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
                    {item.icon}
                 </div>
                 {item.label}
@@ -185,7 +185,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
 
         {/* Bottom Actions */}
-        <div className="p-4 border-t border-slate-100">
+        <div className="p-4 border-t border-[#1a2235]">
            <div className="space-y-1.5 mb-6">
               {bottomItems.map((item) => {
                 const isActive = pathname === item.href;
@@ -198,12 +198,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                       flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 group
                       ${
                         isActive
-                          ? 'text-indigo-700 bg-indigo-50'
-                          : 'text-slate-600 hover:text-indigo-600 hover:bg-slate-50'
+                          ? 'text-white bg-[#1a2235]'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
                       }
                     `}
                   >
-                    <div className={`transition-transform duration-200 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-500'}`}>
+                    <div className={`transition-transform duration-200 ${isActive ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
                        {item.icon}
                     </div>
                     {item.label}
