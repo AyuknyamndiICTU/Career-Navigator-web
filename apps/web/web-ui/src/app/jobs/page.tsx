@@ -95,11 +95,7 @@ export default function JobsPage() {
           <p className="text-sm text-slate-500">Browse active roles and apply with a cover letter.</p>
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <ErrorAlert error={error} />
 
         {/* Filters */}
         <div className="bg-white rounded-2xl shadow-card overflow-hidden border border-surface-border mb-6">
@@ -278,11 +274,7 @@ export default function JobsPage() {
                   Tip: match 2–3 skills mentioned in the job description.
                 </div>
 
-                {error && (
-                  <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-                    {error}
-                  </div>
-                )}
+                <ErrorAlert error={error} />
               </div>
 
               <div className="px-6 py-4 border-t border-surface-border flex items-center justify-end gap-2">
