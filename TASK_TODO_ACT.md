@@ -1,8 +1,8 @@
 # Act Mode TODO — Gemini-first CV extraction + recommendations
 
 - [ ] Phase 0: Inventory & contracts
-  - [ ] Locate Skills/Courses, Jobs, Profile, Upload UI routes
-  - [ ] Identify backend endpoints used for each feature
+  - [x] Locate Skills/Courses, Jobs, Profile, Upload UI routes
+  - [x] Identify backend endpoints used for each feature
   - [ ] Lock JSON contracts:
     - [ ] `UploadMedia.cvExtractedText` schema (must support `deriveCareerAllowedSkills`)
     - [x] Course/Job recommendation output shapes with `externalUrl`
