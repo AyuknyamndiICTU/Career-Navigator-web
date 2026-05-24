@@ -89,7 +89,9 @@ export class UploadController {
   @Get('cv/status')
   @ApiOkResponse({ description: 'Get CV scan status.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  getCvStatus(@Headers('authorization') authorization?: string): Promise<unknown> {
+  getCvStatus(
+    @Headers('authorization') authorization?: string,
+  ): Promise<unknown> {
     return this.uploadService.getCvStatus(authorization);
   }
 }
