@@ -331,3 +331,85 @@ model Message {
   @@index([conversationId])
   @@index([senderId])
 }
+
+model CourseScrapeCandidate {
+  id          String   @id @default(uuid())
+  platform    String
+  title       String
+  description String?
+  difficulty  String?
+  externalUrl String
+
+  skills      String[] @default([])
+
+  source      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([platform])
+  @@index([title])
+  @@index([externalUrl])
+}
+
+model CourseRecommendationCache {
+  id           String   @id @default(uuid())
+
+  userId       String
+  studentGoal  String?
+
+  allowedSkills String[] @default([])
+
+  // Expected JSON:
+  // [
+  //   { platform, courseName, difficulty, description, externalUrl, whyRecommended }
+  // ]
+  courses      Json
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  expiresAt     DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model JobScrapeCandidate {
+  id          String   @id @default(uuid())
+  title       String
+  company     String
+  location    String?
+  description String?
+  externalUrl String
+
+  skills      String[] @default([])
+
+  source      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([company])
+  @@index([title])
+  @@index([externalUrl])
+}
+
+model JobRecommendationCache {
+  id           String   @id @default(uuid())
+
+  userId       String
+  studentGoal  String?
+
+  allowedSkills String[] @default([])
+
+  // Expected JSON:
+  // [
+  //   { jobId, title, company, location, description, externalUrl, matchReason, score? }
+  // ]
+  jobs         Json
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  expiresAt     DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
