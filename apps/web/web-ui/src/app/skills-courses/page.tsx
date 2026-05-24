@@ -9,12 +9,48 @@ import { apiFetch } from '@/lib/auth';
 import ErrorAlert from '@/components/ErrorAlert';
 
 const skillCategories = [
-  { name: 'Technical', color: 'from-blue-500 to-cyan-400', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  { name: 'Leadership', color: 'from-purple-500 to-pink-400', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-  { name: 'Communication', color: 'from-emerald-500 to-teal-400', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  { name: 'Problem Solving', color: 'from-amber-500 to-orange-400', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  { name: 'Creativity', color: 'from-pink-500 to-rose-400', bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200' },
-  { name: 'Analytical', color: 'from-indigo-500 to-violet-400', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+  {
+    name: 'Technical',
+    color: 'from-blue-500 to-cyan-400',
+    bg: 'bg-blue-50',
+    text: 'text-blue-700',
+    border: 'border-blue-200',
+  },
+  {
+    name: 'Leadership',
+    color: 'from-purple-500 to-pink-400',
+    bg: 'bg-purple-50',
+    text: 'text-purple-700',
+    border: 'border-purple-200',
+  },
+  {
+    name: 'Communication',
+    color: 'from-emerald-500 to-teal-400',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200',
+  },
+  {
+    name: 'Problem Solving',
+    color: 'from-amber-500 to-orange-400',
+    bg: 'bg-amber-50',
+    text: 'text-amber-700',
+    border: 'border-amber-200',
+  },
+  {
+    name: 'Creativity',
+    color: 'from-pink-500 to-rose-400',
+    bg: 'bg-pink-50',
+    text: 'text-pink-700',
+    border: 'border-pink-200',
+  },
+  {
+    name: 'Analytical',
+    color: 'from-indigo-500 to-violet-400',
+    bg: 'bg-indigo-50',
+    text: 'text-indigo-700',
+    border: 'border-indigo-200',
+  },
 ];
 
 const platformIcons: Record<string, string> = {
@@ -28,7 +64,7 @@ const platformIcons: Record<string, string> = {
 };
 
 function getPlatformIcon(text: string): string {
-  const lower = text.toLowerCase();
+  const lower = (text ?? '').toLowerCase();
   for (const [key, icon] of Object.entries(platformIcons)) {
     if (lower.includes(key)) return icon;
   }
@@ -69,7 +105,8 @@ function parseRecommendations(text: string): string[] {
   let current = '';
 
   for (const line of lines) {
-    const isNewItem = /^(\d+[\.\)]\s|[-•*]\s|\*\*\d+)/.test(line.trim());
+    // Avoid unnecessary escape chars inside character classes.
+    const isNewItem = /^(\d+[.)]\s|[-•*]\s|\*\*\d+)/.test(line.trim());
     if (isNewItem && current) {
       items.push(current.trim());
       current = line;
@@ -82,10 +119,20 @@ function parseRecommendations(text: string): string[] {
   return items.length > 1 ? items : [text];
 }
 
+type CourseCard = {
+  platform: string;
+  courseName: string;
+  difficulty: string;
+  description: string;
+  externalUrl: string;
+  whyRecommended: string;
+};
+
 export default function SkillsCoursesPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [recommendations, setRecommendations] = useState<string[]>([]);
+  const [courseRecommendations, setCourseRecommendations] = useState<CourseCard[]>([]);
   const [allowedSkills, setAllowedSkills] = useState<string[]>([]);
   const [studentGoal, setStudentGoal] = useState('');
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -93,6 +140,9 @@ export default function SkillsCoursesPage() {
   async function loadRecommendations(goal?: string) {
     setBusy(true);
     setError('');
+    setCourseRecommendations([]);
+    setRecommendations([]);
+
     try {
       const body: Record<string, unknown> = {};
       if (goal?.trim()) body.studentGoal = goal.trim();
@@ -100,12 +150,38 @@ export default function SkillsCoursesPage() {
       const res = (await apiFetch('/ai/course-recommendations', {
         method: 'POST',
         body,
-      })) as { response?: string; allowedSkills?: string[] };
+      })) as {
+        response?: string;
+        allowedSkills?: string[];
+        courses?: Array<{
+          courseName?: string;
+          platform?: string;
+          difficulty?: string;
+          description?: string;
+          externalUrl?: string;
+          whyRecommended?: string;
+        }>;
+      };
 
       if (res?.allowedSkills) setAllowedSkills(res.allowedSkills);
-      if (typeof res?.response === 'string') {
+
+      if (Array.isArray(res?.courses) && res.courses.length > 0) {
+        const mapped: CourseCard[] = res.courses
+          .map((c) => ({
+            platform: c.platform ?? '',
+            courseName: c.courseName ?? '',
+            difficulty: c.difficulty ?? '',
+            description: c.description ?? '',
+            externalUrl: c.externalUrl ?? '',
+            whyRecommended: c.whyRecommended ?? '',
+          }))
+          .filter((c) => c.courseName.trim().length > 0);
+
+        setCourseRecommendations(mapped);
+      } else if (typeof res?.response === 'string' && res.response.trim().length > 0) {
         setRecommendations(parseRecommendations(res.response));
       }
+
       setHasLoaded(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load recommendations');
@@ -250,7 +326,7 @@ export default function SkillsCoursesPage() {
             <h2 className="text-lg font-bold text-slate-800">Explore Skill Categories</h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {skillCategories.map((cat, i) => (
+            {skillCategories.map((cat) => (
               <motion.div
                 key={cat.name}
                 variants={itemVariants}
@@ -293,9 +369,9 @@ export default function SkillsCoursesPage() {
               <h3 className="mt-4 text-lg font-semibold text-slate-700">Generating Recommendations</h3>
               <p className="mt-1 text-sm text-slate-500">Our AI is analyzing your career profile...</p>
             </motion.div>
-          ) : recommendations.length > 0 ? (
+          ) : courseRecommendations.length > 0 ? (
             <motion.div
-              key="results"
+              key="courses"
               variants={containerVariants}
               initial="hidden"
               animate="visible"
@@ -321,6 +397,83 @@ export default function SkillsCoursesPage() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
+                {courseRecommendations.map((course, i) => (
+                  <motion.div
+                    key={`${course.courseName}-${i}`}
+                    variants={itemVariants}
+                    whileHover={{ y: -3 }}
+                    className="group bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-all duration-300 border border-surface-border relative overflow-hidden"
+                  >
+                    <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${skillCategories[i % skillCategories.length].color} opacity-80`} />
+
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 mt-0.5 text-2xl">
+                        {getPlatformIcon(course.platform || course.courseName)}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-slate-700 font-semibold leading-relaxed">
+                          {course.courseName}
+                        </div>
+
+                        <div className="mt-1 text-xs text-slate-500">
+                          {course.platform ? `${course.platform}` : 'Course Platform'}
+                          {course.difficulty ? ` • ${course.difficulty}` : ''}
+                        </div>
+
+                        {course.description ? (
+                          <div className="mt-2 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                            {course.description}
+                          </div>
+                        ) : null}
+
+                        {course.whyRecommended ? (
+                          <div className="mt-2 text-xs text-slate-500 leading-relaxed">
+                            <span className="font-semibold text-slate-600">Why:</span> {course.whyRecommended}
+                          </div>
+                        ) : null}
+
+                        {course.externalUrl ? (
+                          <a
+                            href={course.externalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-purple-700 hover:text-purple-800 underline underline-offset-2"
+                          >
+                            Visit Course
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14 3h7v7m0-7L10 14" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 21h14a2 2 0 0 0 2-2V9" />
+                            </svg>
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary-50/0 to-purple-50/0 group-hover:from-primary-50/30 group-hover:to-purple-50/30 transition-all duration-500 pointer-events-none rounded-2xl" />
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          ) : recommendations.length > 0 ? (
+            <motion.div
+              key="results"
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  </div>
+                  <h2 className="text-lg font-bold text-slate-800">Recommended Courses</h2>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
                 {recommendations.map((rec, i) => (
                   <motion.div
                     key={i}
@@ -328,7 +481,6 @@ export default function SkillsCoursesPage() {
                     whileHover={{ y: -3 }}
                     className="group bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-all duration-300 border border-surface-border relative overflow-hidden"
                   >
-                    {/* Gradient accent bar */}
                     <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${skillCategories[i % skillCategories.length].color} opacity-80`} />
 
                     <div className="flex gap-3">
@@ -337,12 +489,13 @@ export default function SkillsCoursesPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                          {rec.replace(/^[\d\.\)\-\*•]\s*/, '').replace(/^\*\*[\d]+\.\s*/, '')}
+                          {rec
+                            .replace(/^[\d.)*\-•]\s*/, '')
+                            .replace(/^\*\*[\d]+\.\s*/, '')}
                         </div>
                       </div>
                     </div>
 
-                    {/* Hover gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-br from-primary-50/0 to-purple-50/0 group-hover:from-primary-50/30 group-hover:to-purple-50/30 transition-all duration-500 pointer-events-none rounded-2xl" />
                   </motion.div>
                 ))}
