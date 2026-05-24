@@ -2,7 +2,14 @@ import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { describe, beforeEach, afterEach, it, jest, expect } from '@jest/globals';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  it,
+  jest,
+  expect,
+} from '@jest/globals';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -11,11 +18,15 @@ describe('Phase 4 flows (e2e routes)', () => {
 
   const prismaMock = {
     job: {
-      findMany: jest.fn(() => Promise.resolve([{ id: 'job1', title: 'Engineer', status: 'ACTIVE' }])),
+      findMany: jest.fn(() =>
+        Promise.resolve([{ id: 'job1', title: 'Engineer', status: 'ACTIVE' }]),
+      ),
       count: jest.fn(() => Promise.resolve(1)),
     },
     mentor: {
-      findMany: jest.fn(() => Promise.resolve([{ id: 'm1', displayName: 'Alice' }])),
+      findMany: jest.fn(() =>
+        Promise.resolve([{ id: 'm1', displayName: 'Alice' }]),
+      ),
       count: jest.fn(() => Promise.resolve(1)),
     },
   };
