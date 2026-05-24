@@ -92,7 +92,8 @@ export class JobsController {
 
   @Post('matched')
   @ApiOkResponse({
-    description: 'Derive career-path skills from the user and return matched ranked jobs.',
+    description:
+      'Derive career-path skills from the user and return matched ranked jobs.',
   })
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid bearer token.',
