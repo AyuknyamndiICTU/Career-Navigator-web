@@ -224,7 +224,11 @@ export class UploadService {
     return { message: 'CV uploaded', objectKey };
   }
 
-  async getCvStatus(authorizationHeader: string | undefined): Promise<{ status: string | null; error: string | null; skills: string[] }> {
+  async getCvStatus(authorizationHeader: string | undefined): Promise<{
+    status: string | null;
+    error: string | null;
+    skills: string[];
+  }> {
     const { sub: userId } = this.getAuthUser(authorizationHeader);
     const media = await this.prisma.uploadMedia.findUnique({
       where: { userId_type: { userId, type: MEDIA_TYPE_CV } },
@@ -236,9 +240,13 @@ export class UploadService {
     let skills: string[] = [];
     if (media.cvExtractedText) {
       try {
-        const parsed = JSON.parse(media.cvExtractedText) as { skills?: string[] };
+        const parsed = JSON.parse(media.cvExtractedText) as {
+          skills?: string[];
+        };
         if (Array.isArray(parsed.skills)) skills = parsed.skills;
-      } catch {}
+      } catch {
+        // ignore invalid extracted JSON
+      }
     }
 
     return {

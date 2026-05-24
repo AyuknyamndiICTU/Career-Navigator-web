@@ -330,9 +330,16 @@ export class JobsService {
       .filter(Boolean)
       .slice(0, 50);
 
-    const fallbackSkills = allowedSkills.length > 0 
-      ? allowedSkills 
-      : ['General Career Guidance', 'Resume Building', 'Interview Preparation', 'Job Search Strategies', 'Professional Development'];
+    const fallbackSkills =
+      allowedSkills.length > 0
+        ? allowedSkills
+        : [
+            'General Career Guidance',
+            'Resume Building',
+            'Interview Preparation',
+            'Job Search Strategies',
+            'Professional Development',
+          ];
 
     const activeJobs = await this.prisma.job.findMany({
       where: { status: 'ACTIVE' },
