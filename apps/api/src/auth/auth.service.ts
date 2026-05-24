@@ -93,7 +93,7 @@ export class AuthService {
 
     if (otpEmailLogOnly) {
       // Local/dev mode: don't call external email provider.
-      // eslint-disable-next-line no-console
+
       console.log(`[DEV OTP] Register OTP for ${email}: ${code}`);
       return { message: 'OTP generated (check server logs)' };
     }
@@ -111,10 +111,9 @@ export class AuthService {
     } catch (e) {
       // Don’t block signup if Brevo is misconfigured in dev/staging.
       // Fall back to server-log-only OTP flow.
-      // eslint-disable-next-line no-console
+
       console.error('Brevo send failed; falling back to log-only OTP:', e);
 
-      // eslint-disable-next-line no-console
       console.log(`[DEV OTP] Register OTP for ${email}: ${code}`);
 
       return { message: 'OTP generated (check server logs)' };
@@ -378,7 +377,6 @@ export class AuthService {
     });
 
     if (otpEmailLogOnly) {
-      // eslint-disable-next-line no-console
       console.log(`[DEV OTP] Password reset OTP for ${email}: ${code}`);
       return {
         message:
