@@ -13,6 +13,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AiModule } from './ai/ai.module';
 import { AdminModule } from './admin/admin.module';
 import { AgoraModule } from './agora/agora.module';
+import { CoursesModule } from './courses/courses.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AgoraModule } from './agora/agora.module';
     AiModule,
     AdminModule,
     AgoraModule,
+    CoursesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
