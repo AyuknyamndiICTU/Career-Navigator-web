@@ -10,6 +10,8 @@ import {
   CreateWorkExperienceDto,
   UpdateWorkExperienceDto,
 } from './dto/work-experience.dto';
+import { CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
+import { CreateReferenceDto, UpdateReferenceDto } from './dto/reference.dto';
 import { verifyAccessToken } from '../auth/jwt/jwt-utils';
 
 type AuthUser = { sub: string };
@@ -194,5 +196,133 @@ export class ProfileService {
     });
 
     return { message: 'Work experience deleted' };
+  }
+
+  async listProjects(authorizationHeader: string | undefined) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    return this.prisma.project.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createProject(
+    authorizationHeader: string | undefined,
+    dto: CreateProjectDto,
+  ) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    return this.prisma.project.create({
+      data: { userId, ...dto },
+    });
+  }
+
+  async updateProject(
+    authorizationHeader: string | undefined,
+    projectId: string,
+    dto: UpdateProjectDto,
+  ) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    const existing = await this.prisma.project.findFirst({
+      where: { id: projectId, userId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new BadRequestException(USER_PURPOSE_FORBIDDEN);
+    }
+
+    return this.prisma.project.update({
+      where: { id: projectId },
+      data: dto,
+    });
+  }
+
+  async deleteProject(
+    authorizationHeader: string | undefined,
+    projectId: string,
+  ) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    const existing = await this.prisma.project.findFirst({
+      where: { id: projectId, userId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new BadRequestException(USER_PURPOSE_FORBIDDEN);
+    }
+
+    await this.prisma.project.delete({
+      where: { id: projectId },
+    });
+
+    return { message: 'Project deleted' };
+  }
+
+  async listReferences(authorizationHeader: string | undefined) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    return this.prisma.reference.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async createReference(
+    authorizationHeader: string | undefined,
+    dto: CreateReferenceDto,
+  ) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    return this.prisma.reference.create({
+      data: { userId, ...dto },
+    });
+  }
+
+  async updateReference(
+    authorizationHeader: string | undefined,
+    referenceId: string,
+    dto: UpdateReferenceDto,
+  ) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    const existing = await this.prisma.reference.findFirst({
+      where: { id: referenceId, userId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new BadRequestException(USER_PURPOSE_FORBIDDEN);
+    }
+
+    return this.prisma.reference.update({
+      where: { id: referenceId },
+      data: dto,
+    });
+  }
+
+  async deleteReference(
+    authorizationHeader: string | undefined,
+    referenceId: string,
+  ) {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    const existing = await this.prisma.reference.findFirst({
+      where: { id: referenceId, userId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new BadRequestException(USER_PURPOSE_FORBIDDEN);
+    }
+
+    await this.prisma.reference.delete({
+      where: { id: referenceId },
+    });
+
+    return { message: 'Reference deleted' };
   }
 }
