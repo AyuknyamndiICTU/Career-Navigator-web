@@ -41,11 +41,12 @@
 
 - [ ] Phase 5: Career glue consistency
   - [x] Ensure all endpoints use the same allowed-skills precedence
-  - [ ] Ensure enforcement messages are consistent
+  - [x] Ensure enforcement messages are consistent
 
 - [ ] Phase 6: Docker compose — make Ollama optional
   - [x] Move Ollama to compose profile OR gate start behind CV_SCAN_ENABLED
   - [x] Update compose so `docker compose up` does NOT require Ollama
+  - [x] Use best-effort stronger Ollama models (model selection + fallback list) instead of tiny local models
 
 - [ ] Testing & validation
   - [x] Run backend unit/e2e tests (done: e2e suites passed after changes)
