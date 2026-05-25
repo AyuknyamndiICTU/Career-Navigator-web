@@ -100,12 +100,13 @@ export class ResumeService {
       isCurrent: boolean;
       createdAt?: Date;
       updatedAt?: Date;
-    }> = await prismaAny.project
-      ?.findMany?.({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-      })
-      .catch(() => []);
+    }> =
+      (await prismaAny.project
+        ?.findMany?.({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+        })
+        .catch(() => [])) ?? [];
 
     const references: Array<{
       id?: string;
@@ -117,12 +118,13 @@ export class ResumeService {
       notes: string | null;
       createdAt?: Date;
       updatedAt?: Date;
-    }> = await prismaAny.reference
-      ?.findMany?.({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-      })
-      .catch(() => []);
+    }> =
+      (await prismaAny.reference
+        ?.findMany?.({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+        })
+        .catch(() => [])) ?? [];
 
     if (
       !profile &&
