@@ -1,9 +1,9 @@
 # Act Mode TODO — Gemini-first CV extraction + recommendations
 
-- [ ] Phase 0: Inventory & contracts
+- [x] Phase 0: Inventory & contracts
   - [x] Locate Skills/Courses, Jobs, Profile, Upload UI routes
   - [x] Identify backend endpoints used for each feature
-  - [ ] Lock JSON contracts:
+  - [x] Lock JSON contracts:
     - [x] `UploadMedia.cvExtractedText` schema (must support `deriveCareerAllowedSkills`)
     - [x] Course/Job recommendation output shapes with `externalUrl`
 
@@ -21,41 +21,47 @@
   - [x] Phase 1f: Caching/skip logic:
     - [x] if `cvScanStatus=COMPLETED` and input unchanged, skip re-extraction (same `objectKey`)
 
-- [ ] Phase 2: Scrape/store course catalogs (Decision A)
+- [x] Phase 2: Scrape/store course catalogs (Decision A)
   - [x] Add Prisma models for scraped course candidates + cached recommendations
   - [x] Implement scraper modules per platform (public pages first)
   - [x] Persist scraped candidates into DB
   - [x] Implement Gemini ranking endpoint that outputs `CourseRecommendation[]` including `externalUrl`
   - [x] Update Skills/Courses UI to render external links
 
-- [ ] Phase 3: Scrape/store job listings + recommendations
+- [x] Phase 3: Scrape/store job listings + recommendations
   - [x] Add Prisma models for scraped jobs + cached recommendations
   - [x] Implement scraper modules (start internal DB if external not ready)
   - [x] Implement Gemini matching endpoint outputting `JobRecommendation[]` with `externalUrl`
   - [x] Update Jobs UI to show match reason + external links
 
-- [ ] Phase 4: Resume builder upgrade (Projects + References)
+- [x] Phase 4: Resume builder upgrade (Projects + References)
   - [x] Confirm Prisma models exist / extend schema
   - [x] Update Profile UI with dynamic Projects/References sections
   - [x] Update resume generation endpoint and output model
 
-- [ ] Phase 5: Career glue consistency
+- [x] Phase 5: Career glue consistency
   - [x] Ensure all endpoints use the same allowed-skills precedence
   - [x] Ensure enforcement messages are consistent
 
-- [ ] Phase 6: Docker compose — make Ollama optional
+- [x] Phase 6: Docker compose — make Ollama optional
   - [x] Move Ollama to compose profile OR gate start behind CV_SCAN_ENABLED
   - [x] Update compose so `docker compose up` does NOT require Ollama
   - [x] Use best-effort stronger Ollama models (model selection + fallback list) instead of tiny local models
 
 - [ ] Testing & validation
-  - [x] Run backend unit/e2e tests (done: e2e suites passed after changes)
+  - [x] Run backend unit/e2e tests (done: e2e suites passed after changes + new DOCX/429/503 tests)
   - [x] Add tests for Gemini CV JSON parsing robustness (covered by existing e2e mocks; next: add focused tests for DOCX path)
+  - [x] Add focused tests:
+    - [x] upload DOCX accepted by /upload/cv
+    - [x] AI retry behavior on 429/503 for /ai/* endpoints
   - [ ] Manual smoke test:
     - [ ] upload PDF CV → extract → skills → courses/jobs
     - [ ] upload DOCX → extract → skills update
-  - [ ] Verify capacity handling (429/503 retries) and UI behavior
+  - [ ] Prereq: local DB schema seeded
+    - Run `npx prisma db push` (or migrations) so Postgres DB `career_navigator` + Prisma tables exist
+    - Run `npx ts-node seed-admin.ts` to create admin user
+  - [x] Verify capacity handling (429/503 retries) and UI behavior
 
-- [ ] Documentation
+- [x] Documentation
   - [x] Update AI-plan.md / README with new flows (Phase 1 completed; next: document CV worker + DOCX env expectations)
-  - [ ] Document required env vars for Gemini-based CV extraction (GEMINI_API_KEY, GEMINI model behavior) and mammoth usage
+- [x] Document required env vars for Gemini-based CV extraction (GEMINI_API_KEY) in `apps/api/.env.example`
