@@ -190,40 +190,87 @@ export class AiService {
     userMessage: string,
   ): Promise<string> {
     const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
-    const ollamaModel = process.env.OLLAMA_MODEL;
 
-    if (!ollamaBaseUrl || !ollamaModel) {
-      throw new BadRequestException('OLLAMA_BASE_URL / OLLAMA_MODEL not set');
+    if (!ollamaBaseUrl) {
+      throw new BadRequestException('OLLAMA_BASE_URL not set');
+    }
+
+    const ollamaModelRaw = process.env.OLLAMA_MODEL;
+    const ollamaModelFallbacksRaw = process.env.OLLAMA_MODEL_FALLBACKS;
+
+    // Model ordering (best effort):
+    // - OLLAMA_MODEL may be a comma-separated preference list
+    // - then OLLAMA_MODEL_FALLBACKS
+    // - then built-in strong defaults
+    const candidates = [
+      ...(ollamaModelRaw
+        ? ollamaModelRaw
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : []),
+      ...(ollamaModelFallbacksRaw
+        ? ollamaModelFallbacksRaw
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : []),
+      // Built-in “best effort” defaults (stronger than tiny local models).
+      'qwen2.5-coder:14b',
+      'qwen2.5-coder:7b',
+      'llama3:70b',
+      'llama3:8b',
+    ];
+
+    const uniqueCandidates = Array.from(new Set(candidates)).filter(Boolean);
+
+    if (uniqueCandidates.length === 0) {
+      throw new BadRequestException('No Ollama model candidates configured');
     }
 
     // Keep request shape simple and compatible with test mocks.
     const url = `${ollamaBaseUrl.replace(/\/+$/, '')}/api/generate`;
-
     const prompt = `${systemInstruction}\n\n${userMessage}`;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: ollamaModel,
-        prompt,
-        stream: false,
-      }),
-    });
+    let lastError: unknown = null;
 
-    if (!res.ok) {
-      const errorBody = await res.text().catch(() => '');
-      throw new BadRequestException(
-        `Ollama generation failed: ${res.status} ${errorBody}`.trim(),
-      );
+    for (const model of uniqueCandidates) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            prompt,
+            stream: false,
+          }),
+        });
+
+        if (!res.ok) {
+          const errorBody = await res.text().catch(() => '');
+          throw new BadRequestException(
+            `Ollama generation failed: model=${model} status=${res.status} ${errorBody}`.trim(),
+          );
+        }
+
+        const data = (await res.json()) as unknown;
+        const dataAny = data as { response?: unknown };
+
+        const text =
+          typeof dataAny?.response === 'string' ? dataAny.response : '';
+        // Even if response is empty, return it so callers can enforce allowed-skills logic.
+        return text;
+      } catch (err) {
+        lastError = err;
+        // try next stronger model
+      }
     }
 
-    const data = (await res.json()) as unknown;
-
-    const dataAny = data as { response?: unknown };
-    const text = typeof dataAny?.response === 'string' ? dataAny.response : '';
-
-    return text;
+    // If all candidates fail, surface the last error.
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+    throw new BadRequestException('Ollama generation failed');
   }
 
   // ─── Google Gemini API ─────────────────────────────────────────────
