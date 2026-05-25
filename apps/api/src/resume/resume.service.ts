@@ -179,6 +179,21 @@ export class ResumeService {
         description: string | null;
         isCurrent: boolean;
       }>;
+      projects: Array<{
+        title: string;
+        description: string | null;
+        externalUrl: string | null;
+        skills: string[];
+        isCurrent: boolean;
+      }>;
+      references: Array<{
+        name: string;
+        relationship: string | null;
+        company: string | null;
+        email: string | null;
+        phone: string | null;
+        notes: string | null;
+      }>;
     },
   ): unknown {
     if (template !== 'STANDARD' && template !== 'DETAILED') {
@@ -232,6 +247,25 @@ export class ResumeService {
             years: this.formatYears(w.startYear, w.endYear, w.isCurrent),
           }));
 
+    const projectsSections = template
+      ? data.projects.map((p) => ({
+          title: p.title ?? null,
+          description: p.description ?? null,
+          externalUrl: p.externalUrl ?? null,
+          skills: Array.isArray(p.skills) ? p.skills : [],
+          isCurrent: p.isCurrent,
+        }))
+      : [];
+
+    const referencesSections = data.references.map((r) => ({
+      name: r.name ?? null,
+      relationship: r.relationship ?? null,
+      company: r.company ?? null,
+      email: r.email ?? null,
+      phone: r.phone ?? null,
+      notes: r.notes ?? null,
+    }));
+
     return {
       template,
       sections: {
@@ -239,6 +273,8 @@ export class ResumeService {
         summary,
         experience: experienceSections,
         education: educationSections,
+        projects: projectsSections,
+        references: referencesSections,
       },
     };
   }
