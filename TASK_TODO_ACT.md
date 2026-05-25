@@ -4,7 +4,7 @@
   - [x] Locate Skills/Courses, Jobs, Profile, Upload UI routes
   - [x] Identify backend endpoints used for each feature
   - [ ] Lock JSON contracts:
-    - [ ] `UploadMedia.cvExtractedText` schema (must support `deriveCareerAllowedSkills`)
+    - [x] `UploadMedia.cvExtractedText` schema (must support `deriveCareerAllowedSkills`)
     - [x] Course/Job recommendation output shapes with `externalUrl`
 
 - [x] Phase 1: CV scan worker refactor (Ollama → Gemini)
