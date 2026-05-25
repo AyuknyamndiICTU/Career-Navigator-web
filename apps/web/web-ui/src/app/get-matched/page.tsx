@@ -171,6 +171,35 @@ export default function GetMatchedPage() {
                       </div>
                     )}
 
+                    {job.matchReason && (
+                      <div className="mt-4 text-sm font-semibold text-slate-700">
+                        Match reason:{' '}
+                        <span className="font-normal text-slate-600">
+                          {job.matchReason}
+                        </span>
+                      </div>
+                    )}
+
+                    {job.externalUrl && (
+                      <a
+                        href={job.externalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 transition-colors shadow-soft"
+                      >
+                        View job
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </a>
+                    )}
+
                     {job.description && (
                       <div className="mt-4 pt-4 border-t border-surface-border text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
                         {job.description}
