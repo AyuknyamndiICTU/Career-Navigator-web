@@ -3,10 +3,13 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY . .
-RUN npm ci --ignore-scripts || npm ci --ignore-scripts || npm ci --ignore-scripts
+RUN npm install --no-audit --ignore-scripts
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+# Prevent next/font/google from fetching fonts over the network during docker builds.
+ENV NEXT_FONT_GOOGLE_MOCK=1
 
 # Inject NEXT_PUBLIC_* values at build time so the compiled client uses the right API URLs.
 ARG NEXT_PUBLIC_API_BASE_URL
