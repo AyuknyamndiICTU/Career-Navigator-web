@@ -35,6 +35,7 @@ services:
 
   ollama:
     image: ollama/ollama:latest
+    profiles: ["ollama"]
     ports:
       - "11434:11434"
     volumes:
@@ -108,8 +109,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
       minio:
         condition: service_started
     cpus: 1
