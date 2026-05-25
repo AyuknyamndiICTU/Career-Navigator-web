@@ -33,7 +33,7 @@ spec:
             - name: OLLAMA_BASE_URL
               value: "REPLACE_ME"
             - name: OLLAMA_MODEL
-              value: "llama3"
+              value: "qwen2.5-coder:7b"
             - name: AGORA_APP_ID
               value: "REPLACE_ME"
             - name: AGORA_APP_CERTIFICATE
