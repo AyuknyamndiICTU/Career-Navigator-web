@@ -448,10 +448,12 @@ export class JobsService {
         );
         const score = matched.length;
 
-        const externalUrl = job.externalUrl ?? makeExternalUrl({
-          title: job.title,
-          company: job.company,
-        });
+        const externalUrl =
+          job.externalUrl ??
+          makeExternalUrl({
+            title: job.title,
+            company: job.company,
+          });
 
         const matchReason =
           matched.length > 0
