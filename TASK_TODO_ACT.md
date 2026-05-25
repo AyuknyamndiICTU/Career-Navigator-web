@@ -29,9 +29,9 @@
   - [x] Update Skills/Courses UI to render external links
 
 - [ ] Phase 3: Scrape/store job listings + recommendations
-  - [ ] Add Prisma models for scraped jobs + cached recommendations
-  - [ ] Implement scraper modules (start internal DB if external not ready)
-  - [ ] Implement Gemini matching endpoint outputting `JobRecommendation[]` with `externalUrl`
+  - [x] Add Prisma models for scraped jobs + cached recommendations
+  - [x] Implement scraper modules (start internal DB if external not ready)
+  - [x] Implement Gemini matching endpoint outputting `JobRecommendation[]` with `externalUrl`
   - [x] Update Jobs UI to show match reason + external links
 
 - [ ] Phase 4: Resume builder upgrade (Projects + References)
