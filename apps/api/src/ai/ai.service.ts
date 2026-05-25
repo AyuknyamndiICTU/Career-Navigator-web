@@ -184,6 +184,48 @@ export class AiService {
     )}.`;
   }
 
+  // ─── Ollama API (e2e/back-compat fallback) ──────────────────────────
+  private async generateWithOllama(
+    systemInstruction: string,
+    userMessage: string,
+  ): Promise<string> {
+    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
+    const ollamaModel = process.env.OLLAMA_MODEL;
+
+    if (!ollamaBaseUrl || !ollamaModel) {
+      throw new BadRequestException('OLLAMA_BASE_URL / OLLAMA_MODEL not set');
+    }
+
+    // Keep request shape simple and compatible with test mocks.
+    const url = `${ollamaBaseUrl.replace(/\/+$/, '')}/api/generate`;
+
+    const prompt = `${systemInstruction}\n\n${userMessage}`;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: ollamaModel,
+        prompt,
+        stream: false,
+      }),
+    });
+
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => '');
+      throw new BadRequestException(
+        `Ollama generation failed: ${res.status} ${errorBody}`.trim(),
+      );
+    }
+
+    const data = (await res.json()) as unknown;
+
+    const dataAny = data as { response?: unknown };
+    const text = typeof dataAny?.response === 'string' ? dataAny.response : '';
+
+    return text;
+  }
+
   // ─── Google Gemini API ─────────────────────────────────────────────
 
   private async generateWithGemini(
@@ -192,6 +234,14 @@ export class AiService {
   ): Promise<string> {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
+      // Backward compatibility with existing e2e/tests that mock Ollama.
+      const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
+      const ollamaModel = process.env.OLLAMA_MODEL;
+
+      if (ollamaBaseUrl && ollamaModel) {
+        return this.generateWithOllama(systemInstruction, userMessage);
+      }
+
       throw new BadRequestException('GEMINI_API_KEY is not configured');
     }
 
