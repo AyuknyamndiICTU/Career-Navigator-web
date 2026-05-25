@@ -186,4 +186,68 @@ describe('AI chat (Milestone 5.2) + career-path enforcement (5.1)', () => {
     expect(res.body.allowedSkills).toEqual(['node']);
     expect(typeof res.body.response).toBe('string');
   });
+
+  it('POST /ai/chat retries on 429 then succeeds', async () => {
+    const token = signTestToken();
+
+    (global as any).fetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: async () => 'rate limited',
+        headers: { get: () => '0' },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({
+          response: 'Node.js is a great start for your project plan.',
+        }),
+      });
+
+    const res = await request(app.getHttpServer())
+      .post('/ai/chat')
+      .set('authorization', `Bearer ${token}`)
+      .send({
+        message: 'Help me with something',
+        allowedSkills: ['node'],
+      })
+      .expect(201);
+
+    expect(res.body.allowedSkills).toEqual(['node']);
+    expect(res.body.response.toLowerCase()).toContain('node');
+  });
+
+  it('POST /ai/chat retries on 503 then succeeds', async () => {
+    const token = signTestToken();
+
+    (global as any).fetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        text: async () => 'service unavailable',
+        headers: { get: () => '0' },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({
+          response: 'For TypeScript + Node.js, focus on project structure.',
+        }),
+      });
+
+    const res = await request(app.getHttpServer())
+      .post('/ai/chat')
+      .set('authorization', `Bearer ${token}`)
+      .send({
+        message: 'Help me with something',
+        allowedSkills: ['node'],
+      })
+      .expect(201);
+
+    expect(res.body.allowedSkills).toEqual(['node']);
+    expect(res.body.response.toLowerCase()).toContain('node');
+  });
 });

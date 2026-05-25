@@ -37,6 +37,11 @@ describe('Upload endpoints (Milestone 2.3)', () => {
   const mockPrisma: any = {
     uploadMedia: {
       upsert: jest.fn().mockResolvedValue({} as never),
+      findUnique: jest.fn().mockResolvedValue({
+        cvScanStatus: 'PENDING',
+        cvScanError: null,
+        cvExtractedText: null,
+      }),
     },
   };
 
@@ -133,5 +138,57 @@ describe('Upload endpoints (Milestone 2.3)', () => {
       .expect(200);
 
     expect(mockPrisma.uploadMedia.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('POST /upload/cv accepts DOCX files', async () => {
+    mockPrisma.uploadMedia.upsert.mockResolvedValue({} as never);
+
+    const token = signTestToken();
+    await request(app.getHttpServer())
+      .post('/upload/cv')
+      .set('authorization', `Bearer ${token}`)
+      .attach('file', fileBuffer, {
+        filename: 'cv.docx',
+        contentType:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+      .expect(200);
+
+    expect(mockPrisma.uploadMedia.upsert).toHaveBeenCalledTimes(1);
+
+    const statusRes = await request(app.getHttpServer())
+      .get('/upload/cv/status')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(statusRes.body).toHaveProperty('status');
+    expect(statusRes.body).toHaveProperty('error');
+    expect(statusRes.body).toHaveProperty('skills');
+    expect(Array.isArray(statusRes.body.skills)).toBe(true);
+    expect(statusRes.body.skills).toEqual([]);
+  });
+
+  it('POST /upload/cv (PDF) returns expected status shape', async () => {
+    mockPrisma.uploadMedia.upsert.mockResolvedValue({} as never);
+
+    const token = signTestToken();
+    await request(app.getHttpServer())
+      .post('/upload/cv')
+      .set('authorization', `Bearer ${token}`)
+      .attach('file', fileBuffer, {
+        filename: 'cv.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(200);
+
+    const statusRes = await request(app.getHttpServer())
+      .get('/upload/cv/status')
+      .set('authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(statusRes.body).toHaveProperty('status');
+    expect(statusRes.body).toHaveProperty('error');
+    expect(statusRes.body).toHaveProperty('skills');
+    expect(Array.isArray(statusRes.body.skills)).toBe(true);
   });
 });
