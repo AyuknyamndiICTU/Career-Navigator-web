@@ -512,7 +512,7 @@ export class JobsService {
         const matchReason =
           matched.length > 0
             ? `Matches your skills: ${matched.join(', ')}.`
-            : 'Recommended based on your overall career-path profile.';
+            : `I can only help using your career-path skills. Career-path skills: ${fallbackSkills.join(', ')}.`;
 
         return {
           jobId: job.id,
