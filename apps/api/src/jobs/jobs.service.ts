@@ -441,14 +441,14 @@ export class JobsService {
       return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
     };
 
-    const rankedAll: Ranked[] = activeJobs
+    const rankedAll: Ranked[] = candidateJobs
       .map((job) => {
         const matched = job.skills.filter((s) =>
           allowedLower.has(s.toLowerCase()),
         );
         const score = matched.length;
 
-        const externalUrl = makeExternalUrl({
+        const externalUrl = job.externalUrl ?? makeExternalUrl({
           title: job.title,
           company: job.company,
         });
