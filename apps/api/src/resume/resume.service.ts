@@ -88,15 +88,65 @@ export class ResumeService {
       },
     });
 
-    if (!profile && education.length === 0 && workExperience.length === 0) {
+    // Phase 4: Projects + References (best-effort so existing e2e mocks don't break)
+    const prismaAny = this.prisma as any;
+
+    const projects: Array<{
+      id?: string;
+      title: string;
+      description: string | null;
+      externalUrl: string | null;
+      skills: string[];
+      isCurrent: boolean;
+      createdAt?: Date;
+      updatedAt?: Date;
+    }> = await prismaAny.project
+      ?.findMany?.({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      })
+      .catch(() => []);
+
+    const references: Array<{
+      id?: string;
+      name: string;
+      relationship: string | null;
+      company: string | null;
+      email: string | null;
+      phone: string | null;
+      notes: string | null;
+      createdAt?: Date;
+      updatedAt?: Date;
+    }> = await prismaAny.reference
+      ?.findMany?.({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      })
+      .catch(() => []);
+
+    if (
+      !profile &&
+      education.length === 0 &&
+      workExperience.length === 0 &&
+      projects.length === 0 &&
+      references.length === 0
+    ) {
       return this.formatResume(template, {
         profile: null,
         education: [],
         workExperience: [],
+        projects: [],
+        references: [],
       });
     }
 
-    return this.formatResume(template, { profile, education, workExperience });
+    return this.formatResume(template, {
+      profile,
+      education,
+      workExperience,
+      projects,
+      references,
+    });
   }
 
   private formatResume(
