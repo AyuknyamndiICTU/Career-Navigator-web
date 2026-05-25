@@ -90,8 +90,15 @@ Currently CV text extraction uses `pdf-parse`. Add DOCX support so users can upl
 **Add**
 - A DOCX text extractor step before sending text to Gemini.
 
+**Implementation notes**
+- DOCX → text extraction uses the `mammoth` library.
+- No additional env vars are required for DOCX parsing beyond the existing AI/CV scan configuration.
+
 **Deliverables**
 - Users can upload PDF or DOCX and `cvExtractedText` becomes structured JSON.
+
+**Gemini model note**
+- CV extraction uses the Gemini endpoint with the model set in code (currently `gemini-2.5-flash`), so the only required Gemini env var is `GEMINI_API_KEY`.
 
 ### 1.3 Ensure allowed skills remain stable
 `deriveCareerAllowedSkills()` already parses `cvExtractedText` and extracts `skills`.
