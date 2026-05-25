@@ -35,9 +35,9 @@
   - [x] Update Jobs UI to show match reason + external links
 
 - [ ] Phase 4: Resume builder upgrade (Projects + References)
-  - [ ] Confirm Prisma models exist / extend schema
-  - [ ] Update Profile UI with dynamic Projects/References sections
-  - [ ] Update resume generation endpoint and output model
+  - [x] Confirm Prisma models exist / extend schema
+  - [x] Update Profile UI with dynamic Projects/References sections
+  - [x] Update resume generation endpoint and output model
 
 - [ ] Phase 5: Career glue consistency
   - [ ] Ensure all endpoints use the same allowed-skills precedence
