@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JobStatus } from '@prisma/client';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { RerankJobsDto } from './dto/rerank-jobs.dto';
+import { seedJobScrapeCandidatesFromActiveJobs } from './job-scrape-seed.service';
 
 export type BrowseJobsParams = {
   searchQuery?: string;
@@ -326,9 +327,7 @@ export class JobsService {
     });
 
     const careerSkills = jobApplications.flatMap((a) => a.job.skills);
-    const allowedSkills = Array.from(
-      new Set(careerSkills.map((s) => s.trim())),
-    )
+    const allowedSkills = Array.from(new Set(careerSkills.map((s) => s.trim())))
       .filter(Boolean)
       .slice(0, 50);
 
@@ -354,6 +353,14 @@ export class JobsService {
     const studentGoal = null;
 
     const prismaAny = this.prisma as any;
+
+    // Phase 3: internal job-candidate seed so `JobScrapeCandidate` exists for ranking.
+    // Best-effort: if migrations/tables are not ready, don't fail the endpoint.
+    try {
+      await seedJobScrapeCandidatesFromActiveJobs(this.prisma);
+    } catch {
+      // ignore
+    }
 
     // Phase 3 store: cache matched jobs (externalUrl + matchReason derived from job + matched skills).
     const cacheRecord = await prismaAny.jobRecommendationCache?.findFirst?.({
@@ -393,8 +400,8 @@ export class JobsService {
       }
     }
 
-    const activeJobs = await this.prisma.job.findMany({
-      where: { status: 'ACTIVE' },
+    const candidateJobs = await prismaAny.jobScrapeCandidate.findMany({
+      where: { platform: 'internal' },
       select: {
         id: true,
         title: true,
@@ -402,6 +409,7 @@ export class JobsService {
         location: true,
         description: true,
         skills: true,
+        externalUrl: true,
         updatedAt: true,
       },
       take: 500,
@@ -424,7 +432,10 @@ export class JobsService {
 
     const allowedLower = new Set(fallbackSkills.map((s) => s.toLowerCase()));
 
-    const makeExternalUrl = (job: { title: string; company: string }): string => {
+    const makeExternalUrl = (job: {
+      title: string;
+      company: string;
+    }): string => {
       // Until platform-specific job scraping exists, provide a reliable external discovery link.
       const q = `${job.title} ${job.company} jobs`;
       return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
