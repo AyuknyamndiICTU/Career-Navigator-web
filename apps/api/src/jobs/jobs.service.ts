@@ -482,6 +482,166 @@ export class JobsService {
     const limit = 10;
     const ranked = rankedAll.slice(0, limit);
 
+    // Phase 3: optional Gemini-based matchReason upgrade.
+    // To avoid breaking tests/CI, this is gated behind GEMINI_JOB_MATCH_ENABLED=true.
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    const geminiEnabled =
+      geminiApiKey && process.env.GEMINI_JOB_MATCH_ENABLED === 'true';
+
+    if (geminiEnabled && ranked.length > 0) {
+      const normalizeJsonObjectFromText = (
+        text: string,
+      ): Record<string, unknown> | null => {
+        const stripFences = text
+          .replace(/```(?:json)?/gi, '')
+          .replace(/```/g, '');
+        // Try to find the first JSON object.
+        const start = stripFences.indexOf('{');
+        const end = stripFences.lastIndexOf('}');
+        if (start === -1 || end === -1 || end <= start) return null;
+        try {
+          const candidate = stripFences.slice(start, end + 1);
+          return JSON.parse(candidate) as Record<string, unknown>;
+        } catch {
+          return null;
+        }
+      };
+
+      const generateWithGeminiOnce = async (
+        systemInstruction: string,
+        userMessage: string,
+      ): Promise<string> => {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+
+        const body = {
+          system_instruction: { parts: [{ text: systemInstruction }] },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: userMessage }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.4,
+            topP: 0.95,
+            maxOutputTokens: 512,
+          },
+        };
+
+        const maxRetries = 4;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+
+          if (res.ok) {
+            const data = (await res.json()) as unknown;
+
+            const dataAny = data as {
+              response?: unknown;
+              candidates?: Array<{
+                content?: { parts?: Array<{ text?: string }> };
+              }>;
+            };
+
+            const textFromMock =
+              typeof dataAny?.response === 'string' ? dataAny.response : null;
+
+            const textFromGemini =
+              dataAny?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+            return textFromMock ?? textFromGemini ?? '';
+          }
+
+          // Retry on rate-limit / service unavailable
+          if (
+            (res.status === 429 || res.status === 503) &&
+            attempt < maxRetries
+          ) {
+            const retryAfterHeader = res.headers.get('retry-after');
+            const retryAfterSeconds = retryAfterHeader
+              ? Number(retryAfterHeader)
+              : NaN;
+
+            const retryAfterMs =
+              Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
+                ? retryAfterSeconds * 1000
+                : null;
+
+            const backoffMs = Math.min(500 * Math.pow(2, attempt), 8000);
+            const waitMs = retryAfterMs ?? backoffMs;
+
+            await new Promise((resolve) => setTimeout(resolve, waitMs));
+            continue;
+          }
+
+          break;
+        }
+
+        return '';
+      };
+
+      const systemInstruction = `You are "Career Navigator AI", a job matching assistant.
+
+Task:
+- Create a concise matchReason for each job recommendation.
+- The matchReason must be grounded in the candidate's career-path skills.
+- If the job has matched skills, explicitly mention at least ONE of those skills verbatim.
+- Keep it short (1-2 sentences).`;
+
+      const candidateHint = `Career-path skills: ${allowedSkills.join(', ')}.`;
+
+      const jobsInput = ranked.map((r) => ({
+        jobId: r.jobId,
+        title: r.title,
+        company: r.company,
+        externalUrl: r.externalUrl,
+        jobSkills: r.matchedSkills,
+      }));
+
+      const userMessage =
+        `${candidateHint}\n\n` +
+        `Jobs to evaluate (return same jobId order/values):\n` +
+        `${JSON.stringify(jobsInput)}\n\n` +
+        `Return ONLY valid JSON with this exact shape:\n` +
+        `{\n  "jobs": [\n    {\n      "jobId": string,\n      "matchReason": string\n    }\n  ]\n}\n`;
+
+      try {
+        const responseTextRaw = await generateWithGeminiOnce(
+          systemInstruction,
+          userMessage,
+        );
+
+        const parsedObj = normalizeJsonObjectFromText(responseTextRaw);
+        const jobsArr = parsedObj?.jobs;
+
+        if (Array.isArray(jobsArr)) {
+          const byJobId = new Map<string, string>();
+          for (const row of jobsArr) {
+            if (
+              row &&
+              typeof row === 'object' &&
+              typeof (row as any).jobId === 'string' &&
+              typeof (row as any).matchReason === 'string'
+            ) {
+              byJobId.set((row as any).jobId, (row as any).matchReason);
+            }
+          }
+
+          // Apply Gemini reasons where available.
+          for (const r of ranked) {
+            const nextReason = byJobId.get(r.jobId);
+            if (nextReason) r.matchReason = nextReason;
+          }
+        }
+      } catch {
+        // ignore Gemini failures; keep heuristic matchReason
+      }
+    }
+
     const notifyTargets = ranked.filter((r) => r.score > 0);
 
     if (notifyTargets.length > 0) {
