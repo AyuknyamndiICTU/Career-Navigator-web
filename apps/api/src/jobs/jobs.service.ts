@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { verifyAccessToken } from '../auth/jwt/jwt-utils';
 import { PrismaService } from '../prisma/prisma.service';
-import { JobStatus } from '@prisma/client';
+import { CvScanStatus, JobStatus, MediaType } from '@prisma/client';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { RerankJobsDto } from './dto/rerank-jobs.dto';
 import { seedJobScrapeCandidatesFromActiveJobs } from './job-scrape-seed.service';
@@ -319,17 +319,71 @@ export class JobsService {
   async matchedJobs(authorizationHeader: string | undefined): Promise<unknown> {
     const { sub: userId } = this.getAuthUser(authorizationHeader);
 
-    const jobApplications = await this.prisma.jobApplication.findMany({
-      where: { userId },
-      select: {
-        job: { select: { skills: true } },
-      },
-    });
+    // Phase 5: align allowed-skills precedence with AiService:
+    // 1) CV extracted skills (when available)
+    // 2) JobApplication -> Job.skills
+    // 3) default fallback list
+    const uploadMediaClient = (this.prisma as any).uploadMedia as
+      | undefined
+      | {
+          findMany: (
+            args: unknown,
+          ) => Promise<Array<{ cvExtractedText?: unknown }>>;
+        };
 
-    const careerSkills = jobApplications.flatMap((a) => a.job.skills);
-    const allowedSkills = Array.from(new Set(careerSkills.map((s) => s.trim())))
-      .filter(Boolean)
-      .slice(0, 50);
+    let allowedSkills: string[] = [];
+
+    if (uploadMediaClient?.findMany) {
+      try {
+        const cvMedia = await uploadMediaClient.findMany({
+          where: {
+            userId,
+            type: MediaType.CV,
+            cvScanStatus: CvScanStatus.COMPLETED,
+            cvExtractedText: { not: null },
+          },
+          select: { cvExtractedText: true, cvScanCompletedAt: true },
+          orderBy: { cvScanCompletedAt: 'desc' },
+          take: 1,
+        });
+
+        const cvExtractedText = cvMedia?.[0]?.cvExtractedText;
+        if (typeof cvExtractedText === 'string' && cvExtractedText.trim()) {
+          const parsed = JSON.parse(cvExtractedText) as { skills?: unknown };
+
+          const skills = Array.isArray(parsed?.skills)
+            ? Array.from(
+                new Set(
+                  parsed.skills
+                    .filter((s): s is string => typeof s === 'string')
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                ),
+              )
+            : [];
+
+          if (skills.length > 0) {
+            allowedSkills = skills.slice(0, 50);
+          }
+        }
+      } catch {
+        // ignore CV parsing/query failures; fall back below
+      }
+    }
+
+    if (allowedSkills.length === 0) {
+      const jobApplications = await this.prisma.jobApplication.findMany({
+        where: { userId },
+        select: {
+          job: { select: { skills: true } },
+        },
+      });
+
+      const careerSkills = jobApplications.flatMap((a) => a.job.skills);
+      allowedSkills = Array.from(new Set(careerSkills.map((s) => s.trim())))
+        .filter(Boolean)
+        .slice(0, 50);
+    }
 
     const fallbackSkills =
       allowedSkills.length > 0
