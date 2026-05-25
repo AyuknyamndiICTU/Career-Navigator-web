@@ -326,7 +326,9 @@ export class JobsService {
     });
 
     const careerSkills = jobApplications.flatMap((a) => a.job.skills);
-    const allowedSkills = Array.from(new Set(careerSkills.map((s) => s.trim())))
+    const allowedSkills = Array.from(
+      new Set(careerSkills.map((s) => s.trim())),
+    )
       .filter(Boolean)
       .slice(0, 50);
 
@@ -340,6 +342,56 @@ export class JobsService {
             'Job Search Strategies',
             'Professional Development',
           ];
+
+    const arraysEqual = (a: string[], b: string[]): boolean => {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    };
+
+    const studentGoal = null;
+
+    const prismaAny = this.prisma as any;
+
+    // Phase 3 store: cache matched jobs (externalUrl + matchReason derived from job + matched skills).
+    const cacheRecord = await prismaAny.jobRecommendationCache?.findFirst?.({
+      where: { userId, studentGoal },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+    });
+
+    const isCacheFresh =
+      cacheRecord?.expiresAt instanceof Date &&
+      cacheRecord.expiresAt.getTime() > Date.now();
+
+    if (
+      cacheRecord?.jobs &&
+      isCacheFresh &&
+      arraysEqual(cacheRecord.allowedSkills ?? [], allowedSkills)
+    ) {
+      const cachedJobsAny = cacheRecord.jobs as unknown;
+
+      if (
+        Array.isArray(cachedJobsAny) &&
+        cachedJobsAny.every(
+          (j) =>
+            j &&
+            typeof j === 'object' &&
+            typeof (j as any).jobId === 'string' &&
+            typeof (j as any).title === 'string' &&
+            typeof (j as any).externalUrl === 'string' &&
+            typeof (j as any).matchReason === 'string',
+        )
+      ) {
+        return {
+          items: cachedJobsAny,
+          allowedSkills,
+          notificationsCreated: 0,
+        };
+      }
+    }
 
     const activeJobs = await this.prisma.job.findMany({
       where: { status: 'ACTIVE' },
@@ -364,9 +416,19 @@ export class JobsService {
       location: string | null;
       description: string | null;
       updatedAt: Date;
+
+      // Phase 3 additions
+      externalUrl: string;
+      matchReason: string;
     };
 
     const allowedLower = new Set(fallbackSkills.map((s) => s.toLowerCase()));
+
+    const makeExternalUrl = (job: { title: string; company: string }): string => {
+      // Until platform-specific job scraping exists, provide a reliable external discovery link.
+      const q = `${job.title} ${job.company} jobs`;
+      return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+    };
 
     const rankedAll: Ranked[] = activeJobs
       .map((job) => {
@@ -374,6 +436,16 @@ export class JobsService {
           allowedLower.has(s.toLowerCase()),
         );
         const score = matched.length;
+
+        const externalUrl = makeExternalUrl({
+          title: job.title,
+          company: job.company,
+        });
+
+        const matchReason =
+          matched.length > 0
+            ? `Matches your skills: ${matched.join(', ')}.`
+            : 'Recommended based on your overall career-path profile.';
 
         return {
           jobId: job.id,
@@ -384,6 +456,9 @@ export class JobsService {
           location: job.location,
           description: job.description,
           updatedAt: job.updatedAt,
+
+          externalUrl,
+          matchReason,
         };
       })
       .sort((a, b) => {
@@ -406,6 +481,21 @@ export class JobsService {
           )}`,
         })),
       });
+    }
+
+    // Write cache (best-effort).
+    try {
+      await prismaAny.jobRecommendationCache?.create?.({
+        data: {
+          userId,
+          studentGoal,
+          allowedSkills,
+          jobs: ranked,
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7), // 7 days
+        },
+      });
+    } catch {
+      // ignore cache write failures
     }
 
     return {

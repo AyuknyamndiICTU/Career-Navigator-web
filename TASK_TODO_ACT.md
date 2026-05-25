@@ -32,7 +32,7 @@
   - [ ] Add Prisma models for scraped jobs + cached recommendations
   - [ ] Implement scraper modules (start internal DB if external not ready)
   - [ ] Implement Gemini matching endpoint outputting `JobRecommendation[]` with `externalUrl`
-  - [ ] Update Jobs UI to show match reason + external links
+  - [x] Update Jobs UI to show match reason + external links
 
 - [ ] Phase 4: Resume builder upgrade (Projects + References)
   - [ ] Confirm Prisma models exist / extend schema
