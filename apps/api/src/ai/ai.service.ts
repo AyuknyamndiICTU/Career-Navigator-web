@@ -82,15 +82,23 @@ export class AiService {
 
         const cvExtractedText = cvMedia?.[0]?.cvExtractedText;
         if (typeof cvExtractedText === 'string' && cvExtractedText.trim()) {
+          // Phase 0 contract: always derive `skills: string[]` safely from JSON.
+
+          // Inline Phase 0 contract parsing here (avoid `require()` for eslint compliance)
           const parsed = JSON.parse(cvExtractedText) as { skills?: unknown };
 
-          const skills = Array.isArray(parsed?.skills) ? parsed.skills : [];
-          const cleaned = skills
-            .map((s) => (typeof s === 'string' ? s.trim() : ''))
-            .filter(Boolean);
+          const skills = Array.isArray(parsed?.skills)
+            ? Array.from(
+                new Set(
+                  parsed.skills
+                    .filter((s): s is string => typeof s === 'string')
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                ),
+              )
+            : [];
 
-          const unique = Array.from(new Set(cleaned));
-          if (unique.length > 0) return unique;
+          if (skills.length > 0) return skills;
         }
       } catch {
         // If CV JSON parsing/query fails, fall back.
