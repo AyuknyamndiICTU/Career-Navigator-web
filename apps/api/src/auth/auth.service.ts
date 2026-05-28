@@ -57,17 +57,21 @@ export class AuthService {
           'This email address is already registered. Please log in instead.',
         );
       }
-      // If inactive, update their pending password and resend OTP
+
+      // In OTP log-only/dev mode, auto-activate so the user can login immediately.
       await this.prisma.user.update({
         where: { id: existingUser.id },
-        data: { passwordHash },
+        data: {
+          passwordHash,
+          isActive: otpEmailLogOnly,
+        },
       });
     } else {
       await this.prisma.user.create({
         data: {
           email,
           passwordHash,
-          isActive: false,
+          isActive: otpEmailLogOnly,
         },
       });
     }
