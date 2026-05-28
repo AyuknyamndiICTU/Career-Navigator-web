@@ -29,21 +29,27 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Install production deps in the runner so the Prisma CLI binary exists at node_modules/.bin/prisma
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 
-# Copy Prisma schema (needed for db push at startup) + pre-generated client + node_modules
+RUN apk add --no-cache python3 make g++ && \
+    npm ci --ignore-scripts --omit=dev && \
+    apk del python3 make g++
+
+# Copy Prisma schema + pre-generated query engines so the client works on linux-musl
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/apps/api/node_modules/.prisma ./node_modules/.prisma
-# Copy the actual Prisma client package into /app/node_modules so require('@prisma/client') works.
-COPY --from=builder /app/apps/api/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules ./node_modules
 
-# Prisma Client + engines are generated in the builder stage and copied into the runner.
-# Avoid re-running `npx prisma generate` here because `npx` can resolve a different Prisma CLI version.
-# App build output
+# Copy the Prisma Client runtime into the runner's /app/node_modules (what Nest's require('@prisma/client') needs)
+COPY --from=builder /app/apps/api/node_modules/@prisma/client ./node_modules/@prisma/client
+
+# Also copy the Prisma CLI package (so we can run `prisma db push`)
+COPY --from=builder /app/apps/api/node_modules/prisma ./apps/api/node_modules/prisma
+
+# Ensure compiled Nest output
 COPY --from=builder /app/apps/api/dist ./dist
 
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma db push --schema apps/api/prisma/schema.prisma --skip-generate --accept-data-loss 2>/dev/null; node dist/src/main.js"]
+CMD ["sh", "-c", "node ./apps/api/node_modules/prisma/build/index.js db push --schema apps/api/prisma/schema.prisma --accept-data-loss --skip-generate && node dist/src/main.js"]
