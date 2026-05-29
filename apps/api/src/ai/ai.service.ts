@@ -33,7 +33,16 @@ export class AiService {
       throw new UnauthorizedException('Missing bearer token');
     }
 
-    const payload = verifyAccessToken({ secret: accessSecret, token });
+    let payload: { sub?: string } | undefined;
+
+    try {
+      payload = verifyAccessToken({ secret: accessSecret, token }) as
+        | { sub?: string }
+        | undefined;
+    } catch {
+      // Important: keep AI endpoints from returning 500 on expired/invalid JWTs.
+      throw new UnauthorizedException('Missing or invalid bearer token');
+    }
 
     if (!payload?.sub) {
       throw new UnauthorizedException('Invalid token');
@@ -266,10 +275,32 @@ export class AiService {
       }
     }
 
-    // If all candidates fail, surface the last error.
-    if (lastError instanceof Error) {
+    // If all candidates fail, surface the last error as a *safe* client message
+    // (avoid generic 500s like “Internal server error” in the UI).
+    if (lastError instanceof BadRequestException) {
       throw lastError;
     }
+
+    if (lastError instanceof Error) {
+      const errAny = lastError as any;
+      const causeMessage: string =
+        typeof errAny?.cause?.message === 'string' ? errAny.cause.message : '';
+
+      const looksLikeOllamaDNS =
+        causeMessage.includes('ENOTFOUND') ||
+        causeMessage.toLowerCase().includes('ollama');
+
+      if (looksLikeOllamaDNS) {
+        throw new BadRequestException(
+          'AI backend cannot reach Ollama. Start the Ollama service (docker compose --profile ollama up) or configure GEMINI_API_KEY.',
+        );
+      }
+
+      throw new BadRequestException(
+        `Ollama generation failed: ${lastError.message}`,
+      );
+    }
+
     throw new BadRequestException('Ollama generation failed');
   }
 
@@ -292,7 +323,7 @@ export class AiService {
       throw new BadRequestException('GEMINI_API_KEY is not configured');
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     const body = {
       system_instruction: {
