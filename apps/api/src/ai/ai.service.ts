@@ -28,6 +28,29 @@ export const AI_PROVIDERS = {
   },
 } as const;
 
+const GEMINI_FALLBACK_TRIGGER_HTTP_429 = true;
+
+// If a Gemini request exceeds this duration, we trigger fallback to Ollama.
+const GEMINI_REQUEST_TIMEOUT_MS = 15_000;
+
+// After switching to Ollama, we keep Gemini disabled for this cooldown duration,
+// then allow Gemini to be tried again automatically.
+const GEMINI_FALLBACK_COOLDOWN_MS = 30_000;
+
+class GeminiRateLimitError extends Error {
+  readonly statusCode: number;
+  constructor(statusCode = 429) {
+    super('Gemini rate limited');
+    this.statusCode = statusCode;
+  }
+}
+
+class GeminiTimeoutError extends Error {
+  constructor() {
+    super('Gemini request timed out');
+  }
+}
+
 function extractBearerToken(authorizationHeader: string | undefined): string {
   if (!authorizationHeader) return '';
   return authorizationHeader.replace(/^Bearer\s+/i, '').trim();
