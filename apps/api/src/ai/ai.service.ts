@@ -13,6 +13,21 @@ import { CourseRecommendationsRequestDto } from './dto/course-recommendations-re
 
 type AuthUser = { sub: string };
 
+// ─── Named AI provider registry (configuration only; no wiring) ─────────────
+// This registers provider/model metadata under a stable name so other parts
+// of the project can reference it without enabling fallback behavior yet.
+export const AI_PROVIDERS = {
+  'ollama-cloud': {
+    name: 'ollama-cloud',
+    baseUrl: 'https://ollama.com/v1',
+    apiKeyEnvVar: 'OLLAMA_API_KEY',
+    models: [
+      { model: 'qwen3-coder:480b-cloud', label: 'coding' },
+      { model: 'glm-4.6:cloud', label: 'reasoning' },
+    ],
+  },
+} as const;
+
 function extractBearerToken(authorizationHeader: string | undefined): string {
   if (!authorizationHeader) return '';
   return authorizationHeader.replace(/^Bearer\s+/i, '').trim();
