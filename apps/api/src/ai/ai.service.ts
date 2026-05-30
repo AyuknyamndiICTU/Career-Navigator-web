@@ -495,20 +495,18 @@ export class AiService {
     systemInstruction: string,
     userMessage: string,
   ): Promise<string> {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const provider = getAIProvider();
+    const apiKey = provider.gemini?.apiKey;
     if (!apiKey) {
-      // Backward compatibility with existing e2e/tests that mock Ollama.
-      const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
-      const ollamaModel = process.env.OLLAMA_MODEL;
-
-      if (ollamaBaseUrl && ollamaModel) {
-        return this.generateWithOllama(systemInstruction, userMessage);
-      }
-
       throw new BadRequestException('GEMINI_API_KEY is not configured');
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const url = provider.gemini?.generateContentUrlForModel(
+      'gemini-2.0-flash',
+    );
+    if (!url) {
+      throw new BadRequestException('GEMINI_API_KEY is not configured');
+    }
 
     const body = {
       system_instruction: {
