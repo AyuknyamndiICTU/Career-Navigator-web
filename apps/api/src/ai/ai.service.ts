@@ -1,5 +1,6 @@
 /* eslint-env node */
 /* eslint-disable no-undef, no-unused-vars */
+import 'dotenv/config';
 import {
   BadRequestException,
   Injectable,
@@ -29,8 +30,6 @@ export const AI_PROVIDERS = {
     ],
   },
 } as const;
-
-const GEMINI_FALLBACK_TRIGGER_HTTP_429 = true;
 
 // If a Gemini request exceeds this duration, we trigger fallback to Ollama.
 const GEMINI_REQUEST_TIMEOUT_MS = 15_000;
@@ -133,73 +132,39 @@ export class AiService {
     systemInstruction: string,
     userMessage: string,
   ): Promise<string> {
+    // FIX A: Provider priority order
+    // 1) Gemini if GEMINI_API_KEY is set and non-empty
+    // 2) Gemini unavailable -> fallback to Ollama Cloud (ollama.com/v1) using
+    //    OLLAMA_API_KEY and models qwen3-coder:480b-cloud OR glm-4.6:cloud
+    // 3) Both unavailable -> throw a single actionable error message
     const preferredOllamaModels = this.getOllamaFallbackModelsForTask(
       systemInstruction,
       userMessage,
     );
-    const fallbackModelName = preferredOllamaModels[0] ?? 'ollama-model';
 
-    // If we are in cooldown, we are on Ollama.
-    if (this.isGeminiInFallbackCooldown()) {
-      if (this.lastUsedProvider !== 'ollama') {
-        const reason =
-          this.lastGeminiFallbackReason ??
-          'Gemini temporarily unavailable (cooldown active)';
-        // Required format:
-        // [Provider Switch] → Now using: <model-name> (reason: <reason>)
-         
-        console.log(
-          `[Provider Switch] → Now using: ${fallbackModelName} (reason: ${reason})`,
-        );
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    const hasGeminiKey =
+      typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0;
+
+    // 1) Gemini (when key exists)
+    if (hasGeminiKey) {
+      try {
+        return await this.generateWithGemini(systemInstruction, userMessage);
+      } catch {
+        // 2) Gemini unavailable -> fallback to Ollama Cloud
       }
-      this.lastUsedProvider = 'ollama';
+    }
 
-      return this.generateWithOllama(systemInstruction, userMessage, {
+    // 2) Fallback to Ollama Cloud
+    try {
+      return await this.generateWithOllama(systemInstruction, userMessage, {
         preferredModels: preferredOllamaModels,
       });
-    }
-
-    // Gemini is allowed again — if we previously fell back, log restoration once.
-    if (this.lastUsedProvider !== 'gemini') {
-      // Required format:
-      // [Provider Restored] → Back to Gemini
-       
-      console.log('[Provider Restored] → Back to Gemini');
-    }
-    this.lastUsedProvider = 'gemini';
-    this.lastGeminiFallbackReason = null;
-
-    try {
-      return await this.generateWithGemini(systemInstruction, userMessage);
-    } catch (err) {
-      const is429 =
-        GEMINI_FALLBACK_TRIGGER_HTTP_429 &&
-        err instanceof GeminiRateLimitError;
-
-      const isTimeout = err instanceof GeminiTimeoutError;
-
-      if (is429 || isTimeout) {
-        this.triggerGeminiFallback(
-          is429
-            ? 'Gemini returned HTTP 429'
-            : 'Gemini request timed out after 15 seconds',
-        );
-
-        // We immediately go to Ollama for this request; logging is handled
-        // by the cooldown branch above on subsequent calls, but we also
-        // log here to ensure the format appears immediately.
-         
-        console.log(
-          `[Provider Switch] → Now using: ${fallbackModelName} (reason: ${this.lastGeminiFallbackReason})`,
-        );
-        this.lastUsedProvider = 'ollama';
-
-        return this.generateWithOllama(systemInstruction, userMessage, {
-          preferredModels: preferredOllamaModels,
-        });
-      }
-
-      throw err;
+    } catch {
+      // 3) Both unavailable (or Ollama also fails)
+      throw new BadRequestException(
+        'AI providers unavailable. Check GEMINI_API_KEY or OLLAMA_API_KEY in your environment configuration.',
+      );
     }
   }
 
@@ -380,54 +345,36 @@ export class AiService {
     userMessage: string,
     options?: { preferredModels?: string[] },
   ): Promise<string> {
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
+    // FIX A: Ollama Cloud fallback should use ollama.com/v1 and OLLAMA_API_KEY.
+    const ollamaBaseUrl = 'https://ollama.com/v1';
+    const apiKey = process.env.OLLAMA_API_KEY;
 
-    if (!ollamaBaseUrl) {
-      throw new BadRequestException('OLLAMA_BASE_URL not set');
+    if (!apiKey) {
+      throw new BadRequestException(
+        'AI providers unavailable. Check GEMINI_API_KEY or OLLAMA_API_KEY in your environment configuration.',
+      );
     }
-
-    const ollamaModelRaw = process.env.OLLAMA_MODEL;
-    const ollamaModelFallbacksRaw = process.env.OLLAMA_MODEL_FALLBACKS;
 
     const preferredModels = Array.isArray(options?.preferredModels)
       ? options!.preferredModels.filter((m) => typeof m === 'string' && m)
       : [];
 
-    // On Gemini fallback we must honor model selection strictly:
-    // - use only the preferred models (qwen3 for code, glm-4.6 for reasoning)
-    // - otherwise fall back to env/default candidates.
+    // FIX A: restrict to the cloud models requested.
     const candidates =
       preferredModels.length > 0
         ? preferredModels
-        : [
-            ...(ollamaModelRaw
-              ? ollamaModelRaw
-                  .split(',')
-                  .map((s) => s.trim())
-                  .filter(Boolean)
-              : []),
-            ...(ollamaModelFallbacksRaw
-              ? ollamaModelFallbacksRaw
-                  .split(',')
-                  .map((s) => s.trim())
-                  .filter(Boolean)
-              : []),
-            // Built-in “best effort” defaults (stronger than tiny local models).
-            'qwen2.5-coder:14b',
-            'qwen2.5-coder:7b',
-            'llama3:70b',
-            'llama3:8b',
-          ];
+        : ['qwen3-coder:480b-cloud', 'glm-4.6:cloud'];
 
     const uniqueCandidates = Array.from(new Set(candidates)).filter(Boolean);
 
     if (uniqueCandidates.length === 0) {
-      throw new BadRequestException('No Ollama model candidates configured');
+      throw new BadRequestException(
+        'AI providers unavailable. Check GEMINI_API_KEY or OLLAMA_API_KEY in your environment configuration.',
+      );
     }
 
-    // Keep request shape simple and compatible with test mocks.
-    const url = `${ollamaBaseUrl.replace(/\/+$/, '')}/api/generate`;
-    const prompt = `${systemInstruction}\n\n${userMessage}`;
+    // FIX A: use Ollama OpenAI-compatible endpoint.
+    const url = `${ollamaBaseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
 
     let lastError: unknown = null;
 
@@ -435,11 +382,18 @@ export class AiService {
       try {
         const res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
           body: JSON.stringify({
             model,
-            prompt,
-            stream: false,
+            messages: [
+              { role: 'system', content: systemInstruction },
+              { role: 'user', content: userMessage },
+            ],
+            temperature: 0.7,
+            max_tokens: 1024,
           }),
         });
 
@@ -451,45 +405,34 @@ export class AiService {
         }
 
         const data = (await res.json()) as unknown;
-        const dataAny = data as { response?: unknown };
+
+        const dataAny = data as {
+          choices?: Array<{
+            message?: { content?: unknown };
+          }>;
+        };
 
         const text =
-          typeof dataAny?.response === 'string' ? dataAny.response : '';
-        // Even if response is empty, return it so callers can enforce allowed-skills logic.
+          typeof dataAny?.choices?.[0]?.message?.content === 'string'
+            ? (dataAny.choices[0].message.content as string)
+            : '';
+
         return text;
       } catch (err) {
         lastError = err;
-        // try next stronger model
       }
     }
 
-    // If all candidates fail, surface the last error as a *safe* client message
-    // (avoid generic 500s like “Internal server error” in the UI).
-    if (lastError instanceof BadRequestException) {
-      throw lastError;
-    }
-
-    if (lastError instanceof Error) {
-      const errAny = lastError as any;
-      const causeMessage: string =
-        typeof errAny?.cause?.message === 'string' ? errAny.cause.message : '';
-
-      const looksLikeOllamaDNS =
-        causeMessage.includes('ENOTFOUND') ||
-        causeMessage.toLowerCase().includes('ollama');
-
-      if (looksLikeOllamaDNS) {
-        throw new BadRequestException(
-          'AI backend cannot reach Ollama. Start the Ollama service (docker compose --profile ollama up) or configure GEMINI_API_KEY.',
-        );
-      }
-
+    // FIX C: unify provider-unavailable error message.
+    if (lastError) {
       throw new BadRequestException(
-        `Ollama generation failed: ${lastError.message}`,
+        'AI providers unavailable. Check GEMINI_API_KEY or OLLAMA_API_KEY in your environment configuration.',
       );
     }
 
-    throw new BadRequestException('Ollama generation failed');
+    throw new BadRequestException(
+      'AI providers unavailable. Check GEMINI_API_KEY or OLLAMA_API_KEY in your environment configuration.',
+    );
   }
 
   // ─── Google Gemini API ─────────────────────────────────────────────
