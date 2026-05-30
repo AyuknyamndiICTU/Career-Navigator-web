@@ -89,6 +89,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
 
     // Lazy import so TS doesn't need bullmq installed during typecheck/tests.
     const bullmqMod = (await import('bullmq')) as {
+      // eslint-disable-next-line no-unused-vars
       Worker: new (..._args: unknown[]) => CvScanWorkerLike;
     };
 
