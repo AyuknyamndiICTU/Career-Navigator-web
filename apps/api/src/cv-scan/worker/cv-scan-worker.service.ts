@@ -345,7 +345,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
     const url = 'https://ollama.com/v1/chat/completions';
 
     const body = {
-      model: 'qwen3-coder:480b-cloud',
+      model: 'glm-4.6:cloud',
       messages: [
         { role: 'system', content: systemInstruction },
         { role: 'user', content: userMessage },
