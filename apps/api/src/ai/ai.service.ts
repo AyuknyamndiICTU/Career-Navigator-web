@@ -1,6 +1,7 @@
 /* eslint-env node */
 /* eslint-disable no-undef, no-unused-vars */
 import 'dotenv/config';
+import { getAIProvider } from '../lib/aiProvider';
 import {
   BadRequestException,
   Injectable,
@@ -173,19 +174,29 @@ export class AiService {
     systemInstruction: string,
     userMessage: string,
   ): Promise<string> {
-    // FIX A: Provider priority order
-    // 1) Gemini if GEMINI_API_KEY is set and non-empty
-    // 2) Gemini unavailable -> fallback to Ollama Cloud (ollama.com/v1) using
-    //    OLLAMA_API_KEY and models qwen3-coder:480b-cloud OR glm-4.6:cloud
-    // 3) Both unavailable -> throw a single actionable error message
-    const preferredOllamaModels = this.getOllamaFallbackModelsForTask(
+    // FIX A: Provider priority order (delegated config via shared util)
+    // 1) Gemini if GEMINI_API_KEY is set
+    // 2) Gemini unavailable -> fallback to Ollama Cloud (OLLAMA_API_KEY)
+    // 3) Neither configured -> throw clear error
+    let provider: ReturnType<typeof getAIProvider>;
+    try {
+      provider = getAIProvider();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(message);
+    }
+
+    let preferredOllamaModels = this.getOllamaFallbackModelsForTask(
       systemInstruction,
       userMessage,
     );
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    const hasGeminiKey =
-      typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0;
+    const allowedOllamaModels = provider.ollama?.models ?? [];
+    preferredOllamaModels = preferredOllamaModels.filter((m) =>
+      allowedOllamaModels.includes(m),
+    );
+
+    const hasGeminiKey = provider.gemini?.apiKey != null;
 
     // 1) Gemini (when key exists)
     if (hasGeminiKey) {
@@ -387,8 +398,9 @@ export class AiService {
     options?: { preferredModels?: string[] },
   ): Promise<string> {
     // FIX A: Ollama Cloud fallback should use ollama.com/v1 and OLLAMA_API_KEY.
-    const ollamaBaseUrl = 'https://ollama.com/v1';
-    const apiKey = process.env.OLLAMA_API_KEY;
+    const provider = getAIProvider();
+    const ollamaBaseUrl = provider.ollama?.baseUrl ?? 'https://ollama.com/v1';
+    const apiKey = provider.ollama?.apiKey;
 
     if (!apiKey) {
       throw new BadRequestException(
