@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Client as MinioClient } from 'minio';
+import { getAIProvider } from '../../lib/aiProvider';
 
 type CvScanJobPayload = {
   userId: string;
@@ -250,7 +251,8 @@ export class CvScanWorkerService implements OnModuleDestroy {
     userMessage: string,
   ): Promise<string> {
     // PRIMARY: Gemini via GEMINI_API_KEY
-    const apiKey = process.env.GEMINI_API_KEY;
+    const provider = getAIProvider();
+    const apiKey = provider.gemini?.apiKey;
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY is not configured.');
     }
@@ -278,7 +280,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
       },
     };
 
-    const ollamaApiKey = process.env.OLLAMA_API_KEY;
+    const ollamaApiKey = provider.ollama?.apiKey;
 
     const triggerOllamaFallback = async (): Promise<string> => {
       if (!ollamaApiKey || ollamaApiKey.trim().length === 0) {
@@ -336,13 +338,15 @@ export class CvScanWorkerService implements OnModuleDestroy {
     systemInstruction: string,
     userMessage: string,
   ): Promise<string> {
-    // FALLBACK: Ollama Cloud via OLLAMA_API_KEY, Model qwen3-coder:480b-cloud
-    const ollamaApiKey = process.env.OLLAMA_API_KEY;
+    // FALLBACK: Ollama Cloud via OLLAMA_API_KEY
+    const provider = getAIProvider();
+    const ollamaApiKey = provider.ollama?.apiKey;
     if (!ollamaApiKey) {
       throw new Error('OLLAMA_API_KEY is not configured.');
     }
 
-    const url = 'https://ollama.com/v1/chat/completions';
+    const baseUrl = provider.ollama?.baseUrl ?? 'https://ollama.com/v1';
+    const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
     const body = {
       model: 'glm-4.6:cloud',
