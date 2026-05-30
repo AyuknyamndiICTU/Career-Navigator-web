@@ -1,3 +1,5 @@
+/* eslint-env node */
+/* eslint-disable no-undef, no-unused-vars */
 import {
   BadRequestException,
   Injectable,
@@ -59,6 +61,147 @@ function extractBearerToken(authorizationHeader: string | undefined): string {
 @Injectable()
 export class AiService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // When set to a future epoch, Gemini is considered “cooling down” and we
+  // immediately use Ollama until this time elapses.
+  private geminiFallbackUntilEpochMs = 0;
+
+  private lastUsedProvider: 'gemini' | 'ollama' = 'gemini';
+  private lastGeminiFallbackReason:
+    | 'Gemini returned HTTP 429'
+    | 'Gemini request timed out after 15 seconds'
+    | null = null;
+
+  private isCodeRelatedTask(
+    systemInstruction: string,
+    userMessage: string,
+  ): boolean {
+    const text = `${systemInstruction}\n${userMessage}`.toLowerCase();
+    const codeKeywords = [
+      'code',
+      'program',
+      'coding',
+      'typescript',
+      'javascript',
+      'node',
+      'python',
+      'java',
+      'c++',
+      'c#',
+      'go lang',
+      'golang',
+      'rust',
+      'sql',
+      'react',
+      'next.js',
+      'algorithm',
+      'data structure',
+      'bug',
+      'error',
+      'stack trace',
+      'implement',
+      'function',
+      'class ',
+      'code review',
+      'refactor',
+    ];
+    return codeKeywords.some((k) => text.includes(k));
+  }
+
+  private getOllamaFallbackModelsForTask(
+    systemInstruction: string,
+    userMessage: string,
+  ): string[] {
+    const isCodeTask = this.isCodeRelatedTask(systemInstruction, userMessage);
+    return isCodeTask ? ['qwen3-coder:480b-cloud'] : ['glm-4.6:cloud'];
+  }
+
+  private triggerGeminiFallback(
+    reason:
+      | 'Gemini returned HTTP 429'
+      | 'Gemini request timed out after 15 seconds',
+  ): void {
+    this.lastGeminiFallbackReason = reason;
+    this.geminiFallbackUntilEpochMs = Date.now() + GEMINI_FALLBACK_COOLDOWN_MS;
+  }
+
+  private isGeminiInFallbackCooldown(): boolean {
+    return Date.now() < this.geminiFallbackUntilEpochMs;
+  }
+
+  private async generateWithGeminiAndFallback(
+    systemInstruction: string,
+    userMessage: string,
+  ): Promise<string> {
+    const preferredOllamaModels = this.getOllamaFallbackModelsForTask(
+      systemInstruction,
+      userMessage,
+    );
+    const fallbackModelName = preferredOllamaModels[0] ?? 'ollama-model';
+
+    // If we are in cooldown, we are on Ollama.
+    if (this.isGeminiInFallbackCooldown()) {
+      if (this.lastUsedProvider !== 'ollama') {
+        const reason =
+          this.lastGeminiFallbackReason ??
+          'Gemini temporarily unavailable (cooldown active)';
+        // Required format:
+        // [Provider Switch] → Now using: <model-name> (reason: <reason>)
+         
+        console.log(
+          `[Provider Switch] → Now using: ${fallbackModelName} (reason: ${reason})`,
+        );
+      }
+      this.lastUsedProvider = 'ollama';
+
+      return this.generateWithOllama(systemInstruction, userMessage, {
+        preferredModels: preferredOllamaModels,
+      });
+    }
+
+    // Gemini is allowed again — if we previously fell back, log restoration once.
+    if (this.lastUsedProvider !== 'gemini') {
+      // Required format:
+      // [Provider Restored] → Back to Gemini
+       
+      console.log('[Provider Restored] → Back to Gemini');
+    }
+    this.lastUsedProvider = 'gemini';
+    this.lastGeminiFallbackReason = null;
+
+    try {
+      return await this.generateWithGemini(systemInstruction, userMessage);
+    } catch (err) {
+      const is429 =
+        GEMINI_FALLBACK_TRIGGER_HTTP_429 &&
+        err instanceof GeminiRateLimitError;
+
+      const isTimeout = err instanceof GeminiTimeoutError;
+
+      if (is429 || isTimeout) {
+        this.triggerGeminiFallback(
+          is429
+            ? 'Gemini returned HTTP 429'
+            : 'Gemini request timed out after 15 seconds',
+        );
+
+        // We immediately go to Ollama for this request; logging is handled
+        // by the cooldown branch above on subsequent calls, but we also
+        // log here to ensure the format appears immediately.
+         
+        console.log(
+          `[Provider Switch] → Now using: ${fallbackModelName} (reason: ${this.lastGeminiFallbackReason})`,
+        );
+        this.lastUsedProvider = 'ollama';
+
+        return this.generateWithOllama(systemInstruction, userMessage, {
+          preferredModels: preferredOllamaModels,
+        });
+      }
+
+      throw err;
+    }
+  }
 
   private getAuthUser(authorizationHeader: string | undefined): AuthUser {
     const accessSecret = process.env.JWT_ACCESS_SECRET;
@@ -235,6 +378,7 @@ export class AiService {
   private async generateWithOllama(
     systemInstruction: string,
     userMessage: string,
+    options?: { preferredModels?: string[] },
   ): Promise<string> {
     const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
 
@@ -245,29 +389,35 @@ export class AiService {
     const ollamaModelRaw = process.env.OLLAMA_MODEL;
     const ollamaModelFallbacksRaw = process.env.OLLAMA_MODEL_FALLBACKS;
 
-    // Model ordering (best effort):
-    // - OLLAMA_MODEL may be a comma-separated preference list
-    // - then OLLAMA_MODEL_FALLBACKS
-    // - then built-in strong defaults
-    const candidates = [
-      ...(ollamaModelRaw
-        ? ollamaModelRaw
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : []),
-      ...(ollamaModelFallbacksRaw
-        ? ollamaModelFallbacksRaw
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : []),
-      // Built-in “best effort” defaults (stronger than tiny local models).
-      'qwen2.5-coder:14b',
-      'qwen2.5-coder:7b',
-      'llama3:70b',
-      'llama3:8b',
-    ];
+    const preferredModels = Array.isArray(options?.preferredModels)
+      ? options!.preferredModels.filter((m) => typeof m === 'string' && m)
+      : [];
+
+    // On Gemini fallback we must honor model selection strictly:
+    // - use only the preferred models (qwen3 for code, glm-4.6 for reasoning)
+    // - otherwise fall back to env/default candidates.
+    const candidates =
+      preferredModels.length > 0
+        ? preferredModels
+        : [
+            ...(ollamaModelRaw
+              ? ollamaModelRaw
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              : []),
+            ...(ollamaModelFallbacksRaw
+              ? ollamaModelFallbacksRaw
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              : []),
+            // Built-in “best effort” defaults (stronger than tiny local models).
+            'qwen2.5-coder:14b',
+            'qwen2.5-coder:7b',
+            'llama3:70b',
+            'llama3:8b',
+          ];
 
     const uniqueCandidates = Array.from(new Set(candidates)).filter(Boolean);
 
@@ -383,11 +533,29 @@ export class AiService {
     const maxRetries = 6;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        GEMINI_REQUEST_TIMEOUT_MS,
+      );
+
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } catch (err) {
+        const errAny = err as { name?: string } | undefined;
+        if (errAny?.name === 'AbortError') {
+          throw new GeminiTimeoutError();
+        }
+        throw err;
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (res.ok) {
         const data = (await res.json()) as unknown;
@@ -411,8 +579,8 @@ export class AiService {
         return textFromMock ?? textFromGemini ?? '';
       }
 
-      // Retry on rate-limit (429) or service unavailable (503)
-      if ((res.status === 429 || res.status === 503) && attempt < maxRetries) {
+      // Retry on service unavailable (503) only
+      if (res.status === 503 && attempt < maxRetries) {
         const retryAfterHeader = res.headers.get('retry-after');
         const retryAfterSeconds = retryAfterHeader
           ? Number(retryAfterHeader)
@@ -432,9 +600,8 @@ export class AiService {
 
       // Final failure — provide a user-friendly message
       if (res.status === 429) {
-        throw new BadRequestException(
-          'The AI service is currently at capacity. Please wait a moment and try again.',
-        );
+        // Important: trigger outer fallback logic immediately.
+        throw new GeminiRateLimitError(429);
       }
       if (res.status === 503) {
         throw new BadRequestException(
@@ -536,7 +703,7 @@ Rules:
 4. Use bullet points and formatting for readability
 5. Be encouraging and motivational`;
 
-    const responseTextRaw = await this.generateWithGemini(
+    const responseTextRaw = await this.generateWithGeminiAndFallback(
       systemInstruction,
       dto.message,
     );
@@ -586,7 +753,7 @@ Task:
 - Keep the focus practical and aligned to the candidate's skills
 - Be encouraging but provide honest, constructive feedback`;
 
-      const responseTextRaw = await this.generateWithGemini(
+      const responseTextRaw = await this.generateWithGeminiAndFallback(
         systemInstruction,
         `I want to practice for a ${dto.role} interview. Please start the mock interview.`,
       );
@@ -829,7 +996,7 @@ Rules:
       studentGoal ??
       `Recommend courses for my career skills: ${allowedSkills.join(', ')}`;
 
-    const responseTextRaw = await this.generateWithGemini(
+    const responseTextRaw = await this.generateWithGeminiAndFallback(
       systemInstruction,
       userMessage,
     );
