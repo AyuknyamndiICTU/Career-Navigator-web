@@ -111,8 +111,49 @@ export class AiService {
     systemInstruction: string,
     userMessage: string,
   ): string[] {
+    const combined = `${systemInstruction}\n${userMessage}`.toLowerCase();
+
     const isCodeTask = this.isCodeRelatedTask(systemInstruction, userMessage);
-    return isCodeTask ? ['qwen3-coder:480b-cloud'] : ['glm-4.6:cloud'];
+
+    // Mock Interview (conversational) should use glm-4.6.
+    const isMockInterviewTask =
+      combined.includes('mock interview') || combined.includes('mock-interview');
+
+    // Resume/CV builder + structured formatting prompts.
+    const resumeKeywords = [
+      'resume',
+      'cv',
+      'curriculum vitae',
+      'cover letter',
+      'resume template',
+      'build resume',
+      'format resume',
+      'structured resume',
+      'resume section',
+      'education section',
+      'work experience',
+      'experience section',
+      'professional summary',
+      'summary',
+      'headline',
+      'skills',
+    ];
+
+    const isResumeBuilderTask = resumeKeywords.some((k) =>
+      combined.includes(k),
+    );
+
+    // Mock interview -> reasoning/conversation model.
+    if (isMockInterviewTask) {
+      return ['glm-4.6:cloud'];
+    }
+
+    // For document/structured generation we prefer the coding/doc model.
+    if (isCodeTask || isResumeBuilderTask) {
+      return ['qwen3-coder:480b-cloud'];
+    }
+
+    return ['glm-4.6:cloud'];
   }
 
   private triggerGeminiFallback(
@@ -374,7 +415,8 @@ export class AiService {
     }
 
     // FIX A: use Ollama OpenAI-compatible endpoint.
-    const url = `${ollamaBaseUrl.replace(/\/+$/, '')}/v1/chat/completions`;
+    // ollamaBaseUrl already includes `/v1`.
+    const url = `${ollamaBaseUrl.replace(/\/+$/, '')}/chat/completions`;
 
     let lastError: unknown = null;
 
