@@ -591,7 +591,11 @@ export class JobsService {
             throw new Error('Gemini unavailable');
           }
 
-          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+          const geminiUrl =
+            provider.gemini?.generateContentUrlForModel('gemini-2.5-flash');
+          if (!geminiUrl) {
+            throw new Error('Gemini unavailable');
+          }
 
           const body = {
             system_instruction: { parts: [{ text: systemInstruction }] },
