@@ -12,6 +12,7 @@ import { CvScanStatus, JobStatus, MediaType } from '@prisma/client';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { RerankJobsDto } from './dto/rerank-jobs.dto';
 import { seedJobScrapeCandidatesFromActiveJobs } from './job-scrape-seed.service';
+import { getAIProvider } from '../lib/aiProvider';
 
 export type BrowseJobsParams = {
   searchQuery?: string;
@@ -549,12 +550,17 @@ export class JobsService {
     // Provider setup (STANDARDIZED):
     // PRIMARY: Gemini via GEMINI_API_KEY
     // FALLBACK: Ollama Cloud via OLLAMA_API_KEY (model: glm-4.6:cloud)
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    const ollamaApiKey = process.env.OLLAMA_API_KEY;
+    const provider = getAIProvider();
+    const geminiApiKey = provider.gemini?.apiKey;
+    const ollamaApiKey = provider.ollama?.apiKey;
+    const ollamaBaseUrl = provider.ollama?.baseUrl ?? 'https://ollama.com/v1';
+
     const geminiEnabled =
       process.env.GEMINI_JOB_MATCH_ENABLED === 'true' &&
-      ((typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0) ||
-        (typeof ollamaApiKey === 'string' && ollamaApiKey.trim().length > 0));
+      ((typeof geminiApiKey === 'string' &&
+        geminiApiKey.trim().length > 0) ||
+        (typeof ollamaApiKey === 'string' &&
+          ollamaApiKey.trim().length > 0));
 
     if (geminiEnabled && ranked.length > 0) {
       const normalizeJsonObjectFromText = (
@@ -581,6 +587,10 @@ export class JobsService {
       ): Promise<string> => {
         // PRIMARY: Gemini (with fallback triggers on 429, >15s timeout, or connection error)
         try {
+          if (!geminiApiKey) {
+            throw new Error('Gemini unavailable');
+          }
+
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
 
           const body = {
@@ -598,7 +608,7 @@ export class JobsService {
             },
           };
 
-          const maxRetries = 4;
+          const maxRetries = 1;
           const requestTimeoutMs = 15_000;
 
           for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -685,7 +695,6 @@ export class JobsService {
         // FALLBACK: Ollama Cloud (https://ollama.com/v1) via OLLAMA_API_KEY
         if (!ollamaApiKey || ollamaApiKey.trim().length === 0) return '';
 
-        const ollamaBaseUrl = 'https://ollama.com/v1';
         const url = `${ollamaBaseUrl.replace(/\/+$/, '')}/chat/completions`;
 
         const body = {
