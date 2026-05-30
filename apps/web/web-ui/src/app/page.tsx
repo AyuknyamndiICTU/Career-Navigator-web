@@ -264,7 +264,7 @@ export default function Home() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature, i) => (
+            {features.map((feature) => (
               <motion.div key={feature.title} variants={itemVariants} whileHover={{ y: -4, scale: 1.01 }}>
                 <Link href={feature.href} className="group block h-full">
                   <div className="bg-white rounded-2xl p-5 shadow-card hover:shadow-card-hover transition-all duration-300 h-full border border-surface-border relative overflow-hidden">
