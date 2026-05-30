@@ -252,8 +252,9 @@ export class CvScanWorkerService implements OnModuleDestroy {
   ): Promise<string> {
     // PRIMARY: Gemini via GEMINI_API_KEY
     const provider = getAIProvider();
-    const apiKey = provider.gemini?.apiKey;
-    if (!apiKey) {
+    const url = provider.gemini?.generateContentUrlForModel('gemini-2.5-flash');
+
+    if (!url) {
       throw new Error('GEMINI_API_KEY is not configured.');
     }
 
@@ -261,7 +262,6 @@ export class CvScanWorkerService implements OnModuleDestroy {
     // - HTTP 429
     // - timeout > 15s
     // - connection error (fetch throws)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const body = {
       system_instruction: {
