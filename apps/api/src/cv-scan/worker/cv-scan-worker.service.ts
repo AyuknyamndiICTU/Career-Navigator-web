@@ -1,3 +1,6 @@
+/* global process, fetch, Buffer, AbortController, setTimeout, clearTimeout, URL, NodeJS */
+import 'dotenv/config';
+
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Client as MinioClient } from 'minio';
@@ -55,7 +58,8 @@ function tryExtractJson(text: string): string {
 
 type WorkerCloseLike = { close: () => Promise<void> };
 type WorkerOnLike = {
-  on: (event: string, listener: (...args: unknown[]) => void) => void;
+  // eslint-disable-next-line no-unused-vars
+  on: (_event: string, _listener: (..._args: unknown[]) => void) => void;
 };
 type CvScanWorkerLike = WorkerCloseLike & WorkerOnLike;
 
@@ -63,8 +67,11 @@ type CvScanWorkerLike = WorkerCloseLike & WorkerOnLike;
 export class CvScanWorkerService implements OnModuleDestroy {
   private readonly logger = new Logger(CvScanWorkerService.name);
   private worker?: CvScanWorkerLike;
+  private readonly prisma: PrismaService;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(prisma: PrismaService) {
+    this.prisma = prisma;
+  }
 
   async onModuleInit(): Promise<void> {
     if (!isCvScanEnabled()) {
@@ -80,11 +87,12 @@ export class CvScanWorkerService implements OnModuleDestroy {
 
     const concurrency = Number(process.env.CV_SCAN_WORKER_CONCURRENCY ?? '1');
 
-    // Lazy require so TS doesn't need bullmq installed during typecheck/tests.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Worker } = require('bullmq') as {
+    // Lazy import so TS doesn't need bullmq installed during typecheck/tests.
+    const bullmqMod = (await import('bullmq')) as {
       Worker: new (...args: unknown[]) => CvScanWorkerLike;
     };
+
+    const { Worker } = bullmqMod;
 
     this.worker = new Worker(
       CV_SCAN_QUEUE_NAME,
@@ -218,19 +226,17 @@ export class CvScanWorkerService implements OnModuleDestroy {
     const isDocx = objectKey.toLowerCase().endsWith('.docx');
 
     if (isDocx) {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const mammoth = require('mammoth') as {
-        extractRawText: (input: Buffer) => Promise<{ value?: string }>;
-      };
+      // Mammoth has fairly complex types for its input; using `any` keeps
+      // the worker resilient without changing runtime behavior.
+      const mammoth = (await import('mammoth')) as any;
 
       const result = await mammoth.extractRawText(buffer);
       return result?.value?.trim() ? result.value : '';
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse') as (
-      dataBuffer: Buffer,
-    ) => Promise<{ text?: string }>;
+    const pdfParseMod = await import('pdf-parse');
+    const pdfParse =
+      (pdfParseMod as any).default ?? (pdfParseMod as any) ?? pdfParseMod;
 
     const parsed = await pdfParse(buffer);
 
@@ -242,11 +248,16 @@ export class CvScanWorkerService implements OnModuleDestroy {
     systemInstruction: string,
     userMessage: string,
   ): Promise<string> {
+    // PRIMARY: Gemini via GEMINI_API_KEY
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY is not configured.');
     }
 
+    // FALLBACK triggers (as requested):
+    // - HTTP 429
+    // - timeout > 15s
+    // - connection error (fetch throws)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const body = {
@@ -266,13 +277,25 @@ export class CvScanWorkerService implements OnModuleDestroy {
       },
     };
 
-    const maxRetries = 6;
+    const ollamaApiKey = process.env.OLLAMA_API_KEY;
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const triggerOllamaFallback = async (): Promise<string> => {
+      if (!ollamaApiKey || ollamaApiKey.trim().length === 0) {
+        // If we can't fall back, surface Gemini error to avoid hiding problems.
+        throw new Error('AI providers unavailable: missing OLLAMA_API_KEY.');
+      }
+      return this.generateWithOllamaCloud(systemInstruction, userMessage);
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15_000);
+
+    try {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
 
       if (res.ok) {
@@ -287,34 +310,76 @@ export class CvScanWorkerService implements OnModuleDestroy {
         return dataAny?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
       }
 
-      if ((res.status === 429 || res.status === 503) && attempt < maxRetries) {
-        const retryAfterHeader = res.headers.get('retry-after');
-        const retryAfterSeconds = retryAfterHeader
-          ? Number(retryAfterHeader)
-          : NaN;
-
-        const retryAfterMs =
-          Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
-            ? retryAfterSeconds * 1000
-            : null;
-
-        const backoffMs = Math.min(1000 * Math.pow(2, attempt), 16000);
-        const jitter = Math.floor(Math.random() * 400);
-        const waitMs = (retryAfterMs ?? backoffMs) + jitter;
-
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-        continue;
+      if (res.status === 429) {
+        return await triggerOllamaFallback();
       }
 
       const errorBody = await res.text().catch(() => '');
       throw new Error(
         `Gemini request failed: ${res.status} ${errorBody}`.trim(),
       );
+    } catch (err) {
+      // Timeout or connection errors => fallback
+      const errAny = err as { name?: string } | undefined;
+      if (errAny?.name === 'AbortError') {
+        return await triggerOllamaFallback();
+      }
+      // Fetch threw => connection error
+      return await triggerOllamaFallback();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  private async generateWithOllamaCloud(
+    systemInstruction: string,
+    userMessage: string,
+  ): Promise<string> {
+    // FALLBACK: Ollama Cloud via OLLAMA_API_KEY, Model qwen3-coder:480b-cloud
+    const ollamaApiKey = process.env.OLLAMA_API_KEY;
+    if (!ollamaApiKey) {
+      throw new Error('OLLAMA_API_KEY is not configured.');
     }
 
-    throw new Error(
-      'Gemini temporarily unavailable. Please try again shortly.',
-    );
+    const url = 'https://ollama.com/v1/chat/completions';
+
+    const body = {
+      model: 'qwen3-coder:480b-cloud',
+      messages: [
+        { role: 'system', content: systemInstruction },
+        { role: 'user', content: userMessage },
+      ],
+      temperature: 0.2,
+      max_tokens: 2048,
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ollamaApiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => '');
+      throw new Error(
+        `Ollama Cloud request failed: ${res.status} ${errorBody}`.trim(),
+      );
+    }
+
+    const data = (await res.json()) as unknown;
+
+    const dataAny = data as {
+      choices?: Array<{
+        message?: { content?: unknown };
+      }>;
+    };
+
+    return typeof dataAny?.choices?.[0]?.message?.content === 'string'
+      ? (dataAny.choices[0].message.content as string)
+      : '';
   }
 
   private async extractStructuredCvViaGemini(cvText: string): Promise<string> {
