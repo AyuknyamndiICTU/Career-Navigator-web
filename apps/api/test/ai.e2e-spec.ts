@@ -46,6 +46,7 @@ describe('AI chat (Milestone 5.2) + career-path enforcement (5.1)', () => {
     process.env.JWT_ACCESS_SECRET = 'test-secret';
     process.env.OLLAMA_BASE_URL = 'http://localhost:11434';
     process.env.OLLAMA_MODEL = 'llama3';
+    delete process.env.GEMINI_API_KEY;
 
     (global as any).fetch = jest.fn();
 
@@ -249,5 +250,117 @@ describe('AI chat (Milestone 5.2) + career-path enforcement (5.1)', () => {
 
     expect(res.body.allowedSkills).toEqual(['node']);
     expect(res.body.response.toLowerCase()).toContain('node');
+  });
+
+  it('Provider audit step 1: POST /ai/chat responds using Gemini when GEMINI_API_KEY is set', async () => {
+    process.env.GEMINI_API_KEY = 'test-gemini-key';
+
+    const token = signTestToken();
+
+    (global as any).fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      json: async () => ({
+        response: 'Gemini reply mentioning Node.js and TypeScript.',
+      }),
+    });
+
+    const res = await request(app.getHttpServer())
+      .post('/ai/chat')
+      .set('authorization', `Bearer ${token}`)
+      .send({
+        message: 'I need help planning',
+        allowedSkills: ['node', 'ts'],
+      })
+      .expect(201);
+
+    expect(res.body.allowedSkills).toEqual(['node', 'ts']);
+    expect(res.body.response).toContain('Gemini reply');
+  });
+
+  it('Provider audit step 2-4: Gemini 429 -> Ollama model fallback + [Provider Switch], then Gemini restored after 30s', async () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    const token = signTestToken();
+    const baseTime = 1700000000000;
+
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => baseTime);
+
+    // Step 2: simulate Gemini 429 (Gemini key exists but is "invalid" for realism).
+    process.env.GEMINI_API_KEY = 'invalid-key';
+
+    let capturedOllamaModel: string | null = null;
+
+    (global as any).fetch
+      // Gemini call -> 429
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: async () => 'rate limited',
+      })
+      // Ollama Cloud call
+      .mockImplementationOnce(async (_url: any, opts: any) => {
+        const body =
+          typeof opts?.body === 'string' ? JSON.parse(opts.body) : null;
+        capturedOllamaModel = body?.model ?? null;
+
+        return {
+          ok: true,
+          status: 200,
+          text: async () => '',
+          json: async () => ({
+            response: 'Ollama fallback reply mentioning Node.js.',
+          }),
+        };
+      });
+
+    // Code-related task => should choose qwen3-coder:480b-cloud
+    const res1 = await request(app.getHttpServer())
+      .post('/ai/chat')
+      .set('authorization', `Bearer ${token}`)
+      .send({
+        message: 'Write TypeScript code plan for a Node.js backend',
+        allowedSkills: ['node', 'ts'],
+      })
+      .expect(201);
+
+    expect(capturedOllamaModel).toBe('qwen3-coder:480b-cloud');
+    expect(res1.body.response).toContain('Ollama fallback reply');
+
+    // Step 3: provider switch notification appears
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[Provider Switch] → Now using: qwen3-coder:480b-cloud (reason: Gemini returned HTTP 429)',
+    );
+
+    // Step 4: advance time beyond 30s, restore correct Gemini key and confirm restored notification + Gemini usage.
+    (nowSpy as jest.Mock).mockImplementation(() => baseTime + 30001);
+    process.env.GEMINI_API_KEY = 'test-gemini-key';
+
+    (global as any).fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      json: async () => ({
+        response: 'Gemini restored reply mentioning Node.js.',
+      }),
+    });
+
+    const res2 = await request(app.getHttpServer())
+      .post('/ai/chat')
+      .set('authorization', `Bearer ${token}`)
+      .send({
+        message: 'Plan my next steps',
+        allowedSkills: ['node', 'ts'],
+      })
+      .expect(201);
+
+    expect(res2.body.response).toContain('Gemini restored reply');
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[Provider Restored] → Back to Gemini',
+    );
+
+    nowSpy.mockRestore();
+    consoleSpy.mockRestore();
   });
 });
