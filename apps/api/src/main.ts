@@ -1,3 +1,4 @@
+/* global process */
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -5,9 +6,14 @@ import { AppModule } from './app.module';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { getAIProvider } from './lib/aiProvider';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Log active provider once at startup (Gemini vs Ollama Cloud).
+  // The utility itself prints: "[AI Provider] Active: Gemini|Ollama Cloud"
+  void getAIProvider();
 
   // CORS — allow the web frontend to call the API cross-origin
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS;
