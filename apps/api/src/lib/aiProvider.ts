@@ -1,7 +1,11 @@
 /* global process, console */
 export type AIProviderResult = {
   activeProvider: 'Gemini' | 'Ollama Cloud';
-  gemini?: { apiKey: string };
+  gemini?: {
+    apiKey: string;
+    // eslint-disable-next-line no-unused-vars
+    generateContentUrlForModel: (_model: string) => string;
+  };
   ollama?: {
     baseUrl: 'https://ollama.com/v1';
     apiKey: string;
@@ -15,8 +19,10 @@ export function getAIProvider(): AIProviderResult {
   const geminiApiKey = process.env.GEMINI_API_KEY;
   const ollamaApiKey = process.env.OLLAMA_API_KEY;
 
-  const hasGemini = typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0;
-  const hasOllama = typeof ollamaApiKey === 'string' && ollamaApiKey.trim().length > 0;
+  const hasGemini =
+    typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0;
+  const hasOllama =
+    typeof ollamaApiKey === 'string' && ollamaApiKey.trim().length > 0;
 
   if (!hasGemini && !hasOllama) {
     throw new Error(
@@ -26,7 +32,13 @@ export function getAIProvider(): AIProviderResult {
 
   const result: AIProviderResult = {
     activeProvider: hasGemini ? 'Gemini' : 'Ollama Cloud',
-    gemini: hasGemini ? { apiKey: geminiApiKey as string } : undefined,
+    gemini: hasGemini
+      ? {
+          apiKey: geminiApiKey as string,
+          generateContentUrlForModel: (_model: string) =>
+            `https://generativelanguage.googleapis.com/v1beta/models/${_model}:generateContent?key=${geminiApiKey}`,
+        }
+      : undefined,
     ollama: hasOllama
       ? {
           baseUrl: 'https://ollama.com/v1',
@@ -38,10 +50,7 @@ export function getAIProvider(): AIProviderResult {
 
   if (!didLogActiveProvider) {
     didLogActiveProvider = true;
-     
-    console.log(
-      `[AI Provider] Active: ${result.activeProvider}`,
-    );
+    console.log(`[AI Provider] Active: ${result.activeProvider}`);
   }
 
   return result;
