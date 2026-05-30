@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import {
   BadRequestException,
   Injectable,
@@ -538,9 +540,15 @@ export class JobsService {
 
     // Phase 3: optional Gemini-based matchReason upgrade.
     // To avoid breaking tests/CI, this is gated behind GEMINI_JOB_MATCH_ENABLED=true.
+    // Provider setup (STANDARDIZED):
+    // PRIMARY: Gemini via GEMINI_API_KEY
+    // FALLBACK: Ollama Cloud via OLLAMA_API_KEY (model: glm-4.6:cloud)
     const geminiApiKey = process.env.GEMINI_API_KEY;
+    const ollamaApiKey = process.env.OLLAMA_API_KEY;
     const geminiEnabled =
-      geminiApiKey && process.env.GEMINI_JOB_MATCH_ENABLED === 'true';
+      process.env.GEMINI_JOB_MATCH_ENABLED === 'true' &&
+      ((typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0) ||
+        (typeof ollamaApiKey === 'string' && ollamaApiKey.trim().length > 0));
 
     if (geminiEnabled && ranked.length > 0) {
       const normalizeJsonObjectFromText = (
@@ -565,77 +573,124 @@ export class JobsService {
         systemInstruction: string,
         userMessage: string,
       ): Promise<string> => {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+        // PRIMARY: Gemini
+        try {
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
 
-        const body = {
-          system_instruction: { parts: [{ text: systemInstruction }] },
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: userMessage }],
+          const body = {
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: userMessage }],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.4,
+              topP: 0.95,
+              maxOutputTokens: 512,
             },
-          ],
-          generationConfig: {
-            temperature: 0.4,
-            topP: 0.95,
-            maxOutputTokens: 512,
-          },
-        };
+          };
 
-        const maxRetries = 4;
+          const maxRetries = 4;
 
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            const res = await fetch(geminiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
 
-          if (res.ok) {
-            const data = (await res.json()) as unknown;
+            if (res.ok) {
+              const data = (await res.json()) as unknown;
 
-            const dataAny = data as {
-              response?: unknown;
-              candidates?: Array<{
-                content?: { parts?: Array<{ text?: string }> };
-              }>;
-            };
+              const dataAny = data as {
+                response?: unknown;
+                candidates?: Array<{
+                  content?: { parts?: Array<{ text?: string }> };
+                }>;
+              };
 
-            const textFromMock =
-              typeof dataAny?.response === 'string' ? dataAny.response : null;
+              const textFromMock =
+                typeof dataAny?.response === 'string' ? dataAny.response : null;
 
-            const textFromGemini =
-              dataAny?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+              const textFromGemini =
+                dataAny?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
-            return textFromMock ?? textFromGemini ?? '';
+              const text = textFromMock ?? textFromGemini ?? '';
+              if (text.trim().length > 0) return text;
+              // If response is empty, treat as unavailable and fall back.
+              break;
+            }
+
+            // Retry on rate-limit / service unavailable
+            if (
+              (res.status === 429 || res.status === 503) &&
+              attempt < maxRetries
+            ) {
+              const retryAfterHeader = res.headers.get('retry-after');
+              const retryAfterSeconds = retryAfterHeader
+                ? Number(retryAfterHeader)
+                : NaN;
+
+              const retryAfterMs =
+                Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
+                  ? retryAfterSeconds * 1000
+                  : null;
+
+              const backoffMs = Math.min(500 * Math.pow(2, attempt), 8000);
+              const waitMs = retryAfterMs ?? backoffMs;
+
+              await new Promise((resolve) => setTimeout(resolve, waitMs));
+              continue;
+            }
+
+            break;
           }
-
-          // Retry on rate-limit / service unavailable
-          if (
-            (res.status === 429 || res.status === 503) &&
-            attempt < maxRetries
-          ) {
-            const retryAfterHeader = res.headers.get('retry-after');
-            const retryAfterSeconds = retryAfterHeader
-              ? Number(retryAfterHeader)
-              : NaN;
-
-            const retryAfterMs =
-              Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
-                ? retryAfterSeconds * 1000
-                : null;
-
-            const backoffMs = Math.min(500 * Math.pow(2, attempt), 8000);
-            const waitMs = retryAfterMs ?? backoffMs;
-
-            await new Promise((resolve) => setTimeout(resolve, waitMs));
-            continue;
-          }
-
-          break;
+        } catch {
+          // Gemini unavailable -> fall back to Ollama Cloud
         }
 
-        return '';
+        // FALLBACK: Ollama Cloud (https://ollama.com/v1) via OLLAMA_API_KEY
+        if (!ollamaApiKey || ollamaApiKey.trim().length === 0) return '';
+
+        const ollamaBaseUrl = 'https://ollama.com/v1';
+        const url = `${ollamaBaseUrl.replace(/\/+$/, '')}/chat/completions`;
+
+        const body = {
+          model: 'glm-4.6:cloud',
+          messages: [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: userMessage },
+          ],
+          temperature: 0.4,
+          max_tokens: 512,
+        };
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${ollamaApiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) return '';
+
+        const data = (await res.json()) as unknown;
+        const dataAny = data as {
+          choices?: Array<{
+            message?: { content?: unknown };
+          }>;
+        };
+
+        const text =
+          typeof dataAny?.choices?.[0]?.message?.content === 'string'
+            ? (dataAny.choices[0].message.content as string)
+            : '';
+
+        return text;
       };
 
       const systemInstruction = `You are "Career Navigator AI", a job matching assistant.
