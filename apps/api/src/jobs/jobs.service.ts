@@ -1,3 +1,4 @@
+/* global process, fetch, Buffer, AbortController, setTimeout, clearTimeout */
 import 'dotenv/config';
 
 import {
@@ -30,7 +31,11 @@ function extractBearerToken(authorizationHeader: string | undefined): string {
 
 @Injectable()
 export class JobsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly prisma: PrismaService;
+
+  constructor(prisma: PrismaService) {
+    this.prisma = prisma;
+  }
 
   private getAuthUser(authorizationHeader: string | undefined): AuthUser {
     const accessSecret = process.env.JWT_ACCESS_SECRET;
@@ -329,7 +334,8 @@ export class JobsService {
       | undefined
       | {
           findMany: (
-            args: unknown,
+            // eslint-disable-next-line no-unused-vars
+            _args: unknown,
           ) => Promise<Array<{ cvExtractedText?: unknown }>>;
         };
 
@@ -573,7 +579,7 @@ export class JobsService {
         systemInstruction: string,
         userMessage: string,
       ): Promise<string> => {
-        // PRIMARY: Gemini
+        // PRIMARY: Gemini (with fallback triggers on 429, >15s timeout, or connection error)
         try {
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
 
@@ -593,60 +599,85 @@ export class JobsService {
           };
 
           const maxRetries = 4;
+          const requestTimeoutMs = 15_000;
 
           for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            const res = await fetch(geminiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(
+              () => controller.abort(),
+              requestTimeoutMs,
+            );
 
-            if (res.ok) {
-              const data = (await res.json()) as unknown;
+            try {
+              const res = await fetch(geminiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal,
+              });
 
-              const dataAny = data as {
-                response?: unknown;
-                candidates?: Array<{
-                  content?: { parts?: Array<{ text?: string }> };
-                }>;
-              };
+              if (res.ok) {
+                const data = (await res.json()) as unknown;
 
-              const textFromMock =
-                typeof dataAny?.response === 'string' ? dataAny.response : null;
+                const dataAny = data as {
+                  response?: unknown;
+                  candidates?: Array<{
+                    content?: { parts?: Array<{ text?: string }> };
+                  }>;
+                };
 
-              const textFromGemini =
-                dataAny?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+                const textFromMock =
+                  typeof dataAny?.response === 'string'
+                    ? dataAny.response
+                    : null;
 
-              const text = textFromMock ?? textFromGemini ?? '';
-              if (text.trim().length > 0) return text;
-              // If response is empty, treat as unavailable and fall back.
-              break;
+                const textFromGemini =
+                  dataAny?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+                const text = textFromMock ?? textFromGemini ?? '';
+                if (text.trim().length > 0) return text;
+
+                // Empty response => treat as unavailable and fall back.
+                throw new Error('Gemini returned empty response');
+              }
+
+              // HTTP 429 => trigger fallback (after retries exhausted)
+              if (res.status === 429) {
+                if (attempt >= maxRetries) throw new Error('Gemini rate limited');
+              }
+
+              // Retry on rate-limit / service unavailable (429/503)
+              if (
+                (res.status === 429 || res.status === 503) &&
+                attempt < maxRetries
+              ) {
+                const retryAfterHeader = res.headers.get('retry-after');
+                const retryAfterSeconds = retryAfterHeader
+                  ? Number(retryAfterHeader)
+                  : NaN;
+
+                const retryAfterMs =
+                  Number.isFinite(retryAfterSeconds) &&
+                  retryAfterSeconds >= 0
+                    ? retryAfterSeconds * 1000
+                    : null;
+
+                const backoffMs = Math.min(500 * Math.pow(2, attempt), 8000);
+                const waitMs = retryAfterMs ?? backoffMs;
+
+                await new Promise((resolve) => setTimeout(resolve, waitMs));
+                continue;
+              }
+
+              // Any non-OK we don't explicitly handle => fall back
+              throw new Error(`Gemini request failed: ${res.status}`);
+            } finally {
+              clearTimeout(timeoutId);
             }
-
-            // Retry on rate-limit / service unavailable
-            if (
-              (res.status === 429 || res.status === 503) &&
-              attempt < maxRetries
-            ) {
-              const retryAfterHeader = res.headers.get('retry-after');
-              const retryAfterSeconds = retryAfterHeader
-                ? Number(retryAfterHeader)
-                : NaN;
-
-              const retryAfterMs =
-                Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
-                  ? retryAfterSeconds * 1000
-                  : null;
-
-              const backoffMs = Math.min(500 * Math.pow(2, attempt), 8000);
-              const waitMs = retryAfterMs ?? backoffMs;
-
-              await new Promise((resolve) => setTimeout(resolve, waitMs));
-              continue;
-            }
-
-            break;
           }
+
+          // If loop exits without returning, fall back
+          throw new Error('Gemini unavailable');
         } catch {
           // Gemini unavailable -> fall back to Ollama Cloud
         }
