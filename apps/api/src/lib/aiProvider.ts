@@ -1,3 +1,4 @@
+/* global process, console */
 export type AIProviderResult = {
   activeProvider: 'Gemini' | 'Ollama Cloud';
   gemini?: { apiKey: string };
