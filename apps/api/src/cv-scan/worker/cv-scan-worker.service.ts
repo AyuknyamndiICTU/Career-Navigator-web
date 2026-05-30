@@ -89,7 +89,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
 
     // Lazy import so TS doesn't need bullmq installed during typecheck/tests.
     const bullmqMod = (await import('bullmq')) as {
-      Worker: new (...args: unknown[]) => CvScanWorkerLike;
+      Worker: new (..._args: unknown[]) => CvScanWorkerLike;
     };
 
     const { Worker } = bullmqMod;
