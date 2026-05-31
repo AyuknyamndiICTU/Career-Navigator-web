@@ -35,7 +35,6 @@ services:
 
   ollama:
     image: ollama/ollama:latest
-    profiles: ["ollama"]
     ports:
       - "11434:11434"
     volumes:
@@ -83,11 +82,12 @@ services:
       BREVO_API_KEY: "dev"
       BREVO_SENDER_EMAIL: "no-reply@example.com"
 
-      # Ollama (keep small for 8GB VPS stability)
-      OLLAMA_BASE_URL: "http://ollama:11434"
-      OLLAMA_MODEL: "qwen2.5-coder:7b"
-      # Prevent long generations from timing out during API/endpoint verification
-      OLLAMA_NUM_PREDICT: "10"
+      # AI Provider keys (passed from host env)
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
+
+      # Ollama (local)
+      OLLAMA_BASE_URL: "http://ollama:11434/v1"
 
       # BullMQ CV scan worker defaults
       CV_SCAN_ENABLED: "true"
