@@ -1,10 +1,8 @@
 /* global process, fetch, Buffer, AbortController, setTimeout, clearTimeout, URL, NodeJS */
-import 'dotenv/config';
-
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Client as MinioClient } from 'minio';
-import { getAIProvider } from '../../lib/aiProvider';
+import { getAIProvider, GEMINI_MODEL } from '../../lib/aiProvider';
 
 type CvScanJobPayload = {
   userId: string;
@@ -59,7 +57,6 @@ function tryExtractJson(text: string): string {
 
 type WorkerCloseLike = { close: () => Promise<void> };
 type WorkerOnLike = {
-  // eslint-disable-next-line no-unused-vars
   on: (_event: string, _listener: (..._args: unknown[]) => void) => void;
 };
 type CvScanWorkerLike = WorkerCloseLike & WorkerOnLike;
@@ -90,7 +87,6 @@ export class CvScanWorkerService implements OnModuleDestroy {
 
     // Lazy import so TS doesn't need bullmq installed during typecheck/tests.
     const bullmqMod = (await import('bullmq')) as {
-      // eslint-disable-next-line no-unused-vars
       Worker: new (..._args: unknown[]) => CvScanWorkerLike;
     };
 
@@ -252,7 +248,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
   ): Promise<string> {
     // PRIMARY: Gemini via GEMINI_API_KEY
     const provider = getAIProvider();
-    const url = provider.gemini?.generateContentUrlForModel('gemini-2.5-flash');
+    const url = provider.gemini?.generateContentUrlForModel(GEMINI_MODEL);
 
     if (!url) {
       throw new Error('GEMINI_API_KEY is not configured.');
