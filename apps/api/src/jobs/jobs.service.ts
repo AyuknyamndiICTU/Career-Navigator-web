@@ -1,5 +1,4 @@
 /* global process, fetch, Buffer, AbortController, setTimeout, clearTimeout */
-import 'dotenv/config';
 
 import {
   BadRequestException,
@@ -12,7 +11,7 @@ import { CvScanStatus, JobStatus, MediaType } from '@prisma/client';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { RerankJobsDto } from './dto/rerank-jobs.dto';
 import { seedJobScrapeCandidatesFromActiveJobs } from './job-scrape-seed.service';
-import { getAIProvider } from '../lib/aiProvider';
+import { getAIProvider, GEMINI_MODEL } from '../lib/aiProvider';
 
 export type BrowseJobsParams = {
   searchQuery?: string;
@@ -335,7 +334,6 @@ export class JobsService {
       | undefined
       | {
           findMany: (
-            // eslint-disable-next-line no-unused-vars
             _args: unknown,
           ) => Promise<Array<{ cvExtractedText?: unknown }>>;
         };
@@ -557,10 +555,8 @@ export class JobsService {
 
     const geminiEnabled =
       process.env.GEMINI_JOB_MATCH_ENABLED === 'true' &&
-      ((typeof geminiApiKey === 'string' &&
-        geminiApiKey.trim().length > 0) ||
-        (typeof ollamaApiKey === 'string' &&
-          ollamaApiKey.trim().length > 0));
+      ((typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0) ||
+        (typeof ollamaApiKey === 'string' && ollamaApiKey.trim().length > 0));
 
     if (geminiEnabled && ranked.length > 0) {
       const normalizeJsonObjectFromText = (
@@ -592,7 +588,7 @@ export class JobsService {
           }
 
           const geminiUrl =
-            provider.gemini?.generateContentUrlForModel('gemini-2.5-flash');
+            provider.gemini?.generateContentUrlForModel(GEMINI_MODEL);
           if (!geminiUrl) {
             throw new Error('Gemini unavailable');
           }
@@ -657,7 +653,8 @@ export class JobsService {
 
               // HTTP 429 => trigger fallback (after retries exhausted)
               if (res.status === 429) {
-                if (attempt >= maxRetries) throw new Error('Gemini rate limited');
+                if (attempt >= maxRetries)
+                  throw new Error('Gemini rate limited');
               }
 
               // Retry on rate-limit / service unavailable (429/503)
@@ -671,8 +668,7 @@ export class JobsService {
                   : NaN;
 
                 const retryAfterMs =
-                  Number.isFinite(retryAfterSeconds) &&
-                  retryAfterSeconds >= 0
+                  Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
                     ? retryAfterSeconds * 1000
                     : null;
 
