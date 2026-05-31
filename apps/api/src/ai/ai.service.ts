@@ -1,7 +1,6 @@
 /* eslint-env node */
-/* eslint-disable no-undef, no-unused-vars */
-import 'dotenv/config';
-import { getAIProvider } from '../lib/aiProvider';
+
+import { getAIProvider, GEMINI_MODEL } from '../lib/aiProvider';
 import {
   BadRequestException,
   Injectable,
@@ -118,7 +117,8 @@ export class AiService {
 
     // Mock Interview (conversational) should use glm-4.6.
     const isMockInterviewTask =
-      combined.includes('mock interview') || combined.includes('mock-interview');
+      combined.includes('mock interview') ||
+      combined.includes('mock-interview');
 
     // Resume/CV builder + structured formatting prompts.
     const resumeKeywords = [
@@ -501,9 +501,7 @@ export class AiService {
       throw new BadRequestException('GEMINI_API_KEY is not configured');
     }
 
-    const url = provider.gemini?.generateContentUrlForModel(
-      'gemini-2.0-flash',
-    );
+    const url = provider.gemini?.generateContentUrlForModel(GEMINI_MODEL);
     if (!url) {
       throw new BadRequestException('GEMINI_API_KEY is not configured');
     }
