@@ -13,7 +13,11 @@ async function bootstrap() {
 
   // Log active provider once at startup (Gemini vs Ollama Cloud).
   // The utility itself prints: "[AI Provider] Active: Gemini|Ollama Cloud"
-  void getAIProvider();
+  try {
+    getAIProvider();
+  } catch (err) {
+    console.warn('AI Provider initialization warning:', err);
+  }
 
   // CORS — allow the web frontend to call the API cross-origin
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS;
