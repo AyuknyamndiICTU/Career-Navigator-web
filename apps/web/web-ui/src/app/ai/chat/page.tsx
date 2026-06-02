@@ -2,7 +2,7 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { Fragment, useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { apiFetch } from '@/lib/auth';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -11,6 +11,107 @@ import ErrorAlert from '@/components/ErrorAlert';
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+}
+
+function textFromAiPayload(payload: unknown): string {
+  if (typeof payload === 'string') return cleanAssistantText(payload);
+
+  if (!payload || typeof payload !== 'object') {
+    return 'I had trouble reading that response. Please try again.';
+  }
+
+  const record = payload as Record<string, unknown>;
+  const directText = record.reply ?? record.response ?? record.message;
+
+  if (typeof directText === 'string') return cleanAssistantText(directText);
+
+  return 'I received your request, but the response was not in a readable format. Please try asking again.';
+}
+
+function cleanAssistantText(text: string): string {
+  const trimmed = text.trim();
+
+  const stripped = trimmed
+    .replace(/```(?:json)?/gi, '')
+    .replace(/```/g, '')
+    .trim();
+
+  if (stripped.startsWith('{') && stripped.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(stripped) as Record<string, unknown>;
+      const nestedText = parsed.reply ?? parsed.response ?? parsed.message;
+      if (typeof nestedText === 'string') return nestedText.trim();
+    } catch {
+      // Keep the original readable text below.
+    }
+  }
+
+  return stripped
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s*assistant\s*:\s*/i, '')
+    .trim();
+}
+
+function renderInlineMarkdown(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={index} className="font-extrabold text-slate-800">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+
+    return <Fragment key={index}>{part}</Fragment>;
+  });
+}
+
+function AssistantMessageContent({ content }: { content: string }) {
+  const lines = content
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const blocks: Array<{ type: 'paragraph' | 'list'; items: string[] }> = [];
+
+  for (const line of lines) {
+    const bulletMatch = line.match(/^[-*•]\s+(.+)$/) ?? line.match(/^\d+[.)]\s+(.+)$/);
+    if (bulletMatch) {
+      const previous = blocks[blocks.length - 1];
+      if (previous?.type === 'list') {
+        previous.items.push(bulletMatch[1]);
+      } else {
+        blocks.push({ type: 'list', items: [bulletMatch[1]] });
+      }
+    } else {
+      blocks.push({ type: 'paragraph', items: [line] });
+    }
+  }
+
+  if (blocks.length === 0) {
+    return <div className="font-medium">{content}</div>;
+  }
+
+  return (
+    <div className="space-y-3 font-medium">
+      {blocks.map((block, index) =>
+        block.type === 'list' ? (
+          <ul key={index} className="space-y-2 pl-4 list-disc">
+            {block.items.map((item, itemIndex) => (
+              <li key={itemIndex} className="pl-1">
+                {renderInlineMarkdown(item)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p key={index}>{renderInlineMarkdown(block.items[0])}</p>
+        ),
+      )}
+    </div>
+  );
 }
 
 export default function AiChatPage() {
@@ -39,7 +140,7 @@ export default function AiChatPage() {
         body: { message: userMsg },
       });
 
-      const text = typeof res === 'string' ? res : (res?.reply || res?.response || JSON.stringify(res, null, 2));
+      const text = textFromAiPayload(res);
       setHistory((prev) => [...prev, { role: 'assistant', content: text }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'AI chat failed';
@@ -142,7 +243,11 @@ export default function AiChatPage() {
                       : 'bg-white text-slate-700 rounded-bl-sm border border-slate-100'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
+                  {msg.role === 'assistant' ? (
+                    <AssistantMessageContent content={msg.content} />
+                  ) : (
+                    <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
+                  )}
                 </div>
               </motion.div>
             ))}
