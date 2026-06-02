@@ -207,18 +207,48 @@ export class AiService {
     let geminiError: string | null = null;
 
     // 1) Gemini (when key exists)
-    if (hasGeminiKey) {
+    if (hasGeminiKey && !this.isGeminiInFallbackCooldown()) {
       try {
-        return await this.generateWithGemini(systemInstruction, userMessage);
+        const response = await this.generateWithGemini(
+          systemInstruction,
+          userMessage,
+        );
+
+        if (this.lastUsedProvider === 'ollama') {
+          console.log('[Provider Restored] → Back to Gemini');
+          this.lastUsedProvider = 'gemini';
+          this.lastGeminiFallbackReason = null;
+        }
+
+        return response;
       } catch (err) {
         // 2) Gemini unavailable -> fallback to Ollama Cloud
         geminiError =
           err instanceof Error ? err.message : 'Gemini request failed';
+
+        if (err instanceof GeminiRateLimitError) {
+          this.triggerGeminiFallback('Gemini returned HTTP 429');
+        } else if (err instanceof GeminiTimeoutError) {
+          this.triggerGeminiFallback(
+            'Gemini request timed out after 15 seconds',
+          );
+        }
       }
     }
 
     // 2) Fallback to Ollama Cloud
     try {
+      if (hasGeminiKey && this.lastUsedProvider !== 'ollama') {
+        const modelForLog = preferredOllamaModels[0] ?? 'glm-4.6:cloud';
+        const reason =
+          this.lastGeminiFallbackReason ?? 'Gemini returned HTTP 429';
+
+        console.log(
+          `[Provider Switch] → Now using: ${modelForLog} (reason: ${reason})`,
+        );
+        this.lastUsedProvider = 'ollama';
+      }
+
       return await this.generateWithOllama(systemInstruction, userMessage, {
         preferredModels: preferredOllamaModels,
       });
