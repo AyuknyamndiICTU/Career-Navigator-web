@@ -461,8 +461,7 @@ export class JobsService {
       }
     }
 
-    const candidateJobs = await prismaAny.jobScrapeCandidate.findMany({
-      where: { platform: 'internal' },
+    const candidateJobsRaw = await prismaAny.jobScrapeCandidate.findMany({
       select: {
         id: true,
         title: true,
@@ -472,8 +471,24 @@ export class JobsService {
         skills: true,
         externalUrl: true,
         updatedAt: true,
+        source: true,
       },
       take: 500,
+    });
+
+    const candidateJobs = Array.isArray(candidateJobsRaw)
+      ? candidateJobsRaw
+      : [];
+
+    const filteredCandidateJobs = candidateJobs.filter((j: unknown) => {
+      const any = j as { source?: unknown; platform?: unknown } | undefined;
+      // Prefer schema-backed field `source`, but tolerate legacy `platform`.
+      return (
+        any?.source === 'internal' ||
+        any?.platform === 'internal' ||
+        // If nothing is set (legacy/older rows), keep it.
+        !any?.source
+      );
     });
 
     type Ranked = {
@@ -502,7 +517,7 @@ export class JobsService {
       return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
     };
 
-    const rankedAll: Ranked[] = candidateJobs
+    const rankedAll: Ranked[] = filteredCandidateJobs
       .map((job) => {
         const matched = job.skills.filter((s) =>
           allowedLower.has(s.toLowerCase()),
