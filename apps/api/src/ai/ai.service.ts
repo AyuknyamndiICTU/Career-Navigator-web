@@ -113,13 +113,15 @@ export class AiService {
     userMessage: string,
   ): string[] {
     const combined = `${systemInstruction}\n${userMessage}`.toLowerCase();
+    const userText = userMessage.toLowerCase();
 
     const isCodeTask = this.isCodeRelatedTask(systemInstruction, userMessage);
 
     // Mock Interview (conversational) should use glm-4.6.
+    // Only inspect the user task; the general chat prompt also mentions mock interviews.
     const isMockInterviewTask =
-      combined.includes('mock interview') ||
-      combined.includes('mock-interview');
+      userText.includes('mock interview') ||
+      userText.includes('mock-interview');
 
     // Resume/CV builder + structured formatting prompts.
     const resumeKeywords = [
@@ -141,9 +143,13 @@ export class AiService {
       'skills',
     ];
 
-    const isResumeBuilderTask = resumeKeywords.some((k) =>
-      combined.includes(k),
-    );
+    const isResumeBuilderTask = resumeKeywords.some((k) => userText.includes(k));
+
+    // Coding requests should use the coding/doc model even if the broader
+    // assistant prompt mentions conversational career features.
+    if (isCodeTask) {
+      return ['qwen3-coder:480b-cloud'];
+    }
 
     // Mock interview -> reasoning/conversation model.
     if (isMockInterviewTask) {
@@ -151,7 +157,7 @@ export class AiService {
     }
 
     // For document/structured generation we prefer the coding/doc model.
-    if (isCodeTask || isResumeBuilderTask) {
+    if (isResumeBuilderTask) {
       return ['qwen3-coder:480b-cloud'];
     }
 
@@ -412,7 +418,7 @@ export class AiService {
     const ollamaBaseUrl = provider.ollama?.baseUrl ?? 'https://ollama.com/v1';
     const apiKey = provider.ollama?.apiKey;
 
-    if (!apiKey) {
+    if (!provider.ollama) {
       throw new BadRequestException(
         'AI providers unavailable. Check GEMINI_API_KEY or OLLAMA_API_KEY in your environment configuration.',
       );
@@ -443,47 +449,67 @@ export class AiService {
     let lastError: unknown = null;
 
     for (const model of uniqueCandidates) {
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: 'system', content: systemInstruction },
-              { role: 'user', content: userMessage },
-            ],
-            temperature: 0.7,
-            max_tokens: 1024,
-          }),
-        });
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: 'system', content: systemInstruction },
+                { role: 'user', content: userMessage },
+              ],
+              temperature: 0.7,
+              max_tokens: 1024,
+            }),
+          });
 
-        if (!res.ok) {
-          const errorBody = await res.text().catch(() => '');
-          throw new BadRequestException(
-            `Ollama generation failed: model=${model} status=${res.status} ${errorBody}`.trim(),
-          );
+          if (!res.ok) {
+            if ((res.status === 429 || res.status === 503) && attempt < 2) {
+              const retryAfterHeader = res.headers?.get?.('retry-after');
+              const retryAfterSeconds = retryAfterHeader
+                ? Number(retryAfterHeader)
+                : NaN;
+              const waitMs =
+                Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
+                  ? retryAfterSeconds * 1000
+                  : 500;
+
+              await new Promise((resolve) => setTimeout(resolve, waitMs));
+              continue;
+            }
+
+            const errorBody = await res.text().catch(() => '');
+            throw new BadRequestException(
+              `Ollama generation failed: model=${model} status=${res.status} ${errorBody}`.trim(),
+            );
+          }
+
+          const data = (await res.json()) as unknown;
+
+          const dataAny = data as {
+            response?: unknown;
+            choices?: Array<{
+              message?: { content?: unknown };
+            }>;
+          };
+
+          const textFromMock =
+            typeof dataAny?.response === 'string' ? dataAny.response : null;
+
+          const textFromOllama =
+            typeof dataAny?.choices?.[0]?.message?.content === 'string'
+              ? (dataAny.choices[0].message.content as string)
+              : '';
+
+          return textFromMock ?? textFromOllama;
+        } catch (err) {
+          lastError = err;
         }
-
-        const data = (await res.json()) as unknown;
-
-        const dataAny = data as {
-          choices?: Array<{
-            message?: { content?: unknown };
-          }>;
-        };
-
-        const text =
-          typeof dataAny?.choices?.[0]?.message?.content === 'string'
-            ? (dataAny.choices[0].message.content as string)
-            : '';
-
-        return text;
-      } catch (err) {
-        lastError = err;
       }
     }
 
