@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { IsObject, IsOptional, IsString } from 'class-validator';
 
 export class UpsertProfileDto {
@@ -27,5 +28,5 @@ export class UpsertProfileDto {
 
   @IsOptional()
   @IsObject()
-  cvWizardData?: Record<string, unknown>;
+  cvWizardData?: Prisma.InputJsonObject;
 }
