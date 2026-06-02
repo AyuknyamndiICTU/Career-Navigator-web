@@ -24,6 +24,123 @@ export type BrowseJobsParams = {
 
 type AuthUser = { sub: string };
 
+type JobCatalogItem = {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  description: string | null;
+  status: JobStatus;
+  skills: string[];
+  externalUrl: string;
+  source: 'fallback';
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function makeJobSearchUrl(query: string): string {
+  return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(
+    query,
+  )}`;
+}
+
+function recentJobFallbackCatalog(): JobCatalogItem[] {
+  const now = new Date();
+
+  return [
+    {
+      id: 'fallback-frontend-engineer',
+      title: 'Frontend Developer Roles',
+      company: 'LinkedIn Jobs',
+      location: 'Remote / Hybrid',
+      description:
+        'Recent frontend openings for candidates building React, TypeScript, UI, and product development skills.',
+      status: 'ACTIVE',
+      skills: ['react', 'typescript', 'javascript', 'frontend'],
+      externalUrl: makeJobSearchUrl('frontend developer react typescript'),
+      source: 'fallback',
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'fallback-backend-engineer',
+      title: 'Backend Developer Roles',
+      company: 'LinkedIn Jobs',
+      location: 'Remote / On-site',
+      description:
+        'Recent backend openings focused on Node.js, APIs, databases, and production service development.',
+      status: 'ACTIVE',
+      skills: ['node', 'typescript', 'api', 'backend'],
+      externalUrl: makeJobSearchUrl('backend developer node.js api'),
+      source: 'fallback',
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'fallback-data-analyst',
+      title: 'Data Analyst Roles',
+      company: 'LinkedIn Jobs',
+      location: 'Remote / Hybrid',
+      description:
+        'Recent data roles for people growing SQL, Python, analytics, reporting, and problem-solving skills.',
+      status: 'ACTIVE',
+      skills: ['sql', 'python', 'analytics', 'data'],
+      externalUrl: makeJobSearchUrl('data analyst sql python'),
+      source: 'fallback',
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'fallback-career-development',
+      title: 'Early Career & Graduate Roles',
+      company: 'LinkedIn Jobs',
+      location: 'Entry-level / Remote',
+      description:
+        'Recent entry-level searches that are useful when you are still building experience, resumes, and interview confidence.',
+      status: 'ACTIVE',
+      skills: [
+        'general career guidance',
+        'resume building',
+        'interview preparation',
+        'job search strategies',
+        'professional development',
+      ],
+      externalUrl: makeJobSearchUrl('entry level graduate trainee remote'),
+      source: 'fallback',
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'fallback-project-manager',
+      title: 'Project Coordinator Roles',
+      company: 'LinkedIn Jobs',
+      location: 'Remote / Hybrid',
+      description:
+        'Recent coordinator roles for candidates with communication, leadership, organization, and problem-solving strengths.',
+      status: 'ACTIVE',
+      skills: ['communication', 'leadership', 'problem solving'],
+      externalUrl: makeJobSearchUrl('project coordinator communication leadership'),
+      source: 'fallback',
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+}
+
+function normalizeText(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function skillMatches(candidateSkill: string, requestedSkill: string): boolean {
+  const candidate = normalizeText(candidateSkill);
+  const requested = normalizeText(requestedSkill);
+  return (
+    candidate === requested ||
+    candidate.includes(requested) ||
+    requested.includes(candidate)
+  );
+}
+
 function extractBearerToken(authorizationHeader: string | undefined): string {
   if (!authorizationHeader) return '';
   return authorizationHeader.replace(/^Bearer\s+/i, '').trim();
@@ -66,6 +183,8 @@ export class JobsService {
       description: string | null;
       status: JobStatus;
       skills: string[];
+      externalUrl?: string;
+      source?: string;
       createdAt: Date;
       updatedAt: Date;
     }>;
@@ -132,6 +251,54 @@ export class JobsService {
       }),
       this.prisma.job.count({ where }),
     ]);
+
+    if (items.length === 0 && total === 0) {
+      const fallbackItems = recentJobFallbackCatalog().filter((job) => {
+        if (parsedStatus && job.status !== parsedStatus) return false;
+
+        if (
+          location &&
+          !normalizeText(job.location ?? '').includes(normalizeText(location))
+        ) {
+          return false;
+        }
+
+        if (
+          skill &&
+          !job.skills.some((candidateSkill) =>
+            skillMatches(candidateSkill, skill),
+          )
+        ) {
+          return false;
+        }
+
+        if (searchQuery) {
+          const q = normalizeText(searchQuery);
+          const searchable = normalizeText(
+            [
+              job.title,
+              job.company,
+              job.location,
+              job.description,
+              job.skills.join(' '),
+            ]
+              .filter(Boolean)
+              .join(' '),
+          );
+
+          if (!searchable.includes(q)) return false;
+        }
+
+        return true;
+      });
+
+      return {
+        items: fallbackItems.slice(skip, skip + limit),
+        page,
+        limit,
+        total: fallbackItems.length,
+      };
+    }
 
     return { items, page, limit, total };
   }
@@ -455,32 +622,33 @@ export class JobsService {
       ) {
         return {
           items: cachedJobsAny,
-          allowedSkills,
+          allowedSkills: fallbackSkills,
           notificationsCreated: 0,
         };
       }
     }
 
-    const candidateJobsRaw = await prismaAny.jobScrapeCandidate.findMany({
-      select: {
-        id: true,
-        title: true,
-        company: true,
-        location: true,
-        description: true,
-        skills: true,
-        externalUrl: true,
-        updatedAt: true,
-        source: true,
-      },
-      take: 500,
-    });
+    const candidateJobsRaw =
+      (await prismaAny.jobScrapeCandidate?.findMany?.({
+        select: {
+          id: true,
+          title: true,
+          company: true,
+          location: true,
+          description: true,
+          skills: true,
+          externalUrl: true,
+          updatedAt: true,
+          source: true,
+        },
+        take: 500,
+      })) ?? [];
 
     const candidateJobs = Array.isArray(candidateJobsRaw)
       ? candidateJobsRaw
       : [];
 
-    const filteredCandidateJobs = candidateJobs.filter((j: unknown) => {
+    let filteredCandidateJobs = candidateJobs.filter((j: unknown) => {
       const any = j as { source?: unknown; platform?: unknown } | undefined;
       // Prefer schema-backed field `source`, but tolerate legacy `platform`.
       return (
@@ -490,6 +658,10 @@ export class JobsService {
         !any?.source
       );
     });
+
+    if (filteredCandidateJobs.length === 0) {
+      filteredCandidateJobs = recentJobFallbackCatalog();
+    }
 
     type Ranked = {
       jobId: string;
@@ -506,7 +678,7 @@ export class JobsService {
       matchReason: string;
     };
 
-    const allowedLower = new Set(fallbackSkills.map((s) => s.toLowerCase()));
+    const allowedLower = fallbackSkills.map((s) => s.toLowerCase());
 
     const makeExternalUrl = (job: {
       title: string;
@@ -519,8 +691,9 @@ export class JobsService {
 
     const rankedAll: Ranked[] = filteredCandidateJobs
       .map((job) => {
-        const matched = job.skills.filter((s) =>
-          allowedLower.has(s.toLowerCase()),
+        const jobSkills = Array.isArray(job.skills) ? job.skills : [];
+        const matched = jobSkills.filter((s) =>
+          allowedLower.some((allowed) => skillMatches(s, allowed)),
         );
         const score = matched.length;
 
@@ -533,8 +706,8 @@ export class JobsService {
 
         const matchReason =
           matched.length > 0
-            ? `Matches your skills: ${matched.join(', ')}.`
-            : `I can only help using your career-path skills. Career-path skills: ${fallbackSkills.join(', ')}.`;
+            ? `This looks relevant because it connects with your career-path skills: ${matched.join(', ')}.`
+            : `This is a broader search to explore while you keep building your career-path skills: ${fallbackSkills.join(', ')}.`;
 
         return {
           jobId: job.id,
@@ -544,7 +717,10 @@ export class JobsService {
           matchedSkills: matched,
           location: job.location,
           description: job.description,
-          updatedAt: job.updatedAt,
+          updatedAt:
+            job.updatedAt instanceof Date
+              ? job.updatedAt
+              : new Date(job.updatedAt ?? 0),
 
           externalUrl,
           matchReason,
@@ -563,13 +739,23 @@ export class JobsService {
     // Provider setup (STANDARDIZED):
     // PRIMARY: Gemini via GEMINI_API_KEY
     // FALLBACK: Ollama Cloud via OLLAMA_API_KEY (model: glm-4.6:cloud)
-    const provider = getAIProvider();
-    const geminiApiKey = provider.gemini?.apiKey;
-    const ollamaApiKey = provider.ollama?.apiKey;
-    const ollamaBaseUrl = provider.ollama?.baseUrl ?? 'https://ollama.com/v1';
+    let provider: ReturnType<typeof getAIProvider> | null = null;
+    try {
+      provider =
+        process.env.GEMINI_JOB_MATCH_ENABLED === 'true'
+          ? getAIProvider()
+          : null;
+    } catch {
+      provider = null;
+    }
+
+    const geminiApiKey = provider?.gemini?.apiKey;
+    const ollamaApiKey = provider?.ollama?.apiKey;
+    const ollamaBaseUrl = provider?.ollama?.baseUrl ?? 'https://ollama.com/v1';
 
     const geminiEnabled =
       process.env.GEMINI_JOB_MATCH_ENABLED === 'true' &&
+      provider !== null &&
       ((typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0) ||
         (typeof ollamaApiKey === 'string' && ollamaApiKey.trim().length > 0));
 
@@ -603,7 +789,7 @@ export class JobsService {
           }
 
           const geminiUrl =
-            provider.gemini?.generateContentUrlForModel(GEMINI_MODEL);
+            provider?.gemini?.generateContentUrlForModel(GEMINI_MODEL);
           if (!geminiUrl) {
             throw new Error('Gemini unavailable');
           }
@@ -756,7 +942,7 @@ Task:
 - If the job has matched skills, explicitly mention at least ONE of those skills verbatim.
 - Keep it short (1-2 sentences).`;
 
-      const candidateHint = `Career-path skills: ${allowedSkills.join(', ')}.`;
+      const candidateHint = `Career-path skills: ${fallbackSkills.join(', ')}.`;
 
       const jobsInput = ranked.map((r) => ({
         jobId: r.jobId,
@@ -837,7 +1023,7 @@ Task:
 
     return {
       items: ranked,
-      allowedSkills,
+      allowedSkills: fallbackSkills,
       notificationsCreated: notifyTargets.length,
     };
   }
