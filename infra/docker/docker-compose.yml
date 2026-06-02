@@ -33,7 +33,11 @@ services:
     mem_limit: 256m
     restart: unless-stopped
 
+  # Local Ollama is OPTIONAL and will NOT run unless the profile is enabled:
+  #   docker compose --profile local-ollama up -d
+  # By default the API uses Ollama Cloud (ollama.com/v1) via OLLAMA_API_KEY.
   ollama:
+    profiles: ["local-ollama"]
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
@@ -54,7 +58,7 @@ services:
 
       # JWT
       JWT_ACCESS_SECRET: "dev-access-secret"
-      JWT_ACCESS_EXPIRES_IN: "15m"
+      JWT_ACCESS_EXPIRES_IN: "2h"
       JWT_REFRESH_SECRET: "dev-refresh-secret"
       JWT_REFRESH_EXPIRES_IN: "30d"
 
@@ -86,8 +90,10 @@ services:
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
 
-      # Ollama (local)
-      OLLAMA_BASE_URL: "http://ollama:11434/v1"
+      # Ollama Cloud (default). To use local Ollama instead, change to:
+      #   OLLAMA_BASE_URL: "http://ollama:11434/v1"
+      # and start with: docker compose --profile local-ollama up -d
+      OLLAMA_BASE_URL: "https://ollama.com/v1"
 
       # BullMQ CV scan worker defaults
       CV_SCAN_ENABLED: "true"
