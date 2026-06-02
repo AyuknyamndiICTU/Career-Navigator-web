@@ -3,11 +3,13 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { verifyAccessToken } from '../auth/jwt/jwt-utils';
 import { BuildResumeDto, ResumeTemplateId } from './dto/build-resume.dto';
 
 type AuthUser = { sub: string };
+type CvWizardData = Record<string, unknown>;
 
 const DEFAULT_TEMPLATE: ResumeTemplateId = 'STANDARD';
 
@@ -162,7 +164,7 @@ export class ResumeService {
         phone: string | null;
         location: string | null;
         summary: string | null;
-        cvWizardData: Record<string, unknown> | null;
+        cvWizardData: Prisma.JsonValue | null;
       } | null;
       education: Array<{
         degree: string | null;
@@ -204,6 +206,22 @@ export class ResumeService {
       throw new BadRequestException('Invalid template');
     }
 
+    const cv = this.asCvWizardData(data.profile?.cvWizardData ?? null);
+
+    const coerceStringArray = (value: unknown): string[] => {
+      if (!Array.isArray(value)) return [];
+      return value
+        .filter((v): v is string => typeof v === 'string')
+        .map((v) => v.trim())
+        .filter(Boolean);
+    };
+
+    const coerceNullableString = (value: unknown): string | null => {
+      if (typeof value !== 'string') return null;
+      const t = value.trim();
+      return t.length === 0 ? null : t;
+    };
+
     const fullName =
       [data.profile?.firstName, data.profile?.lastName]
         .filter(Boolean)
@@ -215,6 +233,12 @@ export class ResumeService {
       contact: {
         phone: data.profile?.phone ?? null,
         location: data.profile?.location ?? null,
+        email: cv ? coerceNullableString(cv.email) : null,
+        address: cv ? coerceNullableString(cv.address) : null,
+        dateOfBirth: cv ? coerceNullableString(cv.dateOfBirth) : null,
+        website: cv ? coerceNullableString(cv.website) : null,
+        linkedIn: cv ? coerceNullableString(cv.linkedIn) : null,
+        photoUrl: cv ? coerceNullableString(cv.photoUrl) : null,
       },
     };
 
@@ -270,24 +294,6 @@ export class ResumeService {
       notes: r.notes ?? null,
     }));
 
-    const cv = (data.profile?.cvWizardData ?? null) as
-      | Record<string, unknown>
-      | null;
-
-    const coerceStringArray = (value: unknown): string[] => {
-      if (!Array.isArray(value)) return [];
-      return value
-        .filter((v): v is string => typeof v === 'string')
-        .map((v) => v.trim())
-        .filter(Boolean);
-    };
-
-    const coerceNullableString = (value: unknown): string | null => {
-      if (typeof value !== 'string') return null;
-      const t = value.trim();
-      return t.length === 0 ? null : t;
-    };
-
     const skills = cv ? coerceStringArray(cv.skills) : [];
     const objective = cv ? coerceNullableString(cv.objective) : null;
     const interests = cv ? coerceStringArray(cv.interests) : [];
@@ -324,6 +330,16 @@ export class ResumeService {
         cvWizardData: data.profile?.cvWizardData ?? null,
       },
     };
+  }
+
+  private asCvWizardData(
+    value: Prisma.JsonValue | null | undefined,
+  ): CvWizardData | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+
+    return value as CvWizardData;
   }
 
   private formatYears(
