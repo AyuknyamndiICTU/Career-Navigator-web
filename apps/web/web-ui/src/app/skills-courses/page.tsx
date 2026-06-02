@@ -128,6 +128,84 @@ type CourseCard = {
   whyRecommended: string;
 };
 
+function normalizeCourseCards(value: unknown): CourseCard[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => item as Record<string, unknown>)
+    .map((course) => ({
+      platform: typeof course.platform === 'string' ? course.platform : '',
+      courseName:
+        typeof course.courseName === 'string'
+          ? course.courseName
+          : typeof course.title === 'string'
+            ? course.title
+            : '',
+      difficulty:
+        typeof course.difficulty === 'string' ? course.difficulty : '',
+      description:
+        typeof course.description === 'string' ? course.description : '',
+      externalUrl:
+        typeof course.externalUrl === 'string' ? course.externalUrl : '',
+      whyRecommended:
+        typeof course.whyRecommended === 'string'
+          ? course.whyRecommended
+          : '',
+    }))
+    .filter((course) => course.courseName.trim().length > 0);
+}
+
+function jsonTextFromAiResponse(text: string): string | null {
+  const stripped = text
+    .replace(/```(?:json)?/gi, '')
+    .replace(/```/g, '')
+    .trim();
+
+  const startObject = stripped.indexOf('{');
+  const endObject = stripped.lastIndexOf('}');
+  if (startObject !== -1 && endObject > startObject) {
+    return stripped.slice(startObject, endObject + 1);
+  }
+
+  const startArray = stripped.indexOf('[');
+  const endArray = stripped.lastIndexOf(']');
+  if (startArray !== -1 && endArray > startArray) {
+    return stripped.slice(startArray, endArray + 1);
+  }
+
+  return null;
+}
+
+function courseCardsFromResponseText(text: unknown): CourseCard[] {
+  if (typeof text !== 'string' || !text.trim()) return [];
+
+  const jsonText = jsonTextFromAiResponse(text);
+  if (!jsonText) return [];
+
+  try {
+    const parsed = JSON.parse(jsonText) as unknown;
+    if (Array.isArray(parsed)) return normalizeCourseCards(parsed);
+    if (parsed && typeof parsed === 'object') {
+      return normalizeCourseCards((parsed as Record<string, unknown>).courses);
+    }
+  } catch {
+    return [];
+  }
+
+  return [];
+}
+
+function isJsonLikeText(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    trimmed.startsWith('```') ||
+    trimmed.startsWith('{') ||
+    trimmed.startsWith('[') ||
+    trimmed.includes('"courses"')
+  );
+}
+
 export default function SkillsCoursesPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -165,21 +243,16 @@ export default function SkillsCoursesPage() {
 
       if (res?.allowedSkills) setAllowedSkills(res.allowedSkills);
 
-      if (Array.isArray(res?.courses) && res.courses.length > 0) {
-        const mapped: CourseCard[] = res.courses
-          .map((c) => ({
-            platform: c.platform ?? '',
-            courseName: c.courseName ?? '',
-            difficulty: c.difficulty ?? '',
-            description: c.description ?? '',
-            externalUrl: c.externalUrl ?? '',
-            whyRecommended: c.whyRecommended ?? '',
-          }))
-          .filter((c) => c.courseName.trim().length > 0);
+      const structuredCourses = normalizeCourseCards(res?.courses);
+      const textCourses = courseCardsFromResponseText(res?.response);
+      const mapped = structuredCourses.length > 0 ? structuredCourses : textCourses;
 
+      if (mapped.length > 0) {
         setCourseRecommendations(mapped);
       } else if (typeof res?.response === 'string' && res.response.trim().length > 0) {
-        setRecommendations(parseRecommendations(res.response));
+        setRecommendations(
+          isJsonLikeText(res.response) ? [] : parseRecommendations(res.response),
+        );
       }
 
       setHasLoaded(true);
