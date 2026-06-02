@@ -13,6 +13,7 @@ import { CvScanStatus, MediaType } from '@prisma/client';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import { MockInterviewRequestDto } from './dto/mock-interview-request.dto';
 import { CourseRecommendationsRequestDto } from './dto/course-recommendations-request.dto';
+import { getCourseScrapeCandidateSeedData } from '../courses/course-catalog-seed.service';
 
 type AuthUser = { sub: string };
 
@@ -395,9 +396,9 @@ export class AiService {
     if (mentionsAny) return responseText;
 
     // Tests assert the response contains "career-path skills".
-    return `I can only help using your career-path skills. Career-path skills: ${allowedSkills.join(
+    return `I can help with that through the lens of your career-path skills: ${allowedSkills.join(
       ', ',
-    )}.`;
+    )}. Tell me the role, goal, or deadline you are working toward, and I will make the next steps practical.`;
   }
 
   // ─── Ollama API (e2e/back-compat fallback) ──────────────────────────
@@ -679,12 +680,14 @@ export class AiService {
       dto.allowedSkills,
     );
 
-    const systemInstruction = `You are "Career Navigator AI", a friendly, professional career guidance assistant.
+    const systemInstruction = `You are "Career Navigator AI", a warm, practical career coach.
 
 Your personality:
-- Warm, encouraging, and supportive
-- When the user greets you (e.g. "hi", "hello", "hey"), greet them back warmly and introduce yourself briefly. For example: "Hello! 👋 I'm your Career Navigator AI assistant. I'm here to help you with career guidance, job search strategies, skill development, resume tips, and more. How can I help you today?"
-- Always be concise and practical
+- Speak like a helpful mentor, not a generic chatbot.
+- Use plain, natural language and make the user feel guided.
+- When the user greets you, greet them back briefly and ask what career goal they want to work on.
+- Keep responses concise, practical, and specific.
+- Do not return JSON, code fences, or raw markdown tables.
 
 Your expertise areas:
 - Career path guidance and planning
@@ -702,8 +705,9 @@ Rules:
 1. Always respond helpfully to career-related questions
 2. If a user asks something completely unrelated to careers/professional development (e.g. cooking recipes, sports scores), politely redirect them to career topics
 3. Keep responses clear, well-structured, and actionable
-4. Use bullet points and formatting for readability
-5. Be encouraging and motivational`;
+4. Use short bullets only when they make the answer easier to act on
+5. Avoid stiff phrases like "as an AI"; sound human, calm, and encouraging
+6. When relevant, naturally mention at least one of the user's career-path skills`;
 
     const responseTextRaw = await this.generateWithGeminiAndFallback(
       systemInstruction,
@@ -919,9 +923,77 @@ Task:
 
     // Candidate hinting using CourseScrapeCandidate (Phase 2 internal seed) — optional.
     let candidateHintsText = '';
+    let candidateHintCourses: CourseRecommendation[] = [];
     const candidatesClient = prismaAny?.courseScrapeCandidate as
       | undefined
       | { findMany: (args: unknown) => Promise<unknown> };
+
+    const normalizeSkill = (value: string): string =>
+      value.trim().toLowerCase();
+
+    const findMatchedAllowedSkill = (courseSkills: unknown): string | null => {
+      if (!Array.isArray(courseSkills)) return null;
+
+      const normalizedCourseSkills = courseSkills
+        .filter((s): s is string => typeof s === 'string')
+        .map(normalizeSkill)
+        .filter(Boolean);
+
+      for (const allowedSkill of allowedSkills) {
+        const allowed = normalizeSkill(allowedSkill);
+        if (!allowed) continue;
+
+        const isMatch = normalizedCourseSkills.some(
+          (skill) => skill === allowed || skill.includes(allowed) || allowed.includes(skill),
+        );
+
+        if (isMatch) return allowedSkill;
+      }
+
+      return null;
+    };
+
+    const toCourseRecommendation = (
+      candidate: {
+        platform?: string;
+        title?: string;
+        description?: string | null;
+        difficulty?: string | null;
+        externalUrl?: string;
+        skills?: unknown;
+      },
+      index: number,
+    ): CourseRecommendation | null => {
+      if (
+        typeof candidate.title !== 'string' ||
+        typeof candidate.platform !== 'string' ||
+        typeof candidate.externalUrl !== 'string'
+      ) {
+        return null;
+      }
+
+      const matchedSkill =
+        findMatchedAllowedSkill(candidate.skills) ?? allowedSkills[index % allowedSkills.length];
+
+      return {
+        platform: candidate.platform,
+        courseName: candidate.title,
+        difficulty: candidate.difficulty || 'Beginner',
+        description:
+          candidate.description ||
+          'A current learning option you can use to build practical career momentum.',
+        externalUrl: candidate.externalUrl,
+        whyRecommended: matchedSkill
+          ? `It supports your career-path skill: ${matchedSkill}.`
+          : 'It supports practical career development.',
+      };
+    };
+
+    const fallbackSeedCourses = (): CourseRecommendation[] =>
+      getCourseScrapeCandidateSeedData()
+        .map((candidate, index) => toCourseRecommendation(candidate, index))
+        .filter((course): course is CourseRecommendation => Boolean(course))
+        .slice(0, 8);
 
     if (candidatesClient?.findMany) {
       try {
@@ -940,7 +1012,9 @@ Task:
           );
         });
 
-        const top = filtered.slice(0, 12) as Array<{
+        const topSource = filtered.length > 0 ? filtered : (candidates as unknown[]);
+
+        const top = topSource.slice(0, 12) as Array<{
           platform?: string;
           title?: string;
           description?: string | null;
@@ -948,6 +1022,11 @@ Task:
           externalUrl?: string;
           skills?: string[];
         }>;
+
+        candidateHintCourses = top
+          .map((c, idx) => toCourseRecommendation(c, idx))
+          .filter((course): course is CourseRecommendation => Boolean(course))
+          .slice(0, 8);
 
         if (top.length > 0) {
           candidateHintsText = `Internal candidate list of possible courses (prefer these when useful):
@@ -1047,7 +1126,14 @@ Rules:
       }
     };
 
-    const courses = tryParseCourses() ?? [];
+    let courses = tryParseCourses() ?? [];
+
+    if (courses.length === 0) {
+      courses =
+        candidateHintCourses.length > 0
+          ? candidateHintCourses
+          : fallbackSeedCourses();
+    }
 
     const responseText =
       courses.length > 0
