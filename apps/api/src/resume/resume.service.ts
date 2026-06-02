@@ -56,6 +56,7 @@ export class ResumeService {
         phone: true,
         location: true,
         summary: true,
+        cvWizardData: true,
       },
     });
 
@@ -161,6 +162,7 @@ export class ResumeService {
         phone: string | null;
         location: string | null;
         summary: string | null;
+        cvWizardData: Record<string, unknown> | null;
       } | null;
       education: Array<{
         degree: string | null;
@@ -268,15 +270,58 @@ export class ResumeService {
       notes: r.notes ?? null,
     }));
 
+    const cv = (data.profile?.cvWizardData ?? null) as
+      | Record<string, unknown>
+      | null;
+
+    const coerceStringArray = (value: unknown): string[] => {
+      if (!Array.isArray(value)) return [];
+      return value
+        .filter((v): v is string => typeof v === 'string')
+        .map((v) => v.trim())
+        .filter(Boolean);
+    };
+
+    const coerceNullableString = (value: unknown): string | null => {
+      if (typeof value !== 'string') return null;
+      const t = value.trim();
+      return t.length === 0 ? null : t;
+    };
+
+    const skills = cv ? coerceStringArray(cv.skills) : [];
+    const objective = cv ? coerceNullableString(cv.objective) : null;
+    const interests = cv ? coerceStringArray(cv.interests) : [];
+    const languages = cv ? coerceStringArray(cv.languages) : [];
+    const achievementsAwards = cv ? coerceStringArray(cv.achievementsAwards) : [];
+    const activities = cv ? coerceStringArray(cv.activities) : [];
+    const publications = cv ? coerceStringArray(cv.publications) : [];
+    const signature = cv ? coerceNullableString(cv.signature) : null;
+    const additionalInformation = cv
+      ? coerceNullableString(cv.additionalInformation)
+      : null;
+
     return {
       template,
       sections: {
         header,
         summary,
+        objective,
+        skills,
+        interests,
+        languages,
+        achievementsAwards,
+        activities,
+        publications,
+        signature,
+        additionalInformation,
+
         experience: experienceSections,
         education: educationSections,
         projects: projectsSections,
         references: referencesSections,
+
+        // Raw CVwizard “extra sections” from the profile UI.
+        cvWizardData: data.profile?.cvWizardData ?? null,
       },
     };
   }
