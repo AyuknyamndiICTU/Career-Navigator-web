@@ -120,6 +120,10 @@ model Profile {
   location  String?
   summary   String?
 
+  // Stores CVwizard “extra sections” (Skills/Objectives/etc.) from the UI.
+  // Keep this flexible: structure is defined by the frontend.
+  cvWizardData Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
