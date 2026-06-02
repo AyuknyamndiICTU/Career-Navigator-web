@@ -80,6 +80,10 @@ export default function JobsPage() {
     setCoverLetter('');
   }
 
+  function isSearchFallbackJob(job: any): boolean {
+    return job?.source === 'fallback' && typeof job?.externalUrl === 'string';
+  }
+
   async function submitApply() {
     if (!applyJobId) return;
 
@@ -261,12 +265,23 @@ export default function JobsPage() {
                       <div className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200">
                         {job.status ?? 'ACTIVE'}
                       </div>
-                      <button
-                        onClick={() => openApply(job.id)}
-                        className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all"
-                      >
-                        Apply Now
-                      </button>
+                      {isSearchFallbackJob(job) ? (
+                        <a
+                          href={job.externalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all"
+                        >
+                          View job search
+                        </a>
+                      ) : (
+                        <button
+                          onClick={() => openApply(job.id)}
+                          className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all"
+                        >
+                          Apply Now
+                        </button>
+                      )}
                     </div>
                   </div>
 
