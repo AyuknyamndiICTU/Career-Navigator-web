@@ -3,6 +3,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertProfileDto } from './dto/profile.dto';
 import { CreateEducationDto, UpdateEducationDto } from './dto/education.dto';
@@ -17,6 +18,17 @@ import { verifyAccessToken } from '../auth/jwt/jwt-utils';
 type AuthUser = { sub: string };
 
 const USER_PURPOSE_FORBIDDEN = 'Invalid request';
+
+type ProfileWriteData = Pick<
+  Prisma.ProfileUncheckedCreateInput,
+  | 'firstName'
+  | 'lastName'
+  | 'headline'
+  | 'phone'
+  | 'location'
+  | 'summary'
+  | 'cvWizardData'
+>;
 
 function extractBearerToken(authorizationHeader: string | undefined): string {
   if (!authorizationHeader) return '';
@@ -47,6 +59,20 @@ export class ProfileService {
     return { sub: payload.sub };
   }
 
+  private toProfileWriteData(dto: UpsertProfileDto): ProfileWriteData {
+    const data: ProfileWriteData = {};
+
+    if (dto.firstName !== undefined) data.firstName = dto.firstName;
+    if (dto.lastName !== undefined) data.lastName = dto.lastName;
+    if (dto.headline !== undefined) data.headline = dto.headline;
+    if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.location !== undefined) data.location = dto.location;
+    if (dto.summary !== undefined) data.summary = dto.summary;
+    if (dto.cvWizardData !== undefined) data.cvWizardData = dto.cvWizardData;
+
+    return data;
+  }
+
   async getProfile(authorizationHeader: string | undefined) {
     const { sub: userId } = this.getAuthUser(authorizationHeader);
 
@@ -62,11 +88,12 @@ export class ProfileService {
     dto: UpsertProfileDto,
   ) {
     const { sub: userId } = this.getAuthUser(authorizationHeader);
+    const data = this.toProfileWriteData(dto);
 
     return this.prisma.profile.upsert({
       where: { userId },
-      create: { userId, ...dto },
-      update: { ...dto },
+      create: { userId, ...data },
+      update: data,
     });
   }
 
