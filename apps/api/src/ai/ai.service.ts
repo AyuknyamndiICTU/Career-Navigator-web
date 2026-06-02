@@ -197,13 +197,16 @@ export class AiService {
     );
 
     const hasGeminiKey = provider.gemini?.apiKey != null;
+    let geminiError: string | null = null;
 
     // 1) Gemini (when key exists)
     if (hasGeminiKey) {
       try {
         return await this.generateWithGemini(systemInstruction, userMessage);
-      } catch {
+      } catch (err) {
         // 2) Gemini unavailable -> fallback to Ollama Cloud
+        geminiError =
+          err instanceof Error ? err.message : 'Gemini request failed';
       }
     }
 
@@ -212,10 +215,16 @@ export class AiService {
       return await this.generateWithOllama(systemInstruction, userMessage, {
         preferredModels: preferredOllamaModels,
       });
-    } catch {
+    } catch (err) {
       // 3) Both unavailable (or Ollama also fails)
+      const ollamaError =
+        err instanceof Error ? err.message : 'Ollama request failed';
+      const details = [
+        geminiError ? `Gemini: ${geminiError}` : 'Gemini: not configured',
+        `Ollama: ${ollamaError}`,
+      ].join('; ');
       throw new BadRequestException(
-        'AI providers unavailable. Check GEMINI_API_KEY or OLLAMA_API_KEY in your environment configuration.',
+        `AI providers unavailable. ${details}. Check GEMINI_API_KEY or OLLAMA_API_KEY in your environment configuration.`,
       );
     }
   }
