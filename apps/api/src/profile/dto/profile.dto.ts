@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsObject, IsOptional, IsString } from 'class-validator';
 
 export class UpsertProfileDto {
   @IsOptional()
@@ -24,4 +24,8 @@ export class UpsertProfileDto {
   @IsOptional()
   @IsString()
   summary?: string;
+
+  @IsOptional()
+  @IsObject()
+  cvWizardData?: Record<string, unknown>;
 }

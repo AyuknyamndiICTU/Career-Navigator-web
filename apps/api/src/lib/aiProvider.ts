@@ -38,14 +38,43 @@ export function getAIProvider(): AIProviderResult {
   const hasGemini =
     typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0;
 
-  const hasOllama =
+  // Filter out obvious placeholder values that shouldn't be treated as real keys.
+  const isPlaceholder = (value: string | undefined): boolean => {
+    if (!value) return true;
+    const trimmed = value.trim().toLowerCase();
+    const placeholders = [
+      'change-me',
+      'your_ollama_cloud_key_here',
+      'your-key-here',
+      'your_key_here',
+      'placeholder',
+      'xxx',
+      '',
+    ];
+    return placeholders.includes(trimmed);
+  };
+
+  const hasOllamaBaseUrl =
     typeof ollamaBaseUrl === 'string' && ollamaBaseUrl.trim().length > 0;
+  const hasOllamaApiKey =
+    typeof ollamaApiKey === 'string' &&
+    ollamaApiKey.trim().length > 0 &&
+    !isPlaceholder(ollamaApiKey);
+
+  // Ollama is available if either OLLAMA_BASE_URL or OLLAMA_API_KEY is set.
+  // When only OLLAMA_API_KEY is provided, we default to the Ollama Cloud URL.
+  const hasOllama = hasOllamaBaseUrl || hasOllamaApiKey;
 
   if (!hasGemini && !hasOllama) {
     throw new Error(
-      'No AI provider configured. Set GEMINI_API_KEY (Gemini) or OLLAMA_BASE_URL (Ollama) in your environment.',
+      'No AI provider configured. Set GEMINI_API_KEY (Gemini) or OLLAMA_BASE_URL / OLLAMA_API_KEY (Ollama) in your environment.',
     );
   }
+
+  // Default to Ollama Cloud when only the API key is set (no explicit base URL).
+  const resolvedOllamaBaseUrl = hasOllamaBaseUrl
+    ? (ollamaBaseUrl as string)
+    : 'https://ollama.com/v1';
 
   const result: AIProviderResult = {
     activeProvider: hasGemini ? 'Gemini' : 'Ollama Cloud',
@@ -58,11 +87,8 @@ export function getAIProvider(): AIProviderResult {
       : undefined,
     ollama: hasOllama
       ? {
-          baseUrl: ollamaBaseUrl as string,
-          apiKey:
-            typeof ollamaApiKey === 'string' && ollamaApiKey.trim().length > 0
-              ? (ollamaApiKey as string)
-              : undefined,
+          baseUrl: resolvedOllamaBaseUrl,
+          apiKey: hasOllamaApiKey ? (ollamaApiKey as string) : undefined,
           models: ['qwen3-coder:480b-cloud', 'glm-4.6:cloud'],
         }
       : undefined,
