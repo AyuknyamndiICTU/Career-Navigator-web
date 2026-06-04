@@ -34,6 +34,11 @@ export function clearTokens() {
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
+export function getRefreshToken() {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
 /** @returns {Record<string, string>} */
 export function authHeaders() {
   const token = getAccessToken();
@@ -46,6 +51,25 @@ export function authHeaders() {
  * @param {any} [init]
  * @returns {Promise<T>}
  */
+async function refreshSession() {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  const res = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  if (!res.ok) return false;
+
+  const tokens = await res.json();
+  if (!tokens?.accessToken || !tokens?.refreshToken) return false;
+
+  setTokens(tokens);
+  return true;
+}
+
 export async function apiFetch(
   path,
   init = {},
@@ -60,6 +84,24 @@ export async function apiFetch(
     },
     body: init.body ? JSON.stringify(init.body) : init.body,
   });
+
+  if (res.status === 401 && typeof window !== 'undefined') {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      const retryRes = await fetch(`${getApiBaseUrl()}${path}`, {
+        ...init,
+        headers: {
+          ...(init.headers || {}),
+          ...(init.body ? { 'content-type': 'application/json' } : {}),
+          ...authHeaders(),
+        },
+        body: init.body ? JSON.stringify(init.body) : init.body,
+      });
+
+      return handleResponse(retryRes, options?.redirectOn401);
+    }
+  }
+
   return handleResponse(res, options?.redirectOn401);
 }
 
@@ -74,6 +116,18 @@ export async function apiFetchFile(
     body: formData,
   });
 
+  if (res.status === 401 && typeof window !== 'undefined') {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      const retryRes = await fetch(`${getApiBaseUrl()}${path}`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: formData,
+      });
+
+      return handleResponse(retryRes, options?.redirectOn401);
+    }
+  }
 
   return handleResponse(res, options?.redirectOn401);
 }

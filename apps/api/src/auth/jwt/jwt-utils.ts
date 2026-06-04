@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { UnauthorizedException } from '@nestjs/common';
 import type { JwtPayload } from 'jsonwebtoken';
 import { sign, verify } from 'jsonwebtoken';
 
@@ -79,8 +80,12 @@ export function verifyAccessToken(params: {
 }): AccessTokenPayload {
   const { secret, token } = params;
 
-  const decoded = verify(token, secret) as AccessTokenPayload;
-  return decoded;
+  try {
+    const decoded = verify(token, secret) as AccessTokenPayload;
+    return decoded;
+  } catch {
+    throw new UnauthorizedException('Invalid or expired access token');
+  }
 }
 
 export function verifyRefreshToken(params: {
@@ -89,15 +94,19 @@ export function verifyRefreshToken(params: {
 }): RefreshTokenPayload {
   const { secret, token } = params;
 
-  const decoded = verify(token, secret) as JwtPayload & {
-    sub: string;
-    jti?: string;
-  };
+  try {
+    const decoded = verify(token, secret) as JwtPayload & {
+      sub: string;
+      jti?: string;
+    };
 
-  const jti = decoded.jti;
-  if (!jti) {
-    throw new Error('Refresh token missing jti');
+    const jti = decoded.jti;
+    if (!jti) {
+      throw new Error('Refresh token missing jti');
+    }
+
+    return { sub: decoded.sub, jti };
+  } catch {
+    throw new UnauthorizedException('Invalid or expired refresh token');
   }
-
-  return { sub: decoded.sub, jti };
 }
