@@ -52,4 +52,4 @@ COPY --from=builder /app/apps/api/node_modules/prisma ./apps/api/node_modules/pr
 COPY --from=builder /app/apps/api/dist ./dist
 
 EXPOSE 3000
-CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy --schema prisma/schema.prisma || npx prisma db push --schema prisma/schema.prisma --accept-data-loss --skip-generate; cd /app && node dist/src/main.js"]
+CMD ["sh", "-c", "cd apps/api && npx prisma db push --schema prisma/schema.prisma --accept-data-loss --skip-generate; cd /app && node dist/src/main.js"]
