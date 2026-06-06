@@ -39,7 +39,7 @@ export default function CvUploadPage() {
         setSkills(res.skills);
 
         if (res.status === 'PENDING' || res.status === 'PROCESSING') {
-          timer = setTimeout(checkStatus, 3000);
+          timer = setTimeout(checkStatus, 2000); // faster polling: 2s
         } else {
           setPolling(false);
         }

@@ -287,7 +287,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
     };
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15_000);
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
 
     try {
       const res = await fetch(url, {
