@@ -202,7 +202,8 @@ export class ResumeService {
       }>;
     },
   ): unknown {
-    if (template !== 'CLASSIC' && template !== 'MODERN' && template !== 'MINIMAL') {
+    const VALID_TEMPLATES = ['CLASSIC', 'MODERN', 'MINIMAL', 'CREATIVE', 'PROFESSIONAL', 'EXECUTIVE'] as const;
+    if (!(VALID_TEMPLATES as readonly string[]).includes(template)) {
       throw new BadRequestException('Invalid template');
     }
 
