@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiFetch, apiFetchFile } from '@/lib/auth';
-import ErrorAlert from '@/components/ErrorAlert';
 import SuccessToast from '@/components/SuccessToast';
 
 type CvWizardData = {
@@ -583,9 +582,9 @@ export default function ProfilePage() {
           </div>
         </motion.div>
 
-        <ErrorAlert error={error} />
         <SuccessToast message={success} />
         <SuccessToast message={sectionSuccess} />
+        <SuccessToast message={error ? `Error: ${error}` : ''} />
 
         {/* Account Details */}
         <motion.div

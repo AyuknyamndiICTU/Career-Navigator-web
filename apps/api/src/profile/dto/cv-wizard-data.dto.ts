@@ -22,7 +22,7 @@ export class CvWizardDataDto {
   linkedIn?: string;
 
   @IsOptional()
-  @IsUrl({}, { message: 'Invalid photo URL' })
+  @IsString()
   photoUrl?: string;
 
   @IsOptional()

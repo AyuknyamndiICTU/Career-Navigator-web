@@ -68,7 +68,9 @@ export class ProfileService {
     if (dto.phone !== undefined) data.phone = dto.phone;
     if (dto.location !== undefined) data.location = dto.location;
     if (dto.summary !== undefined) data.summary = dto.summary;
-    if (dto.cvWizardData !== undefined) data.cvWizardData = dto.cvWizardData as Prisma.InputJsonValue;
+    if (dto.cvWizardData !== undefined) {
+      data.cvWizardData = JSON.parse(JSON.stringify(dto.cvWizardData)) as Prisma.InputJsonValue;
+    }
 
     return data;
   }
