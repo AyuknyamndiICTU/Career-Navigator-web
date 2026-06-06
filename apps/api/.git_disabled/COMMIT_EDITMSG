@@ -1,1 +1,0 @@
-fix(prisma): load environment variables from .env file for configuration
