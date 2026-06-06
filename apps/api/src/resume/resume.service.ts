@@ -239,7 +239,7 @@ export class ResumeService {
         dateOfBirth: cv ? coerceNullableString(cv.dateOfBirth) : null,
         website: cv ? coerceNullableString(cv.website) : null,
         linkedIn: cv ? coerceNullableString(cv.linkedIn) : null,
-        photoUrl: cv ? coerceNullableString(cv.photoUrl) : null,
+        photoUrl: cv && cv.photoUrl ? this.buildMinioUrl(String(cv.photoUrl)) : null,
       },
     };
 
@@ -317,6 +317,15 @@ export class ResumeService {
         cvWizardData: data.profile?.cvWizardData ?? null,
       },
     };
+  }
+
+  private buildMinioUrl(objectKey: string): string | null {
+    const endpoint = process.env.MINIO_ENDPOINT;
+    const bucket = process.env.MINIO_BUCKET ?? 'resumes';
+    if (!endpoint || !objectKey) return null;
+    // MinIO endpoint format: http://localhost:9000 or http://minio:9000
+    const base = endpoint.replace(/\/+$/, '');
+    return `${base}/${bucket}/${objectKey}`;
   }
 
   private asCvWizardData(

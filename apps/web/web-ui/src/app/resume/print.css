@@ -1,115 +1,103 @@
+/* Print styles: hide everything except the resume template preview */
 @media print {
-  /* Hide everything except the resume content */
-  body * {
-    visibility: hidden;
-  }
-
-  /* Show only resume inside print area */
-  .max-w-5xl.mx-auto.pb-12 *,
-  .max-w-5xl.mx-auto.pb-12 {
-    visibility: visible;
-  }
-
-  /* Hide nav, buttons, template picker */
+  /* Hide dashboard navigation, sidebar, and page chrome */
   nav,
-  button,
-  .fixed,
-  .sticky,
-  [class*="Hero"],
-  [class*="hero"],
   header,
   footer,
-  [role="banner"],
+  aside,
   [role="navigation"],
-  .bg-teal-800,
+  [role="banner"],
+  .fixed,
+  .sticky {
+    display: none !important;
+  }
+
+  /* Hide the hero header (gradient banner) */
   [style*="linear-gradient"] {
     display: none !important;
   }
 
-  /* Reset layout for printing */
-  body {
-    margin: 0;
-    padding: 0;
-    background: white !important;
-    font-family: 'Georgia', 'Times New Roman', serif !important;
+  /* Hide template picker section */
+  .mb-6:has(h2) {
+    display: none !important;
   }
 
-  .max-w-5xl {
-    max-width: 100% !important;
+  /* Hide the "Choose a Template" title and description */
+  h2:has(+ p),
+  .text-lg.font-bold.text-slate-800.mb-1,
+  .text-sm.text-slate-500.mb-4 {
+    display: none !important;
   }
 
-  .pb-12 {
-    padding-bottom: 0 !important;
-  }
-
-  /* Template cards / picker section */
+  /* Hide the template preview cards grid */
   .grid.grid-cols-1.sm\:grid-cols-3 {
     display: none !important;
   }
 
-  /* Download PDF button area */
+  /* Hide the generate/download buttons in hero */
   .mt-8.bg-white\/15 {
     display: none !important;
   }
 
-  /* Preview header bar */
+  /* Hide the preview window header bar (with colored dots) */
   .px-6.py-4.border-b {
     display: none !important;
   }
 
-  /* Template preview area should fill the page */
-  .shadow-lg.rounded-lg.overflow-hidden.border {
-    border: none !important;
+  /* Hide the "Get More Templates" section */
+  .mt-12:has(h2) {
+    display: none !important;
+  }
+
+  /* Show only the resume template card */
+  body {
+    background: white !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  .max-w-6xl,
+  .max-w-5xl {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .pb-16,
+  .pb-12 {
+    padding-bottom: 0 !important;
+  }
+
+  /* Make the preview card fill the page */
+  .bg-white.rounded-3xl.shadow-card.overflow-hidden.border {
     box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* The resume output container */
+  .shadow-lg.rounded-lg.overflow-hidden.border {
+    box-shadow: none !important;
+    border: none !important;
     border-radius: 0 !important;
   }
 
-  /* A4 page size */
   @page {
     size: A4;
-    margin: 15mm;
+    margin: 0;
   }
 
-  /* Remove background colors from templates for clean printing */
-  .bg-slate-800,
-  .bg-indigo-600 {
-    background-color: #1a1a2e !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+  /* Ensure background colors print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
-  /* Ensure text is black for readability */
-  .text-white {
-    color: #ffffff !important;
-  }
-
-  .text-slate-400,
-  .text-slate-500,
-  .text-slate-600 {
-    color: #555555 !important;
-  }
-
-  /* Show the "Choose a Template" heading */
-  h2:has(+ .grid) {
-    display: none !important;
-  }
-
-  p:has(+ .grid) {
-    display: none !important;
-  }
-
-  /* Hide the template picker grid */
-  .grid + * {
-    visibility: visible;
-  }
-
-  /* Keep only the template + preview content visible */
-  .max-w-5xl > .bg-white.rounded-3xl {
-    visibility: visible;
-    position: relative;
-  }
-
-  .max-w-5xl > .bg-white.rounded-3xl > * {
-    visibility: visible;
+  /* Remove any browser-imposed margins/padding */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
   }
 }

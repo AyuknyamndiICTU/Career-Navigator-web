@@ -1,6 +1,7 @@
 // @ts-nocheck
 'use client';
 
+import './print.css';
 import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/DashboardLayout';

@@ -584,7 +584,7 @@ export default function ProfilePage() {
 
         <SuccessToast message={success} />
         <SuccessToast message={sectionSuccess} />
-        <SuccessToast message={error ? `Error: ${error}` : ''} />
+        <SuccessToast message={error ? error : ''} isError />
 
         {/* Account Details */}
         <motion.div
