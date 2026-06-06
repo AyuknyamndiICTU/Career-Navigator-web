@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsIn,
   IsNotEmpty,
@@ -15,6 +16,7 @@ export class MockInterviewRequestDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
   allowedSkills?: string[];
 

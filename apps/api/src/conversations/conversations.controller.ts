@@ -6,11 +6,22 @@ import {
 } from '@nestjs/swagger';
 import { ConversationsService } from './conversations.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { CreateConversationDto } from './dto/create-conversation.dto';
 
 @ApiTags('conversations')
 @Controller('conversations')
 export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
+
+  @Post()
+  @ApiOkResponse({ description: 'Create a new conversation with another user.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  async createConversation(
+    @Body() dto: CreateConversationDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<unknown> {
+    return this.conversationsService.createConversation(authorization, dto);
+  }
 
   @Get()
   @ApiOkResponse({ description: 'List conversations for the current user.' })

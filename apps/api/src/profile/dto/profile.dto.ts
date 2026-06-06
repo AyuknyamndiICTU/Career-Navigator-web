@@ -1,5 +1,6 @@
-import type { Prisma } from '@prisma/client';
-import { IsObject, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, Matches, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { CvWizardDataDto } from './cv-wizard-data.dto';
 
 export class UpsertProfileDto {
   @IsOptional()
@@ -16,6 +17,7 @@ export class UpsertProfileDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^\+?[\d\s\-().]{7,20}$/, { message: 'Invalid phone number format' })
   phone?: string;
 
   @IsOptional()
@@ -27,6 +29,7 @@ export class UpsertProfileDto {
   summary?: string;
 
   @IsOptional()
-  @IsObject()
-  cvWizardData?: Prisma.InputJsonObject;
+  @ValidateNested()
+  @Type(() => CvWizardDataDto)
+  cvWizardData?: CvWizardDataDto;
 }

@@ -29,7 +29,7 @@ function extractToken(socket: Socket): string | undefined {
 @WebSocketGateway({
   namespace: '/chat',
   cors: {
-    origin: process.env.CORS_ALLOWED_ORIGINS ?? '*',
+    origin: process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3000',
     credentials: true,
   },
 })

@@ -7,6 +7,7 @@ import { verifyAccessToken } from '../auth/jwt/jwt-utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { MessagingGateway } from '../realtime/messaging.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
+import { CreateConversationDto } from './dto/create-conversation.dto';
 
 type AuthUser = { sub: string };
 
@@ -54,6 +55,55 @@ export class ConversationsService {
     if (!participant) {
       throw new BadRequestException('Conversation not found');
     }
+  }
+
+  async createConversation(
+    authorizationHeader: string | undefined,
+    dto: CreateConversationDto,
+  ): Promise<{ conversationId: string }> {
+    const { sub: userId } = this.getAuthUser(authorizationHeader);
+
+    const otherUser = await this.prisma.user.findUnique({
+      where: { id: dto.participantUserId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!otherUser || !otherUser.isActive) {
+      throw new BadRequestException('Participant not found or inactive');
+    }
+
+    if (otherUser.id === userId) {
+      throw new BadRequestException('Cannot create a conversation with yourself');
+    }
+
+    // Check if a conversation between these two users already exists
+    const existing = await this.prisma.conversation.findFirst({
+      where: {
+        AND: [
+          { participants: { some: { userId } } },
+          { participants: { some: { userId: dto.participantUserId } } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return { conversationId: existing.id };
+    }
+
+    const conversation = await this.prisma.conversation.create({
+      data: {
+        participants: {
+          create: [
+            { userId },
+            { userId: dto.participantUserId },
+          ],
+        },
+      },
+      select: { id: true },
+    });
+
+    return { conversationId: conversation.id };
   }
 
   async listConversations(authorizationHeader: string | undefined): Promise<{
