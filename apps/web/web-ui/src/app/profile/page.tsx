@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiFetch } from '@/lib/auth';
 import ErrorAlert from '@/components/ErrorAlert';
+import SuccessToast from '@/components/SuccessToast';
 
 type CvWizardData = {
   email?: string | null;
@@ -39,16 +40,20 @@ type Profile = {
 type Education = {
   id?: string;
   degree?: string | null;
+  fieldOfStudy?: string | null;
   institution?: string | null;
   startYear?: number | null;
   endYear?: number | null;
   grade?: string | null;
+  description?: string | null;
+  isCurrent?: boolean;
 };
 
 type WorkExperience = {
   id?: string;
   company?: string | null;
   jobTitle?: string | null;
+  location?: string | null;
   startYear?: number | null;
   endYear?: number | null;
   description?: string | null;
@@ -57,6 +62,9 @@ type WorkExperience = {
 
 const inputClass =
   'w-full px-5 py-3.5 bg-slate-50 rounded-2xl text-sm border border-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 transition-all font-medium text-slate-800 shadow-sm';
+
+const inputErrorClass =
+  'w-full px-5 py-3.5 bg-red-50 rounded-2xl text-sm border border-red-300 focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 transition-all font-medium text-slate-800 shadow-sm';
 
 const textareaClass =
   'w-full px-5 py-4 bg-slate-50 rounded-2xl text-sm border border-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 transition-all font-medium text-slate-800 shadow-sm min-h-[120px]';
@@ -100,7 +108,7 @@ function optionalYear(value: string): number | undefined {
   if (!trimmed) return undefined;
 
   const year = Number(trimmed);
-  return Number.isInteger(year) ? year : undefined;
+  return Number.isInteger(year) && year >= 1900 && year <= 2100 ? year : undefined;
 }
 
 function compactCvData(data: Record<string, unknown>): Record<string, unknown> {
@@ -125,6 +133,19 @@ function TextField({
   placeholder,
   type = 'text',
   className = '',
+  error,
+  pattern,
+  title,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  className?: string;
+  error?: string;
+  pattern?: string;
+  title?: string;
 }) {
   return (
     <label className={`block ${className}`}>
@@ -133,14 +154,23 @@ function TextField({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={inputClass}
+        className={error ? inputErrorClass : inputClass}
         placeholder={placeholder}
+        pattern={pattern}
+        title={title}
       />
+      {error && <p className="mt-1 text-xs text-red-600 font-medium">{error}</p>}
     </label>
   );
 }
 
-function TextAreaField({ label, value, onChange, placeholder, className = '' }) {
+function TextAreaField({ label, value, onChange, placeholder, className = '' }: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
   return (
     <label className={`block ${className}`}>
       <span className="text-sm font-bold text-slate-700 mb-2 block">{label}</span>
@@ -154,7 +184,7 @@ function TextAreaField({ label, value, onChange, placeholder, className = '' }) 
   );
 }
 
-function SectionTitle({ title, description }) {
+function SectionTitle({ title, description }: { title: string; description?: string }) {
   return (
     <div className="mb-5">
       <h3 className="text-base font-extrabold text-slate-900">{title}</h3>
@@ -173,15 +203,25 @@ function formatYears(startYear?: number | null, endYear?: number | null, isCurre
   return '';
 }
 
+const phonePattern = '^[+]?[ds-().]{7,20}$';
+
 export default function ProfilePage() {
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sectionSaving, setSectionSaving] = useState('');
   const [deletingId, setDeletingId] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [sectionSuccess, setSectionSuccess] = useState('');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [education, setEducation] = useState<Education[]>([]);
   const [workExperience, setWorkExperience] = useState<WorkExperience[]>([]);
+  const [phoneError, setPhoneError] = useState('');
+  const [dirty, setDirty] = useState(false);
+
+  // Year validation
+  const [eduYearError, setEduYearError] = useState('');
+  const [expYearError, setExpYearError] = useState('');
 
   const form = useMemo(() => {
     const cv = asRecord(profile?.cvWizardData);
@@ -214,14 +254,18 @@ export default function ProfilePage() {
   const [draft, setDraft] = useState(form);
   const [educationDraft, setEducationDraft] = useState({
     degree: '',
+    fieldOfStudy: '',
     institution: '',
     grade: '',
     startYear: '',
     endYear: '',
+    description: '',
+    isCurrent: false,
   });
   const [experienceDraft, setExperienceDraft] = useState({
     company: '',
     jobTitle: '',
+    location: '',
     startYear: '',
     endYear: '',
     description: '',
@@ -231,6 +275,46 @@ export default function ProfilePage() {
   useEffect(() => {
     setDraft(form);
   }, [form]);
+
+  // Dirty state tracking: warn before navigating away
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirty) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
+
+  function markDirty() {
+    if (!dirty) setDirty(true);
+  }
+
+  function validatePhone(value: string): boolean {
+    if (!value.trim()) {
+      setPhoneError('');
+      return true;
+    }
+    // Allow digits, spaces, dashes, dots, parentheses, and optional leading +
+    const valid = /^\+?[\d\s\-().]{7,20}$/.test(value.trim());
+    if (!valid) {
+      setPhoneError('Enter a valid phone number (e.g. +234 800 555 1234)');
+    } else {
+      setPhoneError('');
+    }
+    return valid;
+  }
+
+  function validateYears(startRaw: string, endRaw: string, isCurrent: boolean): string {
+    const startYear = optionalYear(startRaw);
+    const endYear = optionalYear(endRaw);
+
+    if (startYear && endYear && !isCurrent && endYear < startYear) {
+      return 'End year must be after start year';
+    }
+    return '';
+  }
 
   async function loadEducation() {
     const res = (await apiFetch('/profile/education', { method: 'GET' })) as Education[];
@@ -273,10 +357,17 @@ export default function ProfilePage() {
     };
   }, []);
 
-  async function onSave(e) {
+  async function onSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError('');
+    setSuccess('');
+
+    if (!validatePhone(draft.phone)) {
+      setError('Please fix the phone number format before saving.');
+      setSaving(false);
+      return;
+    }
 
     try {
       const cvWizardData = compactCvData({
@@ -309,6 +400,9 @@ export default function ProfilePage() {
 
       const res = await apiFetch('/profile', { method: 'PUT', body: payload });
       setProfile(res as Profile);
+      setDirty(false);
+      setSuccess('Profile saved successfully!');
+      setTimeout(() => setSuccess(''), 3000);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save profile');
     } finally {
@@ -316,18 +410,30 @@ export default function ProfilePage() {
     }
   }
 
-  async function onCreateEducation(e) {
+  async function onCreateEducation(e: React.FormEvent) {
     e.preventDefault();
     setSectionSaving('education');
     setError('');
+    setSectionSuccess('');
+    setEduYearError('');
+
+    const yearErr = validateYears(educationDraft.startYear, educationDraft.endYear, educationDraft.isCurrent);
+    if (yearErr) {
+      setEduYearError(yearErr);
+      setSectionSaving('');
+      return;
+    }
 
     try {
       const payload = {
         degree: optionalString(educationDraft.degree),
+        fieldOfStudy: optionalString(educationDraft.fieldOfStudy),
         institution: optionalString(educationDraft.institution),
         grade: optionalString(educationDraft.grade),
         startYear: optionalYear(educationDraft.startYear),
-        endYear: optionalYear(educationDraft.endYear),
+        endYear: educationDraft.isCurrent ? undefined : optionalYear(educationDraft.endYear),
+        description: optionalString(educationDraft.description),
+        isCurrent: educationDraft.isCurrent,
       };
 
       if (!hasValues(payload)) {
@@ -337,12 +443,18 @@ export default function ProfilePage() {
       await apiFetch('/profile/education', { method: 'POST', body: payload });
       setEducationDraft({
         degree: '',
+        fieldOfStudy: '',
         institution: '',
         grade: '',
         startYear: '',
         endYear: '',
+        description: '',
+        isCurrent: false,
       });
+      setEduYearError('');
       await loadEducation();
+      setSectionSuccess('Education added successfully!');
+      setTimeout(() => setSectionSuccess(''), 3000);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add education');
     } finally {
@@ -350,15 +462,25 @@ export default function ProfilePage() {
     }
   }
 
-  async function onCreateExperience(e) {
+  async function onCreateExperience(e: React.FormEvent) {
     e.preventDefault();
     setSectionSaving('experience');
     setError('');
+    setSectionSuccess('');
+    setExpYearError('');
+
+    const yearErr = validateYears(experienceDraft.startYear, experienceDraft.endYear, experienceDraft.isCurrent);
+    if (yearErr) {
+      setExpYearError(yearErr);
+      setSectionSaving('');
+      return;
+    }
 
     try {
       const details = {
         company: optionalString(experienceDraft.company),
         jobTitle: optionalString(experienceDraft.jobTitle),
+        location: optionalString(experienceDraft.location),
         startYear: optionalYear(experienceDraft.startYear),
         endYear: experienceDraft.isCurrent
           ? undefined
@@ -380,12 +502,16 @@ export default function ProfilePage() {
       setExperienceDraft({
         company: '',
         jobTitle: '',
+        location: '',
         startYear: '',
         endYear: '',
         description: '',
         isCurrent: false,
       });
+      setExpYearError('');
       await loadWorkExperience();
+      setSectionSuccess('Experience added successfully!');
+      setTimeout(() => setSectionSuccess(''), 3000);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add experience');
     } finally {
@@ -495,6 +621,8 @@ export default function ProfilePage() {
         </motion.div>
 
         <ErrorAlert error={error} />
+        <SuccessToast message={success} />
+        <SuccessToast message={sectionSuccess} />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -567,47 +695,37 @@ export default function ProfilePage() {
                     <TextField
                       label="First name"
                       value={draft.firstName}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, firstName: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, firstName: value })); markDirty(); }}
                     />
                     <TextField
                       label="Last name"
                       value={draft.lastName}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, lastName: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, lastName: value })); markDirty(); }}
                     />
                     <TextField
                       label="Headline"
                       value={draft.headline}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, headline: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, headline: value })); markDirty(); }}
                       placeholder="e.g. Senior Software Engineer at Tech Corp"
                       className="sm:col-span-2"
                     />
                     <TextField
                       label="Phone"
                       value={draft.phone}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, phone: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, phone: value })); markDirty(); validatePhone(value); }}
+                      placeholder="e.g. +234 800 555 1234"
+                      error={phoneError}
                     />
                     <TextField
                       label="Location"
                       value={draft.location}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, location: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, location: value })); markDirty(); }}
                       placeholder="e.g. Lagos, Nigeria"
                     />
                     <TextAreaField
                       label="Professional Summary"
                       value={draft.summary}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, summary: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, summary: value })); markDirty(); }}
                       placeholder="Briefly describe your career goals and background..."
                       className="sm:col-span-2"
                     />
@@ -624,52 +742,40 @@ export default function ProfilePage() {
                       label="Email"
                       type="email"
                       value={draft.email}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, email: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, email: value })); markDirty(); }}
                       placeholder="e.g. you@example.com"
                     />
                     <TextField
                       label="Address"
                       value={draft.address}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, address: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, address: value })); markDirty(); }}
                       placeholder="Street, city, country"
                     />
                     <TextField
                       label="Date of Birth"
                       type="date"
                       value={draft.dateOfBirth}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, dateOfBirth: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, dateOfBirth: value })); markDirty(); }}
                     />
                     <TextField
                       label="Website"
                       type="url"
                       value={draft.website}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, website: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, website: value })); markDirty(); }}
                       placeholder="https://your-site.com"
                     />
                     <TextField
                       label="LinkedIn"
                       type="url"
                       value={draft.linkedIn}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, linkedIn: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, linkedIn: value })); markDirty(); }}
                       placeholder="https://linkedin.com/in/you"
                     />
                     <TextField
                       label="Photo URL"
                       type="url"
                       value={draft.photoUrl}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, photoUrl: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, photoUrl: value })); markDirty(); }}
                       placeholder="https://..."
                     />
                   </div>
@@ -684,82 +790,58 @@ export default function ProfilePage() {
                     <TextAreaField
                       label="Objective"
                       value={draft.objective}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, objective: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, objective: value })); markDirty(); }}
                       placeholder="Your resume objective..."
                       className="sm:col-span-2"
                     />
                     <TextField
                       label="Skills"
                       value={draft.skillsText}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, skillsText: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, skillsText: value })); markDirty(); }}
                       placeholder="JavaScript, React, Communication"
                       className="sm:col-span-2"
                     />
                     <TextAreaField
                       label="Additional Information"
                       value={draft.additionalInformation}
-                      onChange={(value) =>
-                        setDraft((d) => ({
-                          ...d,
-                          additionalInformation: value,
-                        }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, additionalInformation: value })); markDirty(); }}
                       placeholder="Other resume details..."
                       className="sm:col-span-2"
                     />
                     <TextField
                       label="Interests"
                       value={draft.interestsText}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, interestsText: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, interestsText: value })); markDirty(); }}
                       placeholder="Mentoring, open source"
                     />
                     <TextField
                       label="Languages"
                       value={draft.languagesText}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, languagesText: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, languagesText: value })); markDirty(); }}
                       placeholder="English, French"
                     />
                     <TextField
                       label="Achievements & Awards"
                       value={draft.achievementsAwardsText}
-                      onChange={(value) =>
-                        setDraft((d) => ({
-                          ...d,
-                          achievementsAwardsText: value,
-                        }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, achievementsAwardsText: value })); markDirty(); }}
                       placeholder="Dean's List, Hackathon Winner"
                     />
                     <TextField
                       label="Activities"
                       value={draft.activitiesText}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, activitiesText: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, activitiesText: value })); markDirty(); }}
                       placeholder="Volunteer tutor, tech club"
                     />
                     <TextField
                       label="Publication"
                       value={draft.publicationsText}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, publicationsText: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, publicationsText: value })); markDirty(); }}
                       placeholder="Article title, paper title"
                     />
                     <TextField
                       label="Signature"
                       value={draft.signature}
-                      onChange={(value) =>
-                        setDraft((d) => ({ ...d, signature: value }))
-                      }
+                      onChange={(value) => { setDraft((d) => ({ ...d, signature: value })); markDirty(); }}
                       placeholder="Name or sign-off"
                     />
                   </div>
@@ -826,6 +908,7 @@ export default function ProfilePage() {
         </motion.div>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
+          {/* Education Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -835,7 +918,7 @@ export default function ProfilePage() {
             <div className="px-6 py-4 border-b border-surface-border bg-slate-50/50">
               <h2 className="text-lg font-bold text-slate-800">Education</h2>
               <p className="text-sm text-slate-500">
-                Course, school, grade, and years.
+                Course, field of study, school, grade, and years.
               </p>
             </div>
 
@@ -847,6 +930,15 @@ export default function ProfilePage() {
                   setEducationDraft((d) => ({ ...d, degree: value }))
                 }
                 placeholder="e.g. BSc Computer Science"
+                className="sm:col-span-2"
+              />
+              <TextField
+                label="Field of Study"
+                value={educationDraft.fieldOfStudy}
+                onChange={(value) =>
+                  setEducationDraft((d) => ({ ...d, fieldOfStudy: value }))
+                }
+                placeholder="e.g. Software Engineering"
                 className="sm:col-span-2"
               />
               <TextField
@@ -881,8 +973,35 @@ export default function ProfilePage() {
                   setEducationDraft((d) => ({ ...d, endYear: value }))
                 }
                 placeholder="2024"
+              />
+              <label className="flex items-center gap-3 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={educationDraft.isCurrent}
+                  onChange={(e) =>
+                    setEducationDraft((d) => ({
+                      ...d,
+                      isCurrent: e.target.checked,
+                    }))
+                  }
+                  className="w-5 h-5"
+                />
+                <span className="text-sm font-bold text-slate-700">
+                  I am currently studying here
+                </span>
+              </label>
+              <TextAreaField
+                label="Description"
+                value={educationDraft.description}
+                onChange={(value) =>
+                  setEducationDraft((d) => ({ ...d, description: value }))
+                }
+                placeholder="Relevant coursework, projects, activities..."
                 className="sm:col-span-2"
               />
+              {eduYearError && (
+                <p className="sm:col-span-2 text-xs text-red-600 font-medium">{eduYearError}</p>
+              )}
 
               <div className="sm:col-span-2 flex justify-end pt-2 border-t border-slate-100">
                 <button
@@ -911,16 +1030,26 @@ export default function ProfilePage() {
                         <h3 className="font-extrabold text-slate-900">
                           {item.degree || 'Education'}
                         </h3>
+                        {item.fieldOfStudy ? (
+                          <p className="text-sm text-slate-600 mt-1">
+                            {item.fieldOfStudy}
+                          </p>
+                        ) : null}
                         {item.institution ? (
                           <p className="text-sm text-slate-600 mt-1">
                             {item.institution}
                           </p>
                         ) : null}
                         <p className="text-sm text-slate-500 mt-1">
-                          {[item.grade, formatYears(item.startYear, item.endYear)]
+                          {[item.grade, formatYears(item.startYear, item.endYear, item.isCurrent)]
                             .filter(Boolean)
                             .join(' - ')}
                         </p>
+                        {item.description ? (
+                          <p className="text-sm text-slate-600 mt-2 whitespace-pre-wrap">
+                            {item.description}
+                          </p>
+                        ) : null}
                       </div>
                       {item.id ? (
                         <button
@@ -941,6 +1070,7 @@ export default function ProfilePage() {
             </div>
           </motion.div>
 
+          {/* Experience Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -950,7 +1080,7 @@ export default function ProfilePage() {
             <div className="px-6 py-4 border-b border-surface-border bg-slate-50/50">
               <h2 className="text-lg font-bold text-slate-800">Experience</h2>
               <p className="text-sm text-slate-500">
-                Company, job title, dates, and details.
+                Company, job title, location, dates, and details.
               </p>
             </div>
 
@@ -961,7 +1091,7 @@ export default function ProfilePage() {
                 onChange={(value) =>
                   setExperienceDraft((d) => ({ ...d, company: value }))
                 }
-                placeholder="e.g. Acme"
+                placeholder="e.g. Acme Corp"
                 className="sm:col-span-2"
               />
               <TextField
@@ -972,6 +1102,14 @@ export default function ProfilePage() {
                 }
                 placeholder="e.g. Product Designer"
                 className="sm:col-span-2"
+              />
+              <TextField
+                label="Location"
+                value={experienceDraft.location}
+                onChange={(value) =>
+                  setExperienceDraft((d) => ({ ...d, location: value }))
+                }
+                placeholder="e.g. Lagos, Nigeria"
               />
               <TextField
                 label="Start Year"
@@ -988,6 +1126,7 @@ export default function ProfilePage() {
                   setExperienceDraft((d) => ({ ...d, endYear: value }))
                 }
                 placeholder="2024"
+                disabled={experienceDraft.isCurrent}
               />
               <label className="flex items-center gap-3 sm:col-span-2">
                 <input
@@ -1014,6 +1153,9 @@ export default function ProfilePage() {
                 placeholder="Responsibilities, achievements, tools..."
                 className="sm:col-span-2"
               />
+              {expYearError && (
+                <p className="sm:col-span-2 text-xs text-red-600 font-medium">{expYearError}</p>
+              )}
 
               <div className="sm:col-span-2 flex justify-end pt-2 border-t border-slate-100">
                 <button
@@ -1047,6 +1189,11 @@ export default function ProfilePage() {
                         {item.company ? (
                           <p className="text-sm text-slate-600 mt-1">
                             {item.company}
+                          </p>
+                        ) : null}
+                        {item.location ? (
+                          <p className="text-sm text-slate-500 mt-1">
+                            {item.location}
                           </p>
                         ) : null}
                         <p className="text-sm text-slate-500 mt-1">

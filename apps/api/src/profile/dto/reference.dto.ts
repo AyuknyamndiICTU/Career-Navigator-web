@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches } from 'class-validator';
 
 export class CreateReferenceDto {
   @IsString()
@@ -18,6 +18,7 @@ export class CreateReferenceDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^\+?[\d\s\-().]{7,20}$/, { message: 'Invalid phone number format' })
   phone?: string;
 
   @IsOptional()
@@ -44,6 +45,7 @@ export class UpdateReferenceDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^\+?[\d\s\-().]{7,20}$/, { message: 'Invalid phone number format' })
   phone?: string;
 
   @IsOptional()

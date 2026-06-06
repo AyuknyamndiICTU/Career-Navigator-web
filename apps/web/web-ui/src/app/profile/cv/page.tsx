@@ -104,7 +104,7 @@ export default function CvUploadPage() {
 
         <div className="bg-white rounded-2xl shadow-card overflow-hidden border border-surface-border">
           <div className="px-6 py-4 border-b border-surface-border">
-            <h2 className="text-base font-semibold text-slate-800">Upload PDF</h2>
+            <h2 className="text-base font-semibold text-slate-800">Upload PDF or DOCX</h2>
           </div>
 
           <form onSubmit={onSubmit} className="p-6">
@@ -112,7 +112,7 @@ export default function CvUploadPage() {
               <span className="sr-only">Choose profile photo</span>
               <input
                 type="file"
-                accept="application/pdf"
+                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
                 className="block w-full text-sm text-slate-500
                   file:mr-4 file:py-2.5 file:px-5

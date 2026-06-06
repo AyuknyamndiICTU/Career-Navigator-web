@@ -11,7 +11,7 @@ import { BuildResumeDto, ResumeTemplateId } from './dto/build-resume.dto';
 type AuthUser = { sub: string };
 type CvWizardData = Record<string, unknown>;
 
-const DEFAULT_TEMPLATE: ResumeTemplateId = 'STANDARD';
+const DEFAULT_TEMPLATE: ResumeTemplateId = 'CLASSIC';
 
 function extractBearerToken(authorizationHeader: string | undefined): string {
   if (!authorizationHeader) return '';
@@ -202,7 +202,7 @@ export class ResumeService {
       }>;
     },
   ): unknown {
-    if (template !== 'STANDARD' && template !== 'DETAILED') {
+    if (template !== 'CLASSIC' && template !== 'MODERN' && template !== 'MINIMAL') {
       throw new BadRequestException('Invalid template');
     }
 
@@ -244,36 +244,22 @@ export class ResumeService {
 
     const summary = data.profile?.summary ?? null;
 
-    const educationSections =
-      template === 'DETAILED'
-        ? data.education.map((e) => ({
-            degree: e.degree ?? null,
-            fieldOfStudy: e.fieldOfStudy ?? null,
-            institution: e.institution ?? null,
-            years: this.formatYears(e.startYear, e.endYear, e.isCurrent),
-            grade: e.grade ?? null,
-            description: e.description ?? null,
-          }))
-        : data.education.map((e) => ({
-            degree: e.degree ?? null,
-            institution: e.institution ?? null,
-            years: this.formatYears(e.startYear, e.endYear, e.isCurrent),
-          }));
+    const educationSections = data.education.map((e) => ({
+      degree: e.degree ?? null,
+      fieldOfStudy: e.fieldOfStudy ?? null,
+      institution: e.institution ?? null,
+      years: this.formatYears(e.startYear, e.endYear, e.isCurrent),
+      grade: e.grade ?? null,
+      description: e.description ?? null,
+    }));
 
-    const experienceSections =
-      template === 'DETAILED'
-        ? data.workExperience.map((w) => ({
-            jobTitle: w.jobTitle ?? null,
-            company: w.company ?? null,
-            location: w.location ?? null,
-            years: this.formatYears(w.startYear, w.endYear, w.isCurrent),
-            description: w.description ?? null,
-          }))
-        : data.workExperience.map((w) => ({
-            jobTitle: w.jobTitle ?? null,
-            company: w.company ?? null,
-            years: this.formatYears(w.startYear, w.endYear, w.isCurrent),
-          }));
+    const experienceSections = data.workExperience.map((w) => ({
+      jobTitle: w.jobTitle ?? null,
+      company: w.company ?? null,
+      location: w.location ?? null,
+      years: this.formatYears(w.startYear, w.endYear, w.isCurrent),
+      description: w.description ?? null,
+    }));
 
     const projectsSections = template
       ? data.projects.map((p) => ({

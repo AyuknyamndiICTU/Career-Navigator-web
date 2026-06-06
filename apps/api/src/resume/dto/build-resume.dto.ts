@@ -1,10 +1,10 @@
 import { IsOptional, IsString, IsIn } from 'class-validator';
 
-export type ResumeTemplateId = 'STANDARD' | 'DETAILED';
+export type ResumeTemplateId = 'CLASSIC' | 'MODERN' | 'MINIMAL';
 
 export class BuildResumeDto {
   @IsOptional()
   @IsString()
-  @IsIn(['STANDARD', 'DETAILED'])
+  @IsIn(['CLASSIC', 'MODERN', 'MINIMAL'])
   template?: ResumeTemplateId;
 }

@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsNotEmpty,
   IsOptional,
@@ -12,10 +13,11 @@ export class ChatRequestDto {
   @MaxLength(5000)
   message!: string;
 
-  // Optional: if provided, we enforce that the AI response stays within these “career path” skills.
-  // If omitted, we fall back to deriving skills from the user’s job applications.
+  // Optional: if provided, we enforce that the AI response stays within these "career path" skills.
+  // If omitted, we fall back to deriving skills from the user's job applications.
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
   allowedSkills?: string[];
 }

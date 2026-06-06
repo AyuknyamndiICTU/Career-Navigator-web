@@ -50,6 +50,18 @@ async function bootstrap() {
     }),
   );
 
+  // Login-specific brute-force rate limiter (strict, per-endpoint)
+  app.use(
+    '/auth/login',
+    rateLimit({
+      windowMs: 60_000, // 1 minute
+      limit: 5, // max 5 login attempts per minute per IP
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { message: 'Too many login attempts. Please try again in a minute.' },
+    }),
+  );
+
   const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
   const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? 200);
 
