@@ -228,6 +228,13 @@ export class UploadService {
     status: string | null;
     error: string | null;
     skills: string[];
+    extractedData: {
+      fullName?: string | null;
+      education?: Array<Record<string, unknown>>;
+      experience?: Array<Record<string, unknown>>;
+      skills?: string[];
+      summary?: string | null;
+    } | null;
   }> {
     const { sub: userId } = this.getAuthUser(authorizationHeader);
     const media = await this.prisma.uploadMedia.findUnique({
@@ -235,15 +242,29 @@ export class UploadService {
       select: { cvScanStatus: true, cvScanError: true, cvExtractedText: true },
     });
 
-    if (!media) return { status: null, error: null, skills: [] };
+    if (!media) return { status: null, error: null, skills: [], extractedData: null };
 
     let skills: string[] = [];
+    let extractedData: {
+      fullName?: string | null;
+      education?: Array<Record<string, unknown>>;
+      experience?: Array<Record<string, unknown>>;
+      skills?: string[];
+      summary?: string | null;
+    } | null = null;
+
     if (media.cvExtractedText) {
       try {
-        const parsed = JSON.parse(media.cvExtractedText) as {
-          skills?: string[];
+        const parsed = JSON.parse(media.cvExtractedText) as Record<string, unknown>;
+        if (Array.isArray(parsed.skills)) skills = parsed.skills as string[];
+
+        extractedData = {
+          fullName: typeof parsed.fullName === 'string' ? parsed.fullName : null,
+          summary: typeof parsed.summary === 'string' ? parsed.summary : null,
+          skills: Array.isArray(parsed.skills) ? (parsed.skills as string[]) : [],
+          education: Array.isArray(parsed.education) ? (parsed.education as Array<Record<string, unknown>>) : [],
+          experience: Array.isArray(parsed.experience) ? (parsed.experience as Array<Record<string, unknown>>) : [],
         };
-        if (Array.isArray(parsed.skills)) skills = parsed.skills;
       } catch {
         // ignore invalid extracted JSON
       }
@@ -253,6 +274,8 @@ export class UploadService {
       status: media.cvScanStatus,
       error: media.cvScanError,
       skills,
+      extractedData,
     };
   }
+
 }

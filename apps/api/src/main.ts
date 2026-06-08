@@ -85,14 +85,52 @@ async function bootstrap() {
     }),
   );
 
-  const config = new DocumentBuilder()
+  // Swagger / OpenAPI documentation
+  const swaggerConfig = new DocumentBuilder()
     .setTitle('Career Navigator API')
-    .setDescription('Career Navigator REST API documentation')
+    .setDescription(
+      'REST API for the Career Navigator platform — AI-powered career guidance, resume building, job matching, mentor discovery, and more.',
+    )
     .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        description: 'Enter JWT access token',
+        in: 'header',
+      },
+      'access-token',
+    )
+    .addServer('http://localhost:3001', 'Local Development')
+    .addTag('auth', 'Authentication & account management')
+    .addTag('profile', 'User profile, education & work experience')
+    .addTag('upload', 'File uploads (CV, profile picture)')
+    .addTag('resume', 'Resume builder & templates')
+    .addTag('jobs', 'Job listings, applications & matching')
+    .addTag('mentors', 'Mentor discovery & profiles')
+    .addTag('ai', 'AI chat, mock interviews & course recommendations')
+    .addTag('agora', 'Video calling sessions')
+    .addTag('conversations', 'Real-time messaging')
+    .addTag('notifications', 'User notifications')
+    .addTag('admin', 'Admin dashboard & user management')
+    .addTag('courses', 'Course catalog & scraping')
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document);
+  const document = SwaggerModule.createDocument(app, swaggerConfig, {
+    include: [AppModule],
+    deepScanRoutes: true,
+  });
+  SwaggerModule.setup('api-docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      docExpansion: 'list',
+      filter: true,
+      tryItOutEnabled: true,
+    },
+    customSiteTitle: 'Career Navigator API Docs',
+  });
 
   await app.listen(process.env.PORT ?? 3000);
 }

@@ -119,6 +119,24 @@ export class CvScanWorkerService implements OnModuleDestroy {
   private async processJob(payload: CvScanJobPayload): Promise<void> {
     const { uploadMediaId, objectKey } = payload;
 
+    // Overall timeout: fail the job if it takes longer than 30 seconds total
+    const JOB_TIMEOUT_MS = 30_000;
+    const timeoutController = new AbortController();
+    const jobTimeoutId = setTimeout(() => {
+      this.logger.error(`cv-scan job timed out after ${JOB_TIMEOUT_MS}ms. uploadMediaId=${uploadMediaId}`);
+      timeoutController.abort();
+    }, JOB_TIMEOUT_MS);
+
+    try {
+      await this.processJobInternal(payload, timeoutController.signal);
+    } finally {
+      clearTimeout(jobTimeoutId);
+    }
+  }
+
+  private async processJobInternal(payload: CvScanJobPayload, abortSignal: AbortSignal): Promise<void> {
+    const { uploadMediaId, objectKey } = payload;
+
     // Skip if already processed for the same upload file.
     const existing = await this.prisma.uploadMedia.findUnique({
       where: { id: uploadMediaId },
@@ -171,6 +189,19 @@ export class CvScanWorkerService implements OnModuleDestroy {
           cvScanError: null,
         },
       });
+
+      // Auto-populate Profile, Education, and WorkExperience from extracted data
+      try {
+        await this.applyExtractedDataToProfile(payload.userId, structured);
+        this.logger.log(
+          `cv-scan profile auto-populated. userId=${payload.userId}`,
+        );
+      } catch (applyErr) {
+        // Log but don't fail the job — the extraction itself succeeded
+        this.logger.warn(
+          `cv-scan profile auto-populate failed (non-fatal). userId=${payload.userId} err=${(applyErr as Error)?.message}`,
+        );
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : `Unknown error: ${String(err)}`;
@@ -276,18 +307,8 @@ export class CvScanWorkerService implements OnModuleDestroy {
       },
     };
 
-    const ollamaApiKey = provider.ollama?.apiKey;
-
-    const triggerOllamaFallback = async (): Promise<string> => {
-      if (!ollamaApiKey || ollamaApiKey.trim().length === 0) {
-        // If we can't fall back, surface Gemini error to avoid hiding problems.
-        throw new Error('AI providers unavailable: missing OLLAMA_API_KEY.');
-      }
-      return this.generateWithOllamaCloud(systemInstruction, userMessage);
-    };
-
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    const timeoutId = setTimeout(() => controller.abort(), 12_000);
 
     try {
       const res = await fetch(url, {
@@ -309,8 +330,9 @@ export class CvScanWorkerService implements OnModuleDestroy {
         return dataAny?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
       }
 
-      if (res.status === 429) {
-        return await triggerOllamaFallback();
+      if (res.status === 429 || res.status === 403) {
+        this.logger.warn(`Gemini returned ${res.status}, falling back to Ollama Cloud`);
+        return await this.generateWithOllamaCloud(systemInstruction, userMessage);
       }
 
       const errorBody = await res.text().catch(() => '');
@@ -318,13 +340,14 @@ export class CvScanWorkerService implements OnModuleDestroy {
         `Gemini request failed: ${res.status} ${errorBody}`.trim(),
       );
     } catch (err) {
-      // Timeout or connection errors => fallback
       const errAny = err as { name?: string } | undefined;
       if (errAny?.name === 'AbortError') {
-        return await triggerOllamaFallback();
+        this.logger.warn('Gemini timed out, falling back to Ollama Cloud');
+        return await this.generateWithOllamaCloud(systemInstruction, userMessage);
       }
-      // Fetch threw => connection error
-      return await triggerOllamaFallback();
+      // For any other fetch/network error, try fallback
+      this.logger.warn(`Gemini fetch error, falling back to Ollama Cloud: ${(err as Error)?.message}`);
+      return await this.generateWithOllamaCloud(systemInstruction, userMessage);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -457,6 +480,138 @@ ${cvText}
       return JSON.stringify(record);
     } catch {
       return JSON.stringify({ skills: [] });
+    }
+  }
+
+  /**
+   * Bridge extracted CV data into Profile, Education, and WorkExperience tables.
+   * Called after a successful CV extraction so the profile page and resume builder
+   * can display the data immediately.
+   */
+  private async applyExtractedDataToProfile(
+    userId: string,
+    structuredJson: string,
+  ): Promise<void> {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(structuredJson) as Record<string, unknown>;
+    } catch {
+      return; // Nothing to apply
+    }
+
+    if (!parsed || typeof parsed !== 'object') return;
+
+    const str = (v: unknown): string | undefined =>
+      typeof v === 'string' && v.trim() ? v.trim() : undefined;
+
+    const strArray = (v: unknown): string[] => {
+      if (!Array.isArray(v)) return [];
+      return v
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    };
+
+    // --- 1. Upsert Profile ---
+    const fullName = str(parsed.fullName);
+    let firstName: string | undefined;
+    let lastName: string | undefined;
+    if (fullName) {
+      const parts = fullName.split(/\s+/);
+      firstName = parts[0];
+      lastName = parts.length > 1 ? parts.slice(1).join(' ') : undefined;
+    }
+
+    const summary = str(parsed.summary);
+    const skills = strArray(parsed.skills);
+
+    // Build cvWizardData from extracted fields
+    const cvWizardData: Record<string, unknown> = {};
+    if (skills.length > 0) cvWizardData.skills = skills;
+
+    const profileData: Record<string, unknown> = {};
+    if (firstName) profileData.firstName = firstName;
+    if (lastName) profileData.lastName = lastName;
+    if (summary) profileData.summary = summary;
+    if (Object.keys(cvWizardData).length > 0) {
+      profileData.cvWizardData = cvWizardData;
+    }
+
+    if (Object.keys(profileData).length > 0) {
+      await this.prisma.profile.upsert({
+        where: { userId },
+        create: { userId, ...profileData },
+        update: profileData,
+      });
+    }
+
+    // --- 2. Populate Education ---
+    const educationArr = Array.isArray(parsed.education)
+      ? parsed.education
+      : [];
+
+    if (educationArr.length > 0) {
+      // Remove existing entries so re-upload doesn't create duplicates
+      await this.prisma.education.deleteMany({ where: { userId } });
+
+      for (const edu of educationArr) {
+        if (!edu || typeof edu !== 'object') continue;
+        const e = edu as Record<string, unknown>;
+
+        await this.prisma.education.create({
+          data: {
+            userId,
+            degree: str(e.degree) ?? null,
+            fieldOfStudy: str(e.fieldOfStudy) ?? null,
+            institution: str(e.institution) ?? null,
+            startYear:
+              typeof e.startYear === 'number' && Number.isFinite(e.startYear)
+                ? Math.round(e.startYear)
+                : null,
+            endYear:
+              typeof e.endYear === 'number' && Number.isFinite(e.endYear)
+                ? Math.round(e.endYear)
+                : null,
+            grade: str(e.grade) ?? null,
+            description: str(e.description) ?? null,
+            isCurrent: e.isCurrent === true,
+          },
+        });
+      }
+    }
+
+    // --- 3. Populate WorkExperience ---
+    const experienceArr = Array.isArray(parsed.experience)
+      ? parsed.experience
+      : [];
+
+    if (experienceArr.length > 0) {
+      // Remove existing entries so re-upload doesn't create duplicates
+      await this.prisma.workExperience.deleteMany({ where: { userId } });
+
+      for (const exp of experienceArr) {
+        if (!exp || typeof exp !== 'object') continue;
+        const w = exp as Record<string, unknown>;
+
+        await this.prisma.workExperience.create({
+          data: {
+            userId,
+            jobTitle: str(w.jobTitle) ?? null,
+            company: str(w.company) ?? null,
+            location: str(w.location) ?? null,
+            startYear:
+              typeof w.startYear === 'number' && Number.isFinite(w.startYear)
+                ? Math.round(w.startYear)
+                : null,
+            endYear:
+              typeof w.endYear === 'number' && Number.isFinite(w.endYear)
+                ? Math.round(w.endYear)
+                : null,
+            description: str(w.description) ?? null,
+            isCurrent: w.isCurrent === true,
+          },
+        });
+      }
     }
   }
 }
