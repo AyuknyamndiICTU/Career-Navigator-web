@@ -6,6 +6,7 @@ import {
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { verifyAccessToken } from '../auth/jwt/jwt-utils';
+import { API_PREFIX } from '../lib/api-prefix';
 import { BuildResumeDto, ResumeTemplateId } from './dto/build-resume.dto';
 
 type AuthUser = { sub: string };
@@ -327,7 +328,7 @@ export class ResumeService {
     const apiBase = (
       process.env.NEXT_PUBLIC_API_BASE_URL ||
       process.env.API_BASE_URL ||
-      `http://localhost:${process.env.PORT || '3000'}`
+      `http://localhost:${process.env.PORT || '3000'}/${API_PREFIX}`
     ).replace(/\/+$/, '');
     return `${apiBase}/upload/file/${objectKey}`;
   }
