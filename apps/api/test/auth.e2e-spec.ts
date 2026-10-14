@@ -14,7 +14,6 @@ import {
 } from '@jest/globals';
 
 import { AppModule } from '../src/app.module';
-import { AuthService } from '../src/auth/auth.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Auth flows (Milestone: Phase 6.2)', () => {
@@ -67,8 +66,6 @@ describe('Auth flows (Milestone: Phase 6.2)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideProvider(AuthService)
-      .useValue({})
       .overrideProvider(PrismaService)
       .useValue(mockPrisma)
       .compile();
@@ -160,7 +157,30 @@ describe('Auth flows (Milestone: Phase 6.2)', () => {
       .expect(201);
 
     expect(res.body.accessToken).toBeTruthy();
-    expect(res.body.refreshToken).toBeTruthy();
+    expect(res.body.refreshToken).toBeUndefined();
+    expect(String(res.headers['set-cookie'])).toContain('cn_refresh=');
+  });
+
+  it('POST /auth/login stores the refresh expiry from JWT_REFRESH_EXPIRES_IN', async () => {
+    process.env.JWT_REFRESH_EXPIRES_IN = '7d';
+    mockUser.findUnique.mockResolvedValue({
+      id: userId,
+      email: validEmail,
+      passwordHash,
+      isActive: true,
+    });
+    mockRefreshToken.create.mockResolvedValue({ id: 'rt-1' });
+
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: validEmail, password: validPassword })
+      .expect(201);
+
+    const { expiresAt } = mockRefreshToken.create.mock.calls[0][0].data;
+    const sevenDaysMs = 7 * 24 * 60 * 60_000;
+    expect(Math.abs(expiresAt.getTime() - (Date.now() + sevenDaysMs))).toBeLessThan(
+      60_000,
+    );
   });
 
   // ─── Password Reset ──────────────────────────────────────────

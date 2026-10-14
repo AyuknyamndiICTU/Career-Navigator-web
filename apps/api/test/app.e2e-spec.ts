@@ -3,7 +3,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { describe, beforeEach, afterEach, it, jest } from '@jest/globals';
+import { describe, beforeEach, afterEach, it, jest, expect } from '@jest/globals';
 import { AppModule } from './../src/app.module';
 import { AuthService } from '../src/auth/auth.service';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -25,6 +25,7 @@ describe('Auth flows (e2e routes)', () => {
         refreshToken: 'refresh2',
       }),
     ),
+    logout: jest.fn(() => Promise.resolve({ message: 'Logged out' })),
     requestPasswordReset: jest.fn(() =>
       Promise.resolve({
         message: 'If the account exists, a reset code was sent.',
@@ -85,20 +86,47 @@ describe('Auth flows (e2e routes)', () => {
       .expect({ message: 'Email verified', isActive: true });
   });
 
-  it('POST /auth/login works', async () => {
-    await request(app.getHttpServer())
+  it('POST /auth/login returns the access token and sets the refresh cookie', async () => {
+    const res = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ email: 'alice@example.com', password: 'password123' })
       .expect(201)
-      .expect({ accessToken: 'access', refreshToken: 'refresh' });
+      .expect({ accessToken: 'access' });
+
+    const cookie = String(res.headers['set-cookie']);
+    expect(cookie).toContain('cn_refresh=refresh');
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('Path=/api/auth');
   });
 
-  it('POST /auth/refresh works', async () => {
+  it('POST /auth/refresh reads the refresh token from the cookie', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', 'cn_refresh=refresh')
+      .send({})
+      .expect(201)
+      .expect({ accessToken: 'access2' });
+
+    expect(authServiceMock.refresh).toHaveBeenCalledWith('refresh');
+    expect(String(res.headers['set-cookie'])).toContain('cn_refresh=refresh2');
+  });
+
+  it('POST /auth/refresh without a token returns 401', async () => {
     await request(app.getHttpServer())
       .post('/auth/refresh')
-      .send({ refreshToken: 'refresh' })
-      .expect(201)
-      .expect({ accessToken: 'access2', refreshToken: 'refresh2' });
+      .send({})
+      .expect(401);
+  });
+
+  it('POST /auth/logout revokes the cookie token and clears the cookie', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/auth/logout')
+      .set('Cookie', 'cn_refresh=refresh')
+      .expect(200)
+      .expect({ message: 'Logged out' });
+
+    expect(authServiceMock.logout).toHaveBeenCalledWith('refresh');
+    expect(String(res.headers['set-cookie'])).toMatch(/cn_refresh=;/);
   });
 
   // Milestone 1.3

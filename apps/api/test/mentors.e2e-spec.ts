@@ -107,4 +107,10 @@ describe('Mentors search (Milestone 3.3)', () => {
     expect(mockMentor.findMany).toHaveBeenCalledTimes(1);
     expect(mockMentor.count).toHaveBeenCalledTimes(1);
   });
+
+  it('GET /mentors rejects a page size above 100', async () => {
+    await request(app.getHttpServer()).get('/mentors?limit=101').expect(400);
+
+    expect(mockMentor.findMany).not.toHaveBeenCalled();
+  });
 });

@@ -130,6 +130,12 @@ describe('Jobs browse + apply (Milestone 3.2)', () => {
     expect(mockJob.count).not.toHaveBeenCalled();
   });
 
+  it('GET /jobs rejects a page size above 100', async () => {
+    await request(app.getHttpServer()).get('/jobs?limit=1000000').expect(400);
+
+    expect(mockJob.findMany).not.toHaveBeenCalled();
+  });
+
   // Milestone 3.2: apply with cover letter
 
   it('POST /jobs/:jobId/apply without auth returns 401', async () => {
