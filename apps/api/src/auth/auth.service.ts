@@ -10,7 +10,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginDto } from './dto/login.dto';
-import { RefreshDto } from './dto/refresh.dto';
 import { PasswordResetRequestDto } from './dto/password-reset-request.dto';
 import { PasswordResetConfirmDto } from './dto/password-reset-confirm.dto';
 import { SetThemePreferenceDto } from './dto/theme.dto';
@@ -201,6 +200,7 @@ export class AuthService {
   async login(dto: LoginDto): Promise<{
     accessToken: string;
     refreshToken: string;
+    refreshExpiresAt: Date;
   }> {
     const { email, password } = dto;
 
@@ -233,16 +233,18 @@ export class AuthService {
       isActive: user.isActive,
     });
 
-    const { token: refreshToken, jti } = signRefreshToken({
+    const {
+      token: refreshToken,
+      jti,
+      expiresAt,
+    } = signRefreshToken({
       secret: refreshSecret,
       expiresIn: refreshExpiresIn,
       userId: user.id,
     });
 
     const tokenHash = hashToken(refreshToken);
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60_000); // default 30d fallback
 
-    // Note: we keep expiresAt aligned with env default; for now we don't parse refreshExpiresIn reliably.
     await this.prisma.refreshToken.create({
       data: {
         userId: user.id,
@@ -252,15 +254,14 @@ export class AuthService {
       },
     });
 
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, refreshExpiresAt: expiresAt };
   }
 
-  async refresh(dto: RefreshDto): Promise<{
+  async refresh(refreshToken: string): Promise<{
     accessToken: string;
     refreshToken: string;
+    refreshExpiresAt: Date;
   }> {
-    const { refreshToken } = dto;
-
     const { accessSecret, refreshSecret, accessExpiresIn, refreshExpiresIn } =
       this.getJwtSecretsOrThrow();
 
@@ -314,14 +315,17 @@ export class AuthService {
       isActive: user.isActive,
     });
 
-    const { token: newRefreshToken, jti } = signRefreshToken({
+    const {
+      token: newRefreshToken,
+      jti,
+      expiresAt: newExpiresAt,
+    } = signRefreshToken({
       secret: refreshSecret,
       expiresIn: refreshExpiresIn,
       userId: user.id,
     });
 
     const newTokenHash = hashToken(newRefreshToken);
-    const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60_000);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.refreshToken.update({
@@ -339,7 +343,22 @@ export class AuthService {
       });
     });
 
-    return { accessToken, refreshToken: newRefreshToken };
+    return {
+      accessToken,
+      refreshToken: newRefreshToken,
+      refreshExpiresAt: newExpiresAt,
+    };
+  }
+
+  async logout(refreshToken: string | undefined): Promise<{ message: string }> {
+    if (refreshToken) {
+      await this.prisma.refreshToken.updateMany({
+        where: { tokenHash: hashToken(refreshToken), revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+
+    return { message: 'Logged out' };
   }
 
   async requestPasswordReset(
