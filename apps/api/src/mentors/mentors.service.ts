@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type SearchMentorsParams = {
@@ -65,28 +65,5 @@ export class MentorsService {
     ]);
 
     return { items, page, limit, total };
-  }
-
-  parsePagination(params: { pageRaw?: string; limitRaw?: string }): {
-    page: number;
-    limit: number;
-  } {
-    const { pageRaw, limitRaw } = params;
-
-    const page =
-      pageRaw && Number.isFinite(Number(pageRaw)) && Number(pageRaw) > 0
-        ? Number(pageRaw)
-        : 1;
-
-    const limit =
-      limitRaw && Number.isFinite(Number(limitRaw)) && Number(limitRaw) > 0
-        ? Number(limitRaw)
-        : 10;
-
-    if (!Number.isFinite(page) || !Number.isFinite(limit)) {
-      throw new BadRequestException('Invalid pagination params');
-    }
-
-    return { page, limit };
   }
 }

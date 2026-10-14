@@ -1,6 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiTags, ApiBadRequestResponse } from '@nestjs/swagger';
 import { MentorsService } from './mentors.service';
+import { parsePagination } from '../lib/pagination';
 
 @ApiTags('mentors')
 @Controller('mentors')
@@ -17,10 +18,7 @@ export class MentorsController {
     @Query('page') pageRaw?: string,
     @Query('limit') limitRaw?: string,
   ): Promise<unknown> {
-    const { page, limit } = this.mentorsService.parsePagination({
-      pageRaw,
-      limitRaw,
-    });
+    const { page, limit } = parsePagination(pageRaw, limitRaw);
 
     return this.mentorsService.search({
       q,
