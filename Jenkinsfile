@@ -1,24 +1,24 @@
 pipeline {
     agent any
 
+    parameters {
+        string(name: 'DOCKERHUB_USER', defaultValue: 'ayuknyamndiictu', description: 'Docker Hub namespace for the images')
+        string(name: 'PROD_API_URL', defaultValue: 'https://api.yourdomain.com/api', description: 'Public API base URL baked into the web build (must end with /api)')
+    }
+
     environment {
-        // Docker Hub Configuration
-        // Make sure to add this credentials ID in your Jenkins server (Username with password)
-        DOCKER_CREDS = credentials('docker-hub-credentials') 
-        DOCKERHUB_USER = 'ayuknyamndiictu' // Replace with your Docker Hub username
-        
-        // Image Names & Tags
-        API_IMAGE = "${DOCKERHUB_USER}/career-navigator-api"
-        WEB_IMAGE = "${DOCKERHUB_USER}/career-navigator-web"
+        // Username/password credential for Docker Hub
+        DOCKER_CREDS = credentials('docker-hub-credentials')
+        DOCKERHUB_USER = "${params.DOCKERHUB_USER}"
+
+        API_IMAGE = "${params.DOCKERHUB_USER}/career-navigator-api"
+        WEB_IMAGE = "${params.DOCKERHUB_USER}/career-navigator-web"
         TAG = "${env.BUILD_ID}"
-        
-        // Deployment details
-        // Define 'vps-ssh-key' as an SSH Username with Private Key credential in Jenkins
-        DEPLOY_HOST = 'ssh root@38.242.246.126' // Replace with your VPS SSH connection string
+
+        // Secret-text credential holding the SSH target, e.g. deploy@203.0.113.10 (a non-root user in the docker group)
+        DEPLOY_TARGET = credentials('vps-deploy-target')
         DEPLOY_PATH = '/opt/career-navigator'
-        
-        // Frontend Build Args (Replace with your actual production domains)
-        PROD_API_URL = 'https://api.yourdomain.com'
+        PROD_API_URL = "${params.PROD_API_URL}"
     }
 
     stages {
@@ -88,22 +88,13 @@ pipeline {
                     echo "Deploying to Remote VPS..."
                     // The SSH Agent plugin is required for this block to authenticate automatically
                     sshagent(['vps-ssh-key']) {
-                        // Ensure the deployment directory exists
-                        sh "ssh -o StrictHostKeyChecking=no ${DEPLOY_HOST} 'mkdir -p ${DEPLOY_PATH}'"
-                        
-                        // Copy the production docker-compose file to the VPS
-                        sh "scp -o StrictHostKeyChecking=no infra/docker/docker-compose.prod.yml ${DEPLOY_HOST}:${DEPLOY_PATH}/docker-compose.yml"
-                        
-                        // Execute deployment commands on the remote VPS
-                        sh """
-                        ssh -o StrictHostKeyChecking=no ${DEPLOY_HOST} '
-                            cd ${DEPLOY_PATH} &&
-                            export DOCKERHUB_USER=${DOCKERHUB_USER} &&
-                            export TAG=${TAG} &&
-                            docker compose pull &&
-                            docker compose up -d --remove-orphans
-                        '
-                        """
+                        // Single-quoted so the shell (not Groovy) expands the credential-backed variables.
+                        // The server keeps its secrets in ${DEPLOY_PATH}/.env (see infra/docker/.env.prod.example).
+                        sh '''
+                            ssh -o StrictHostKeyChecking=no "$DEPLOY_TARGET" "mkdir -p $DEPLOY_PATH"
+                            scp -o StrictHostKeyChecking=no infra/docker/docker-compose.prod.yml "$DEPLOY_TARGET:$DEPLOY_PATH/docker-compose.yml"
+                            ssh -o StrictHostKeyChecking=no "$DEPLOY_TARGET" "cd $DEPLOY_PATH && test -f .env && export DOCKERHUB_USER=$DOCKERHUB_USER TAG=$TAG && docker compose pull && docker compose up -d --remove-orphans"
+                        '''
                     }
                 }
             }
