@@ -129,9 +129,10 @@ export class UploadController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    // Safely extract the full object key, accounting for possible trailing or leading slashes.
-    // req.path will be like "/upload/file/userId/PROFILE_PICTURE/uuid.jpg"
-    const objectKey = decodeURIComponent(req.path.replace(/^\/upload\/file\//, ''));
+    // req.path is "[/api]/upload/file/<userId>/<TYPE>/<uuid>.<ext>"
+    const objectKey = decodeURIComponent(
+      req.path.replace(/^.*?\/upload\/file\//, ''),
+    );
     if (!objectKey) {
       throw new NotFoundException('File not found');
     }
