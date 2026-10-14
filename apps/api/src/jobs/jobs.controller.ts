@@ -15,6 +15,7 @@ import {
 import { JobsService } from './jobs.service';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { RerankJobsDto } from './dto/rerank-jobs.dto';
+import { parsePagination } from '../lib/pagination';
 
 @ApiTags('jobs')
 @Controller('jobs')
@@ -33,16 +34,7 @@ export class JobsController {
     @Query('limit') limitRaw?: string,
   ): Promise<unknown> {
     const searchQuery = q ?? search;
-
-    const page =
-      pageRaw && Number.isFinite(Number(pageRaw)) && Number(pageRaw) > 0
-        ? Number(pageRaw)
-        : 1;
-
-    const limit =
-      limitRaw && Number.isFinite(Number(limitRaw)) && Number(limitRaw) > 0
-        ? Number(limitRaw)
-        : 10;
+    const { page, limit } = parsePagination(pageRaw, limitRaw);
 
     return this.jobsService.browse({
       searchQuery,
