@@ -5,7 +5,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import DashboardLayout from '@/components/DashboardLayout';
-import { apiFetch, getApiBaseUrl } from '@/lib/auth';
+import { apiFetch, ensureAccessToken, getSocketUrl } from '@/lib/auth';
 import ErrorAlert from '@/components/ErrorAlert';
 
 type Message = {
@@ -61,12 +61,11 @@ export default function ConversationPage() {
 
   // Connect WebSocket
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    if (!token) return;
-
-    const backendUrl = getApiBaseUrl().replace('/api/v1', '');
-    const newSocket = io(`${backendUrl}/chat`, {
-      auth: { token },
+    // A callback (not a fixed token) so reconnects pick up a refreshed access token.
+    const newSocket = io(`${getSocketUrl()}/chat`, {
+      auth: (cb) => {
+        void ensureAccessToken().then((token) => cb({ token }));
+      },
       transports: ['websocket'],
     });
 

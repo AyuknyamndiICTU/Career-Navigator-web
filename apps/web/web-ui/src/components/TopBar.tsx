@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { getAccessToken } from '@/lib/auth';
+import { ensureAccessToken } from '@/lib/auth';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -13,8 +13,10 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   const [username, setUsername] = useState('User');
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (token) {
+    let active = true;
+
+    void ensureAccessToken().then((token) => {
+      if (!active || !token) return;
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         if (payload.email) {
@@ -24,7 +26,11 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
       } catch (e) {
         // ignore
       }
-    }
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (

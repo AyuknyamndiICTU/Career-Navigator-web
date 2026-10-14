@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { apiFetch, setTokens } from '@/lib/auth';
+import { apiFetch, setAccessToken } from '@/lib/auth';
 import ErrorAlert from '@/components/ErrorAlert';
 
 export default function LoginPage() {
@@ -27,7 +27,7 @@ export default function LoginPage() {
         body: { email, password },
       });
 
-      setTokens(res);
+      setAccessToken(res.accessToken);
       router.push('/');
     } catch (err) {
       console.error('Login error:', err);

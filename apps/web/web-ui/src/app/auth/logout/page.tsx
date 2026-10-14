@@ -2,14 +2,13 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { clearTokens } from '@/lib/auth';
+import { logout } from '@/lib/auth';
 
 export default function LogoutPage() {
   const router = useRouter();
 
   useEffect(() => {
-    clearTokens();
-    router.push('/auth/login');
+    void logout().then(() => router.push('/auth/login'));
   }, [router]);
 
   return (
