@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from '@/lib/auth';
+
 export type AgoraRole = 'publisher' | 'subscriber';
 
 export type StartAgoraSessionRequest = {
@@ -17,16 +19,6 @@ export type StartAgoraSessionResponse = {
 };
 
 export type EndAgoraSessionResponse = { ended: true };
-
-function getApiBaseUrl(): string {
-  const v =
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_BACKEND_URL ||
-    'http://localhost:3000';
-
-  // Normalize (no trailing slash)
-  return v.replace(/\/+$/, '');
-}
 
 export async function startAgoraSession(
   req: StartAgoraSessionRequest,

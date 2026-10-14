@@ -1,181 +1,218 @@
- // @ts-nocheck
-/* eslint-disable no-undef */
+// Browser auth client: the access token lives in memory only; the refresh token is an
+// httpOnly cookie set by the API, so scripts can never read it.
 
-// Token helpers for the web client
+const REFRESH_LOCK = 'cn-auth-refresh';
+const EXPIRY_SKEW_MS = 30_000;
+const PUBLIC_AUTH_PATHS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/verify-otp',
+  '/auth/password-reset/',
+  '/auth/refresh',
+  '/auth/logout',
+];
 
-export const ACCESS_TOKEN_KEY = 'accessToken';
-export const REFRESH_TOKEN_KEY = 'refreshToken';
+let accessToken: string | null = null;
+let refreshInFlight: Promise<boolean> | null = null;
 
-export function getApiBaseUrl() {
-  const v =
+if (typeof window !== 'undefined') {
+  // Older builds kept both tokens in localStorage; remove any leftovers.
+  window.localStorage.removeItem('accessToken');
+  window.localStorage.removeItem('refreshToken');
+}
+
+export function getApiBaseUrl(): string {
+  const value =
     process.env.NEXT_PUBLIC_API_BASE_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
-    'http://localhost:3000';
+    'http://localhost:3001/api';
 
-  return String(v).replace(/\/+$/, '');
+  return value.replace(/\/+$/, '');
 }
 
-/** @returns {string|null} */
-export function getAccessToken() {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(ACCESS_TOKEN_KEY);
+export function getSocketUrl(): string {
+  const explicit = process.env.NEXT_PUBLIC_SOCKET_URL;
+  if (explicit) return explicit.replace(/\/+$/, '');
+
+  const origin =
+    typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+  return new URL(getApiBaseUrl(), origin).origin;
 }
 
-/** @param {{accessToken: string, refreshToken: string}} tokens */
-export function setTokens(tokens) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-  window.localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+export function getAccessToken(): string | null {
+  return accessToken;
 }
 
-export function clearTokens() {
-  if (typeof window === 'undefined') return;
-  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
 }
 
-export function getRefreshToken() {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem(REFRESH_TOKEN_KEY);
+function isPublicAuthPath(path: string): boolean {
+  return PUBLIC_AUTH_PATHS.some((p) => path.startsWith(p));
 }
 
-/** @returns {Record<string, string>} */
-export function authHeaders() {
-  const token = getAccessToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+function expiresSoon(token: string): boolean {
+  try {
+    const payload = JSON.parse(
+      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
+    ) as { exp?: number };
+    return (
+      typeof payload.exp !== 'number' ||
+      payload.exp * 1000 - EXPIRY_SKEW_MS <= Date.now()
+    );
+  } catch {
+    return true;
+  }
 }
 
-/**
- * @template T
- * @param {string} path
- * @param {any} [init]
- * @returns {Promise<T>}
- */
-async function refreshSession() {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
+async function requestRefresh(): Promise<boolean> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    });
 
-  const res = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  });
-
-  if (!res.ok) return false;
-
-  const tokens = await res.json();
-  if (!tokens?.accessToken || !tokens?.refreshToken) return false;
-
-  setTokens(tokens);
-  return true;
-}
-
-export async function apiFetch(
-  path,
-  init = {},
-  options?: { redirectOn401?: boolean },
-) {
-  const res = await fetch(`${getApiBaseUrl()}${path}`, {
-    ...init,
-    headers: {
-      ...(init.headers || {}),
-      ...(init.body ? { 'content-type': 'application/json' } : {}),
-      ...authHeaders(),
-    },
-    body: init.body ? JSON.stringify(init.body) : init.body,
-  });
-
-  if (res.status === 401 && typeof window !== 'undefined') {
-    const refreshed = await refreshSession();
-    if (refreshed) {
-      const retryRes = await fetch(`${getApiBaseUrl()}${path}`, {
-        ...init,
-        headers: {
-          ...(init.headers || {}),
-          ...(init.body ? { 'content-type': 'application/json' } : {}),
-          ...authHeaders(),
-        },
-        body: init.body ? JSON.stringify(init.body) : init.body,
-      });
-
-      return handleResponse(retryRes, options?.redirectOn401);
+    if (!res.ok) {
+      accessToken = null;
+      return false;
     }
+
+    const body = (await res.json()) as { accessToken?: string };
+    accessToken = body.accessToken ?? null;
+    return accessToken !== null;
+  } catch {
+    return false;
+  }
+}
+
+// The API revokes every session when a rotated refresh token is reused, so concurrent
+// 401s in this tab share one request and other tabs wait on a Web Lock.
+function refreshSession(): Promise<boolean> {
+  if (!refreshInFlight) {
+    const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+    const run = locks
+      ? locks.request(REFRESH_LOCK, requestRefresh).then((ok) => ok)
+      : requestRefresh();
+
+    refreshInFlight = run.finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+export async function ensureAccessToken(): Promise<string | null> {
+  if (accessToken && !expiresSoon(accessToken)) return accessToken;
+  return (await refreshSession()) ? accessToken : null;
+}
+
+export async function logout(): Promise<void> {
+  await fetch(`${getApiBaseUrl()}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  }).catch(() => undefined);
+  accessToken = null;
+}
+
+type ApiFetchInit = Omit<RequestInit, 'body'> & { body?: unknown };
+type ApiFetchOptions = { redirectOn401?: boolean };
+
+function send(path: string, init: RequestInit): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+
+  return fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+    credentials: 'include',
+  });
+}
+
+async function authorizedFetch(
+  path: string,
+  init: RequestInit,
+  options?: ApiFetchOptions,
+): Promise<any> {
+  const publicPath = isPublicAuthPath(path);
+  let refreshed = false;
+
+  if (!publicPath && (!accessToken || expiresSoon(accessToken))) {
+    refreshed = true;
+    await refreshSession();
   }
 
-  return handleResponse(res, options?.redirectOn401);
+  let res = await send(path, init);
+
+  if (res.status === 401 && !publicPath && !refreshed && (await refreshSession())) {
+    res = await send(path, init);
+  }
+
+  return handleResponse(res, path, options?.redirectOn401);
 }
 
-export async function apiFetchFile(
+export function apiFetch(
+  path: string,
+  init: ApiFetchInit = {},
+  options?: ApiFetchOptions,
+): Promise<any> {
+  const { body, headers, ...rest } = init;
+  const finalHeaders = new Headers(headers);
+  if (body !== undefined) finalHeaders.set('content-type', 'application/json');
+
+  return authorizedFetch(
+    path,
+    {
+      ...rest,
+      headers: finalHeaders,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    },
+    options,
+  );
+}
+
+export function apiFetchFile(
   path: string,
   formData: FormData,
-  options?: { redirectOn401?: boolean },
-) {
-  const res = await fetch(`${getApiBaseUrl()}${path}`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: formData,
-  });
-
-  if (res.status === 401 && typeof window !== 'undefined') {
-    const refreshed = await refreshSession();
-    if (refreshed) {
-      const retryRes = await fetch(`${getApiBaseUrl()}${path}`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: formData,
-      });
-
-      return handleResponse(retryRes, options?.redirectOn401);
-    }
-  }
-
-  return handleResponse(res, options?.redirectOn401);
+  options?: ApiFetchOptions,
+): Promise<any> {
+  return authorizedFetch(path, { method: 'POST', body: formData }, options);
 }
 
-async function handleResponse(res: Response, redirectOn401?: boolean) {
-  if (!res.ok) {
-    const status = res.status;
+async function handleResponse(
+  res: Response,
+  path: string,
+  redirectOn401?: boolean,
+): Promise<any> {
+  const text = await res.text();
+  let body: any = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = null;
+  }
 
-    let body: any = null;
-    try {
-      body = await res.json();
-    } catch {
-      // ignore
-    }
+  if (res.ok) return body;
 
-    const msg = body?.message ?? body?.error ?? '';
-    const readable = Array.isArray(msg)
-      ? msg.join(', ')
-      : typeof msg === 'string'
+  const msg = body?.message ?? body?.error ?? '';
+  const readable = Array.isArray(msg)
+    ? msg.join(', ')
+    : typeof msg === 'string'
       ? msg
       : '';
+  const message =
+    readable ||
+    text ||
+    (res.status === 401 ? 'Unauthorized' : `Request failed: ${res.status}`);
 
-    let errorText = '';
-    try {
-      errorText = await res.text();
-    } catch {
-      errorText = '';
-    }
-
-    const messageToThrow =
-      readable || errorText || (status === 401 ? 'Unauthorized' : `Request failed: ${status}`);
-
-    if (
-      status === 401 &&
-      typeof window !== 'undefined' &&
-      redirectOn401 !== false
-    ) {
-      clearTokens();
+  if (res.status === 401 && typeof window !== 'undefined' && !isPublicAuthPath(path)) {
+    accessToken = null;
+    if (redirectOn401 !== false) {
       window.location.href = '/auth/login';
       throw new Error('');
     }
-
-    if (status === 401 && typeof window !== 'undefined') {
-      clearTokens();
-    }
-
-    throw new Error(messageToThrow);
   }
 
-  return res.json();
+  throw new Error(message);
 }
