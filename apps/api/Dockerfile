@@ -38,18 +38,15 @@ RUN apk add --no-cache python3 make g++ && \
     npm ci --ignore-scripts --omit=dev && \
     apk del python3 make g++
 
-# Copy Prisma schema + pre-generated query engines so the client works on linux-musl
+# Copy Prisma schema + the client generated for linux-musl next to the workspace's own node_modules
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /app/apps/api/node_modules/.prisma ./node_modules/.prisma
-
-# Copy the Prisma Client runtime into the runner's /app/node_modules (what Nest's require('@prisma/client') needs)
-COPY --from=builder /app/apps/api/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder /app/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
 
 # Prisma CLI for the one-shot migration step (`prisma migrate deploy`), run separately from the API
 COPY --from=builder /app/apps/api/node_modules/prisma ./apps/api/node_modules/prisma
 
-# Ensure compiled Nest output
-COPY --from=builder /app/apps/api/dist ./dist
+# Run from the workspace folder so Node resolves packages npm installed under apps/api/node_modules
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
 
 EXPOSE 3000
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "apps/api/dist/src/main.js"]
