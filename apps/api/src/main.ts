@@ -7,9 +7,11 @@ import { RedisIoAdapter } from './realtime/redis-io.adapter';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { getAIProvider } from './lib/aiProvider';
+import { API_PREFIX } from './lib/api-prefix';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.setGlobalPrefix(API_PREFIX);
 
   // Log active provider once at startup (Gemini vs Ollama Cloud).
   // The utility itself prints: "[AI Provider] Active: Gemini|Ollama Cloud"
@@ -53,7 +55,7 @@ async function bootstrap() {
 
   // Login-specific brute-force rate limiter (strict, per-endpoint)
   app.use(
-    '/auth/login',
+    `/${API_PREFIX}/auth/login`,
     rateLimit({
       windowMs: 60_000, // 1 minute
       limit: 5, // max 5 login attempts per minute per IP
@@ -73,7 +75,8 @@ async function bootstrap() {
       standardHeaders: true,
       legacyHeaders: false,
       skip: (req) =>
-        req.path.startsWith('/api-docs') || req.path.startsWith('/health'),
+        req.path.startsWith('/api-docs') ||
+        req.path.startsWith(`/${API_PREFIX}/health`),
     }),
   );
 
