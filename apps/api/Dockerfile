@@ -45,11 +45,11 @@ COPY --from=builder /app/apps/api/node_modules/.prisma ./node_modules/.prisma
 # Copy the Prisma Client runtime into the runner's /app/node_modules (what Nest's require('@prisma/client') needs)
 COPY --from=builder /app/apps/api/node_modules/@prisma/client ./node_modules/@prisma/client
 
-# Also copy the Prisma CLI package (so we can run `prisma db push`)
+# Prisma CLI for the one-shot migration step (`prisma migrate deploy`), run separately from the API
 COPY --from=builder /app/apps/api/node_modules/prisma ./apps/api/node_modules/prisma
 
 # Ensure compiled Nest output
 COPY --from=builder /app/apps/api/dist ./dist
 
 EXPOSE 3000
-CMD ["sh", "-c", "cd apps/api && npx prisma db push --schema prisma/schema.prisma --accept-data-loss --skip-generate; cd /app && node dist/src/main.js"]
+CMD ["node", "dist/src/main.js"]
