@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { CurrentUser } from '../auth/jwt-auth.guard';
 import {
   ApiOkResponse,
   ApiTags,
@@ -18,9 +19,9 @@ export class ConversationsController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async createConversation(
     @Body() dto: CreateConversationDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.conversationsService.createConversation(authorization, dto);
+    return this.conversationsService.createConversation(userId, dto);
   }
 
   @Get()
@@ -29,9 +30,9 @@ export class ConversationsController {
     description: 'Missing or invalid bearer token.',
   })
   async listConversations(
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.conversationsService.listConversations(authorization);
+    return this.conversationsService.listConversations(userId);
   }
 
   @Get(':conversationId/messages')
@@ -41,10 +42,10 @@ export class ConversationsController {
   })
   async getMessages(
     @Param('conversationId') conversationId: string,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
     return this.conversationsService.getMessageHistory(
-      authorization,
+      userId,
       conversationId,
     );
   }
@@ -57,10 +58,10 @@ export class ConversationsController {
   async sendMessage(
     @Param('conversationId') conversationId: string,
     @Body() dto: SendMessageDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
     return this.conversationsService.sendMessage(
-      authorization,
+      userId,
       conversationId,
       dto,
     );

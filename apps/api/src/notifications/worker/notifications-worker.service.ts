@@ -1,12 +1,13 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { env } from '../../config/env';
 
 type NotificationProcessPayload = {
   notificationId: string;
 };
 
 function isNotificationsWorkerEnabled(): boolean {
-  return process.env.NOTIFICATIONS_WORKER_ENABLED === 'true';
+  return env.notificationsWorker.enabled;
 }
 
 const NOTIFICATIONS_QUEUE_NAME = 'notifications';
@@ -31,7 +32,7 @@ export class NotificationsWorkerService implements OnModuleDestroy {
       return;
     }
 
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = env.redisUrl;
     if (!redisUrl) {
       this.logger.warn(
         'notifications worker enabled but REDIS_URL is missing.',
@@ -45,9 +46,7 @@ export class NotificationsWorkerService implements OnModuleDestroy {
       Worker: new (...args: unknown[]) => BullWorkerLike;
     };
 
-    const concurrency = Number(
-      process.env.NOTIFICATIONS_WORKER_CONCURRENCY ?? '2',
-    );
+    const concurrency = env.notificationsWorker.concurrency;
 
     this.worker = new Worker(
       NOTIFICATIONS_QUEUE_NAME,
@@ -56,7 +55,7 @@ export class NotificationsWorkerService implements OnModuleDestroy {
       },
       {
         connection: { url: redisUrl },
-        concurrency: Number.isFinite(concurrency) ? concurrency : 2,
+        concurrency,
       },
     );
 

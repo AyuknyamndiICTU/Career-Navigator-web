@@ -3,11 +3,11 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   Param,
   Post,
   Put,
 } from '@nestjs/common';
+import { CurrentUser } from '../auth/jwt-auth.guard';
 import {
   ApiOkResponse,
   ApiTags,
@@ -31,10 +31,8 @@ export class ProfileController {
   @Get()
   @ApiOkResponse({ description: 'Fetch personal profile.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async getProfile(
-    @Headers('authorization') authorization?: string,
-  ): Promise<unknown> {
-    return this.profileService.getProfile(authorization);
+  async getProfile(@CurrentUser('sub') userId: string): Promise<unknown> {
+    return this.profileService.getProfile(userId);
   }
 
   @Put()
@@ -42,18 +40,16 @@ export class ProfileController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async upsertProfile(
     @Body() dto: UpsertProfileDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.profileService.upsertProfile(authorization, dto);
+    return this.profileService.upsertProfile(userId, dto);
   }
 
   @Get('education')
   @ApiOkResponse({ description: 'List educations.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async listEducations(
-    @Headers('authorization') authorization?: string,
-  ): Promise<unknown> {
-    return this.profileService.listEducations(authorization);
+  async listEducations(@CurrentUser('sub') userId: string): Promise<unknown> {
+    return this.profileService.listEducations(userId);
   }
 
   @Post('education')
@@ -61,9 +57,9 @@ export class ProfileController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async createEducation(
     @Body() dto: CreateEducationDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.profileService.createEducation(authorization, dto);
+    return this.profileService.createEducation(userId, dto);
   }
 
   @Put('education/:educationId')
@@ -72,9 +68,9 @@ export class ProfileController {
   async updateEducation(
     @Param('educationId') educationId: string,
     @Body() dto: UpdateEducationDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.profileService.updateEducation(authorization, educationId, dto);
+    return this.profileService.updateEducation(userId, educationId, dto);
   }
 
   @Delete('education/:educationId')
@@ -82,18 +78,18 @@ export class ProfileController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async deleteEducation(
     @Param('educationId') educationId: string,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<{ message: string }> {
-    return this.profileService.deleteEducation(authorization, educationId);
+    return this.profileService.deleteEducation(userId, educationId);
   }
 
   @Get('work-experience')
   @ApiOkResponse({ description: 'List work experiences.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async listWorkExperiences(
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.profileService.listWorkExperiences(authorization);
+    return this.profileService.listWorkExperiences(userId);
   }
 
   @Post('work-experience')
@@ -101,9 +97,9 @@ export class ProfileController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async createWorkExperience(
     @Body() dto: CreateWorkExperienceDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.profileService.createWorkExperience(authorization, dto);
+    return this.profileService.createWorkExperience(userId, dto);
   }
 
   @Put('work-experience/:workExperienceId')
@@ -112,10 +108,10 @@ export class ProfileController {
   async updateWorkExperience(
     @Param('workExperienceId') workExperienceId: string,
     @Body() dto: UpdateWorkExperienceDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
     return this.profileService.updateWorkExperience(
-      authorization,
+      userId,
       workExperienceId,
       dto,
     );
@@ -126,10 +122,10 @@ export class ProfileController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async deleteWorkExperience(
     @Param('workExperienceId') workExperienceId: string,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<{ message: string }> {
     return this.profileService.deleteWorkExperience(
-      authorization,
+      userId,
       workExperienceId,
     );
   }
@@ -141,10 +137,8 @@ export class ProfileController {
   @Get('projects')
   @ApiOkResponse({ description: 'List projects.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async listProjects(
-    @Headers('authorization') authorization?: string,
-  ): Promise<unknown> {
-    return this.profileService.listProjects(authorization);
+  async listProjects(@CurrentUser('sub') userId: string): Promise<unknown> {
+    return this.profileService.listProjects(userId);
   }
 
   @Post('projects')
@@ -152,9 +146,9 @@ export class ProfileController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async createProject(
     @Body() dto: CreateProjectDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.profileService.createProject(authorization, dto);
+    return this.profileService.createProject(userId, dto);
   }
 
   @Put('projects/:projectId')
@@ -163,9 +157,9 @@ export class ProfileController {
   async updateProject(
     @Param('projectId') projectId: string,
     @Body() dto: UpdateProjectDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.profileService.updateProject(authorization, projectId, dto);
+    return this.profileService.updateProject(userId, projectId, dto);
   }
 
   @Delete('projects/:projectId')
@@ -173,9 +167,9 @@ export class ProfileController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async deleteProject(
     @Param('projectId') projectId: string,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<{ message: string }> {
-    return this.profileService.deleteProject(authorization, projectId);
+    return this.profileService.deleteProject(userId, projectId);
   }
 
   // -----------------------
@@ -185,10 +179,8 @@ export class ProfileController {
   @Get('references')
   @ApiOkResponse({ description: 'List references.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async listReferences(
-    @Headers('authorization') authorization?: string,
-  ): Promise<unknown> {
-    return this.profileService.listReferences(authorization);
+  async listReferences(@CurrentUser('sub') userId: string): Promise<unknown> {
+    return this.profileService.listReferences(userId);
   }
 
   @Post('references')
@@ -196,9 +188,9 @@ export class ProfileController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async createReference(
     @Body() dto: CreateReferenceDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.profileService.createReference(authorization, dto);
+    return this.profileService.createReference(userId, dto);
   }
 
   @Put('references/:referenceId')
@@ -207,9 +199,9 @@ export class ProfileController {
   async updateReference(
     @Param('referenceId') referenceId: string,
     @Body() dto: UpdateReferenceDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.profileService.updateReference(authorization, referenceId, dto);
+    return this.profileService.updateReference(userId, referenceId, dto);
   }
 
   @Delete('references/:referenceId')
@@ -217,8 +209,8 @@ export class ProfileController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async deleteReference(
     @Param('referenceId') referenceId: string,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<{ message: string }> {
-    return this.profileService.deleteReference(authorization, referenceId);
+    return this.profileService.deleteReference(userId, referenceId);
   }
 }

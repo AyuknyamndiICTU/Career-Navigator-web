@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   Controller,
-  Headers,
   HttpCode,
   Post,
   Get,
@@ -23,6 +22,7 @@ import { diskStorage } from 'multer';
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 import type { Request, Response } from 'express';
 
+import { CurrentUser, Public } from '../auth/jwt-auth.guard';
 import { UploadService } from './upload.service';
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -87,9 +87,9 @@ export class UploadController {
   @UseInterceptors(FileInterceptor('file', pictureMulterOptions))
   uploadPicture(
     @UploadedFile() file: Express.Multer.File,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.uploadService.uploadPicture(authorization, file);
+    return this.uploadService.uploadPicture(userId, file);
   }
 
   @Post('cv')
@@ -109,21 +109,20 @@ export class UploadController {
   @UseInterceptors(FileInterceptor('file', cvMulterOptions))
   uploadCv(
     @UploadedFile() file: Express.Multer.File,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.uploadService.uploadCv(authorization, file);
+    return this.uploadService.uploadCv(userId, file);
   }
 
   @Get('cv/status')
   @ApiOkResponse({ description: 'Get CV scan status.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  getCvStatus(
-    @Headers('authorization') authorization?: string,
-  ): Promise<unknown> {
-    return this.uploadService.getCvStatus(authorization);
+  getCvStatus(@CurrentUser('sub') userId: string): Promise<unknown> {
+    return this.uploadService.getCvStatus(userId);
   }
 
   @Get('file/*')
+  @Public()
   @ApiOkResponse({ description: 'Serve an uploaded file from storage.' })
   async serveFile(
     @Req() req: Request,

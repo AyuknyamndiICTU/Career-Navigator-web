@@ -1,20 +1,8 @@
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { verifyAccessToken } from '../auth/jwt/jwt-utils';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MessagingGateway } from '../realtime/messaging.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
 import { CreateConversationDto } from './dto/create-conversation.dto';
-
-type AuthUser = { sub: string };
-
-function extractBearerToken(authorizationHeader: string | undefined): string {
-  if (!authorizationHeader) return '';
-  return authorizationHeader.replace(/^Bearer\s+/i, '').trim();
-}
 
 @Injectable()
 export class ConversationsService {
@@ -22,26 +10,6 @@ export class ConversationsService {
     private readonly prisma: PrismaService,
     private readonly messagingGateway: MessagingGateway,
   ) {}
-
-  private getAuthUser(authorizationHeader: string | undefined): AuthUser {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    const token = extractBearerToken(authorizationHeader);
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const payload = verifyAccessToken({ secret: accessSecret, token });
-
-    if (!payload?.sub) {
-      throw new UnauthorizedException('Invalid token');
-    }
-
-    return { sub: payload.sub };
-  }
 
   private async assertParticipant(
     userId: string,
@@ -58,11 +26,9 @@ export class ConversationsService {
   }
 
   async createConversation(
-    authorizationHeader: string | undefined,
+    userId: string,
     dto: CreateConversationDto,
   ): Promise<{ conversationId: string }> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const otherUser = await this.prisma.user.findUnique({
       where: { id: dto.participantUserId },
       select: { id: true, isActive: true },
@@ -106,15 +72,13 @@ export class ConversationsService {
     return { conversationId: conversation.id };
   }
 
-  async listConversations(authorizationHeader: string | undefined): Promise<{
+  async listConversations(userId: string): Promise<{
     items: Array<{
       id: string;
       createdAt: Date;
       updatedAt: Date;
     }>;
   }> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const items = await this.prisma.conversation.findMany({
       where: { participants: { some: { userId } } },
       orderBy: { createdAt: 'desc' },
@@ -125,7 +89,7 @@ export class ConversationsService {
   }
 
   async getMessageHistory(
-    authorizationHeader: string | undefined,
+    userId: string,
     conversationId: string,
   ): Promise<{
     items: Array<{
@@ -136,8 +100,6 @@ export class ConversationsService {
       updatedAt: Date;
     }>;
   }> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     await this.assertParticipant(userId, conversationId);
 
     const items = await this.prisma.message.findMany({
@@ -156,7 +118,7 @@ export class ConversationsService {
   }
 
   async sendMessage(
-    authorizationHeader: string | undefined,
+    userId: string,
     conversationId: string,
     dto: SendMessageDto,
   ): Promise<{
@@ -165,8 +127,6 @@ export class ConversationsService {
     content: string;
     createdAt: Date;
   }> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     await this.assertParticipant(userId, conversationId);
 
     const message = await this.prisma.message.create({

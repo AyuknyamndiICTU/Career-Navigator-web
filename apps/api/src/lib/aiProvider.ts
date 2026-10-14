@@ -1,4 +1,6 @@
-/* global process, console */
+/* global console */
+import { env } from '../config/env';
+
 export type AIProviderResult = {
   activeProvider: 'Gemini' | 'Ollama Cloud';
   gemini?: {
@@ -26,14 +28,14 @@ export const GEMINI_MODEL = 'gemini-2.5-flash';
 let didLogActiveProvider = false;
 
 export function getAIProvider(): AIProviderResult {
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const geminiApiKey = env.ai.geminiApiKey;
 
   // For local Ollama (compose), set:
   //   OLLAMA_BASE_URL="http://ollama:11434/v1"
   // For ollama.com cloud, set:
   //   OLLAMA_BASE_URL="https://ollama.com/v1"
-  const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
-  const ollamaApiKey = process.env.OLLAMA_API_KEY;
+  const ollamaBaseUrl = env.ai.ollamaBaseUrl;
+  const ollamaApiKey = env.ai.ollamaApiKey;
 
   const hasGemini =
     typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0;

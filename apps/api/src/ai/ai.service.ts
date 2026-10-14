@@ -5,17 +5,13 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
-  UnauthorizedException,
 } from '@nestjs/common';
-import { verifyAccessToken } from '../auth/jwt/jwt-utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { CvScanStatus, MediaType } from '@prisma/client';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import { MockInterviewRequestDto } from './dto/mock-interview-request.dto';
 import { CourseRecommendationsRequestDto } from './dto/course-recommendations-request.dto';
 import { getCourseScrapeCandidateSeedData } from '../courses/course-catalog-seed.service';
-
-type AuthUser = { sub: string };
 
 // ─── Named AI provider registry (configuration only; no wiring) ─────────────
 // This registers provider/model metadata under a stable name so other parts
@@ -51,11 +47,6 @@ class GeminiTimeoutError extends Error {
   constructor() {
     super('Gemini request timed out');
   }
-}
-
-function extractBearerToken(authorizationHeader: string | undefined): string {
-  if (!authorizationHeader) return '';
-  return authorizationHeader.replace(/^Bearer\s+/i, '').trim();
 }
 
 @Injectable()
@@ -266,35 +257,6 @@ export class AiService {
     }
   }
 
-  private getAuthUser(authorizationHeader: string | undefined): AuthUser {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    const token = extractBearerToken(authorizationHeader);
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    let payload: { sub?: string } | undefined;
-
-    try {
-      payload = verifyAccessToken({ secret: accessSecret, token }) as
-        | { sub?: string }
-        | undefined;
-    } catch {
-      // Important: keep AI endpoints from returning 500 on expired/invalid JWTs.
-      throw new UnauthorizedException('Missing or invalid bearer token');
-    }
-
-    if (!payload?.sub) {
-      throw new UnauthorizedException('Invalid token');
-    }
-
-    return { sub: payload.sub };
-  }
-
   private assertValidInput(dto: ChatRequestDto): void {
     if (!dto) {
       throw new BadRequestException('Body is required');
@@ -385,11 +347,9 @@ export class AiService {
   }
 
   private async resolveAllowedSkills(
-    authorizationHeader: string | undefined,
+    userId: string,
     requestedSkills: string[] | undefined,
   ): Promise<string[]> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const careerSkills = await this.deriveCareerAllowedSkills(userId);
     const careerSkillsLower = new Set(careerSkills.map((s) => s.toLowerCase()));
 
@@ -724,15 +684,13 @@ export class AiService {
   // ─── Chat ──────────────────────────────────────────────────────────
 
   async chat(
-    authorizationHeader: string | undefined,
+    userId: string,
     dto: ChatRequestDto,
   ): Promise<{ response: string; allowedSkills: string[] }> {
     this.assertValidInput(dto);
 
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const allowedSkills = await this.resolveAllowedSkills(
-      authorizationHeader,
+      userId,
       dto.allowedSkills,
     );
 
@@ -784,7 +742,7 @@ Rules:
   // ─── Mock Interview ────────────────────────────────────────────────
 
   async mockInterview(
-    authorizationHeader: string | undefined,
+    userId: string,
     dto: MockInterviewRequestDto,
   ): Promise<unknown> {
     try {
@@ -797,7 +755,7 @@ Rules:
       }
 
       const allowedSkills = await this.resolveAllowedSkills(
-        authorizationHeader,
+        userId,
         dto.allowedSkills,
       );
 
@@ -853,7 +811,7 @@ Task:
   // ─── Course Recommendations ────────────────────────────────────────
 
   async recommendCourses(
-    authorizationHeader: string | undefined,
+    userId: string,
     dto: CourseRecommendationsRequestDto,
   ): Promise<unknown> {
     type CourseRecommendation = {
@@ -867,11 +825,10 @@ Task:
 
     const prismaAny = this.prisma as any;
 
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
     const studentGoal = dto.studentGoal ?? null;
 
     const allowedSkills = await this.resolveAllowedSkills(
-      authorizationHeader,
+      userId,
       dto.allowedSkills,
     );
 

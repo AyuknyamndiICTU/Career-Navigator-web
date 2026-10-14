@@ -1,8 +1,9 @@
-/* global process, fetch, Buffer, AbortController, setTimeout, clearTimeout, URL, NodeJS */
+/* global fetch, Buffer, AbortController, setTimeout, clearTimeout, URL, NodeJS */
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Client as MinioClient } from 'minio';
 import { getAIProvider, GEMINI_MODEL } from '../../lib/aiProvider';
+import { env } from '../../config/env';
 
 type CvScanJobPayload = {
   userId: string;
@@ -13,7 +14,7 @@ type CvScanJobPayload = {
 const CV_SCAN_QUEUE_NAME = 'cv-scan';
 
 function isCvScanEnabled(): boolean {
-  return process.env.CV_SCAN_ENABLED === 'true';
+  return env.cvScan.enabled;
 }
 
 function parseMinioEndpoint(endpoint: string): {
@@ -77,13 +78,13 @@ export class CvScanWorkerService implements OnModuleDestroy {
       return;
     }
 
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = env.redisUrl;
     if (!redisUrl) {
       this.logger.warn('CV scan worker enabled but REDIS_URL is missing.');
       return;
     }
 
-    const concurrency = Number(process.env.CV_SCAN_WORKER_CONCURRENCY ?? '1');
+    const concurrency = env.cvScan.concurrency;
 
     // Lazy import so TS doesn't need bullmq installed during typecheck/tests.
     const bullmqMod = (await import('bullmq')) as {
@@ -99,7 +100,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
       },
       {
         connection: { url: redisUrl },
-        concurrency: Number.isFinite(concurrency) ? concurrency : 2,
+        concurrency,
       },
     );
 
@@ -222,10 +223,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
   }
 
   private async getMinioClient(): Promise<MinioClient> {
-    const minioEndpoint = process.env.MINIO_ENDPOINT;
-    const minioAccessKey = process.env.MINIO_ACCESS_KEY;
-    const minioSecretKey = process.env.MINIO_SECRET_KEY;
-    const minioBucket = process.env.MINIO_BUCKET;
+    const { endpoint: minioEndpoint, accessKey: minioAccessKey, secretKey: minioSecretKey, bucket: minioBucket } = env.minio;
 
     if (!minioEndpoint || !minioAccessKey || !minioSecretKey || !minioBucket) {
       throw new Error('MinIO is not configured (missing env vars).');
@@ -243,7 +241,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
   }
 
   private async extractCvTextFromMinio(objectKey: string): Promise<string> {
-    const minioBucket = process.env.MINIO_BUCKET ?? 'resumes';
+    const minioBucket = env.minio.bucket;
     const minio = await this.getMinioClient();
 
     const objectStream = await minio.getObject(minioBucket, objectKey);

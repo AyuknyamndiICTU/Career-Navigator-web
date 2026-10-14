@@ -11,6 +11,8 @@ import { Logger, Injectable } from '@nestjs/common';
 import type { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 import { verifyAccessToken } from '../auth/jwt/jwt-utils';
+import { env } from '../config/env';
+import { corsOriginCallback } from '../config/cors';
 
 function extractToken(socket: Socket): string | undefined {
   const authToken =
@@ -29,7 +31,7 @@ function extractToken(socket: Socket): string | undefined {
 @WebSocketGateway({
   namespace: '/chat',
   cors: {
-    origin: process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3000',
+    origin: corsOriginCallback,
     credentials: true,
   },
 })
@@ -48,7 +50,7 @@ export class MessagingGateway
   constructor(private readonly prisma: PrismaService) {}
 
   async handleConnection(client: Socket): Promise<void> {
-    const tokenSecret = process.env.JWT_ACCESS_SECRET;
+    const tokenSecret = env.jwt.accessSecret;
     if (!tokenSecret) {
       this.logger.warn('JWT_ACCESS_SECRET missing; disconnecting socket.');
       client.disconnect(true);

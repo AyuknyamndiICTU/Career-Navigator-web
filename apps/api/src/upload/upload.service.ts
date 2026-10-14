@@ -1,29 +1,16 @@
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CvScanService } from '../cv-scan/cv-scan.service';
-import { verifyAccessToken } from '../auth/jwt/jwt-utils';
+import { env } from '../config/env';
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import type { Express } from 'express';
 import { Client as MinioClient } from 'minio';
 
-type AuthUser = { sub: string };
-
 const MEDIA_TYPE_PROFILE_PICTURE = 'PROFILE_PICTURE' as const;
 const MEDIA_TYPE_CV = 'CV' as const;
 
 type UploadMediaType = typeof MEDIA_TYPE_PROFILE_PICTURE | typeof MEDIA_TYPE_CV;
-
-const MINIO_BUCKET_DEFAULT = 'resumes';
-
-function extractBearerToken(authorizationHeader: string | undefined): string {
-  if (!authorizationHeader) return '';
-  return authorizationHeader.replace(/^Bearer\s+/i, '').trim();
-}
 
 function parseMinioEndpoint(endpoint: string): {
   endPoint: string;
@@ -58,25 +45,6 @@ export class UploadService {
     // We’ll instantiate MinIO only when an upload endpoint is called.
   }
 
-  private getAuthUser(authorizationHeader: string | undefined): AuthUser {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    const token = extractBearerToken(authorizationHeader);
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const payload = verifyAccessToken({ secret: accessSecret, token });
-    if (!payload?.sub) {
-      throw new UnauthorizedException('Invalid token');
-    }
-
-    return { sub: payload.sub };
-  }
-
   private async uploadToMinio(params: {
     type: UploadMediaType;
     userId: string;
@@ -86,7 +54,7 @@ export class UploadService {
     contentType?: string;
     originalFilename?: string;
   }> {
-    const minioBucket = process.env.MINIO_BUCKET ?? MINIO_BUCKET_DEFAULT;
+    const minioBucket = env.minio.bucket;
 
     const originalFilename = params.file.originalname ?? '';
     const ext = originalFilename.includes('.')
@@ -100,9 +68,9 @@ export class UploadService {
     if (!size) throw new BadRequestException('Invalid file size');
 
     if (!this.minio) {
-      const minioEndpoint = process.env.MINIO_ENDPOINT;
-      const minioAccessKey = process.env.MINIO_ACCESS_KEY;
-      const minioSecretKey = process.env.MINIO_SECRET_KEY;
+      const minioEndpoint = env.minio.endpoint;
+      const minioAccessKey = env.minio.accessKey;
+      const minioSecretKey = env.minio.secretKey;
 
       if (
         !minioEndpoint ||
@@ -142,11 +110,9 @@ export class UploadService {
   }
 
   async uploadPicture(
-    authorizationHeader: string | undefined,
+    userId: string,
     file: Express.Multer.File,
   ): Promise<unknown> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     if (!file) throw new BadRequestException('Missing file');
 
     const { objectKey, contentType, originalFilename } =
@@ -182,11 +148,9 @@ export class UploadService {
   }
 
   async uploadCv(
-    authorizationHeader: string | undefined,
+    userId: string,
     file: Express.Multer.File,
   ): Promise<unknown> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     if (!file) throw new BadRequestException('Missing file');
 
     const { objectKey, contentType, originalFilename } =
@@ -230,7 +194,7 @@ export class UploadService {
     return { message: 'CV uploaded', objectKey };
   }
 
-  async getCvStatus(authorizationHeader: string | undefined): Promise<{
+  async getCvStatus(userId: string): Promise<{
     status: string | null;
     error: string | null;
     skills: string[];
@@ -242,7 +206,6 @@ export class UploadService {
       summary?: string | null;
     } | null;
   }> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
     const media = await this.prisma.uploadMedia.findUnique({
       where: { userId_type: { userId, type: MEDIA_TYPE_CV } },
       select: { cvScanStatus: true, cvScanError: true, cvExtractedText: true },
@@ -293,12 +256,12 @@ export class UploadService {
     stream: import('stream').Readable;
     contentType: string;
   }> {
-    const minioBucket = process.env.MINIO_BUCKET ?? MINIO_BUCKET_DEFAULT;
+    const minioBucket = env.minio.bucket;
 
     if (!this.minio) {
-      const minioEndpoint = process.env.MINIO_ENDPOINT;
-      const minioAccessKey = process.env.MINIO_ACCESS_KEY;
-      const minioSecretKey = process.env.MINIO_SECRET_KEY;
+      const minioEndpoint = env.minio.endpoint;
+      const minioAccessKey = env.minio.accessKey;
+      const minioSecretKey = env.minio.secretKey;
 
       if (!minioEndpoint || !minioAccessKey || !minioSecretKey || !minioBucket) {
         throw new BadRequestException('MinIO is not configured');

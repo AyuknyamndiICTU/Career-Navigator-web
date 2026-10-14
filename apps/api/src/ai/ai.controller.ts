@@ -1,4 +1,5 @@
-import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
+import { CurrentUser } from '../auth/jwt-auth.guard';
 import {
   ApiOkResponse,
   ApiTags,
@@ -19,9 +20,9 @@ export class AiController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async chat(
     @Body() dto: ChatRequestDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.aiService.chat(authorization, dto);
+    return this.aiService.chat(userId, dto);
   }
 
   @Post('mock-interview')
@@ -29,9 +30,9 @@ export class AiController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async mockInterview(
     @Body() dto: MockInterviewRequestDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.aiService.mockInterview(authorization, dto);
+    return this.aiService.mockInterview(userId, dto);
   }
 
   @Post('course-recommendations')
@@ -41,8 +42,8 @@ export class AiController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async courseRecommendations(
     @Body() dto: CourseRecommendationsRequestDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.aiService.recommendCourses(authorization, dto);
+    return this.aiService.recommendCourses(userId, dto);
   }
 }

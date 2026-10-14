@@ -1,4 +1,3 @@
-/* global process */
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -8,8 +7,12 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { getAIProvider } from './lib/aiProvider';
 import { API_PREFIX } from './lib/api-prefix';
+import { env, validateEnv } from './config/env';
+import { corsOriginCallback } from './config/cors';
 
 async function bootstrap() {
+  validateEnv();
+
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix(API_PREFIX);
 
@@ -21,26 +24,15 @@ async function bootstrap() {
     console.warn('AI Provider initialization warning:', err);
   }
 
-  // CORS — allow the web frontend to call the API cross-origin
-  const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS;
-
-  let corsOrigin: boolean | string | string[];
-  if (!allowedOrigins || allowedOrigins.trim() === '*') {
-    // When credentials: true, the spec forbids the literal "*" header.
-    // Setting origin to `true` makes Express reflect the request's Origin.
-    corsOrigin = true;
-  } else {
-    corsOrigin = allowedOrigins.split(',').map((o) => o.trim());
-  }
-
+  // CORS: an explicit allow-list (required in production); dev without a list reflects the origin.
   app.enableCors({
-    origin: corsOrigin,
+    origin: corsOriginCallback,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  const redisUrl = process.env.REDIS_URL;
+  const redisUrl = env.redisUrl;
   if (redisUrl) {
     app.useWebSocketAdapter(new RedisIoAdapter(app, redisUrl));
   }
@@ -65,13 +57,10 @@ async function bootstrap() {
     }),
   );
 
-  const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
-  const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? 200);
-
   app.use(
     rateLimit({
-      windowMs: Number.isFinite(rateLimitWindowMs) ? rateLimitWindowMs : 60_000,
-      limit: Number.isFinite(rateLimitMax) ? rateLimitMax : 200,
+      windowMs: env.rateLimitWindowMs,
+      limit: env.rateLimitMax,
       standardHeaders: true,
       legacyHeaders: false,
       skip: (req) =>
@@ -89,6 +78,14 @@ async function bootstrap() {
     }),
   );
 
+  if (env.swaggerEnabled) {
+    setupSwagger(app);
+  }
+
+  await app.listen(env.port);
+}
+
+function setupSwagger(app: Awaited<ReturnType<typeof NestFactory.create>>) {
   // Swagger / OpenAPI documentation
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Career Navigator API')
@@ -135,8 +132,6 @@ async function bootstrap() {
     },
     customSiteTitle: 'Career Navigator API Docs',
   });
-
-  await app.listen(process.env.PORT ?? 3000);
 }
 
 void bootstrap();

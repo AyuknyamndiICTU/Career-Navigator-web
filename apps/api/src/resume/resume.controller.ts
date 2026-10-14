@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post } from '@nestjs/common';
 import {
   ApiBody,
   ApiOkResponse,
@@ -6,6 +6,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import { CurrentUser } from '../auth/jwt-auth.guard';
 import { BuildResumeDto } from './dto/build-resume.dto';
 import { ResumeService } from './resume.service';
 
@@ -31,8 +32,8 @@ export class ResumeController {
   })
   build(
     @Body() dto: BuildResumeDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.resumeService.buildResume(authorization, dto);
+    return this.resumeService.buildResume(userId, dto);
   }
 }

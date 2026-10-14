@@ -2,11 +2,11 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   Param,
   Post,
   Query,
 } from '@nestjs/common';
+import { CurrentUser, Public } from '../auth/jwt-auth.guard';
 import {
   ApiOkResponse,
   ApiTags,
@@ -23,6 +23,7 @@ export class JobsController {
   constructor(private readonly jobsService: JobsService) {}
 
   @Get()
+  @Public()
   @ApiOkResponse({ description: 'Browse jobs with optional filters.' })
   async browse(
     @Query('q') q?: string,
@@ -52,9 +53,9 @@ export class JobsController {
   async apply(
     @Param('jobId') jobId: string,
     @Body() dto: ApplyJobDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.jobsService.apply(authorization, jobId, dto);
+    return this.jobsService.apply(userId, jobId, dto);
   }
 
   @Post('index')
@@ -62,10 +63,8 @@ export class JobsController {
     description: 'Ingest ACTIVE job demand into OpenSearch index.',
   })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async indexJobs(
-    @Headers('authorization') authorization?: string,
-  ): Promise<unknown> {
-    return this.jobsService.ingestJobDemand(authorization);
+  async indexJobs(): Promise<unknown> {
+    return this.jobsService.ingestJobDemand();
   }
 
   @Post('rerank')
@@ -77,9 +76,9 @@ export class JobsController {
   })
   async rerankJobs(
     @Body() dto: RerankJobsDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.jobsService.rerankJobs(authorization, dto);
+    return this.jobsService.rerankJobs(userId, dto);
   }
 
   @Post('matched')
@@ -90,10 +89,8 @@ export class JobsController {
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid bearer token.',
   })
-  async matchedJobs(
-    @Headers('authorization') authorization?: string,
-  ): Promise<unknown> {
-    return this.jobsService.matchedJobs(authorization);
+  async matchedJobs(@CurrentUser('sub') userId: string): Promise<unknown> {
+    return this.jobsService.matchedJobs(userId);
   }
 
   @Get('my-applications')
@@ -101,9 +98,7 @@ export class JobsController {
     description: 'List current user job applications (for Level Up progress).',
   })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async myApplications(
-    @Headers('authorization') authorization?: string,
-  ): Promise<unknown> {
-    return this.jobsService.myApplications(authorization);
+  async myApplications(@CurrentUser('sub') userId: string): Promise<unknown> {
+    return this.jobsService.myApplications(userId);
   }
 }

@@ -10,8 +10,9 @@ import type { UserRole } from '@prisma/client';
 
 import { ROLES_KEY } from './roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
-import { verifyAccessToken } from '../auth/jwt/jwt-utils';
+import type { AuthUser } from '../auth/jwt-auth.guard';
 
+/** Runs after the global JwtAuthGuard, which has already verified the token and set request.user. */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(
@@ -29,28 +30,12 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
-    const authorizationHeader: string | undefined =
-      request.headers?.authorization;
-
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    if (!authorizationHeader) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const token = authorizationHeader.replace(/^Bearer\s+/i, '').trim();
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const payload = verifyAccessToken({ secret: accessSecret, token });
-    const userId = payload?.sub;
+    const request = context
+      .switchToHttp()
+      .getRequest<{ user?: AuthUser; userId?: string }>();
+    const userId = request.user?.sub;
     if (!userId) {
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException('Missing bearer token');
     }
 
     const user = await this.prisma.user.findUnique({
@@ -62,7 +47,7 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Insufficient role privileges');
     }
 
-    (request as any).userId = userId;
+    request.userId = userId;
     return true;
   }
 }

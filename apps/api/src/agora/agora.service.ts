@@ -218,8 +218,7 @@ export class AgoraService {
   }
 
   private mintRtcTokenInternal(params: AgoraRtcTokenParams): string {
-    const appId = process.env.AGORA_APP_ID;
-    const appCertificate = process.env.AGORA_APP_CERTIFICATE;
+    const { appId, appCertificate } = env.agora;
 
     if (!appId || !appCertificate) {
       throw new BadRequestException(

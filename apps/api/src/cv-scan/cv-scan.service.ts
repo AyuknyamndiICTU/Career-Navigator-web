@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { env } from '../config/env';
 
 export type CvScanJobPayload = {
   userId: string;
@@ -13,7 +14,7 @@ export type EnqueueCvScanResult =
 const CV_SCAN_QUEUE_NAME = 'cv-scan';
 
 function isCvScanEnabled(): boolean {
-  return process.env.CV_SCAN_ENABLED === 'true';
+  return env.cvScan.enabled;
 }
 
 type BullMqQueueLike = {
@@ -37,7 +38,7 @@ export class CvScanService {
     if (!isCvScanEnabled()) return undefined;
     if (this.queue) return this.queue;
 
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = env.redisUrl;
     if (!redisUrl) {
       this.logger.warn(
         'CV_SCAN_ENABLED is true but REDIS_URL is missing. Skipping enqueue.',

@@ -3,7 +3,6 @@ import {
   Controller,
   ForbiddenException,
   Get,
-  Headers,
   HttpCode,
   Post,
   Req,
@@ -26,16 +25,15 @@ import { PasswordResetRequestDto } from './dto/password-reset-request.dto';
 import { PasswordResetConfirmDto } from './dto/password-reset-confirm.dto';
 import { SetThemePreferenceDto } from './dto/theme.dto';
 import { API_PREFIX } from '../lib/api-prefix';
+import { env } from '../config/env';
+import { CurrentUser, Public } from './jwt-auth.guard';
 
 const REFRESH_COOKIE = 'cn_refresh';
 
 function refreshCookieOptions(expires?: Date): CookieOptions {
-  const secureOverride = process.env.COOKIE_SECURE;
   return {
     httpOnly: true,
-    secure: secureOverride
-      ? secureOverride === 'true'
-      : process.env.NODE_ENV === 'production',
+    secure: env.cookieSecure,
     sameSite: 'lax',
     path: `/${API_PREFIX}/auth`,
     ...(expires ? { expires } : {}),
@@ -57,10 +55,9 @@ function readCookie(req: Request, name: string): string | undefined {
 
 function assertAllowedOrigin(req: Request): void {
   const origin = req.headers.origin;
-  const allowed = process.env.CORS_ALLOWED_ORIGINS?.trim();
-  if (!origin || !allowed || allowed === '*') return;
+  const allowedOrigins = env.corsAllowedOrigins;
+  if (!origin || !allowedOrigins) return;
 
-  const allowedOrigins = allowed.split(',').map((o) => o.trim());
   if (!allowedOrigins.includes(origin)) {
     throw new ForbiddenException('Origin not allowed');
   }
@@ -72,6 +69,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @Public()
   @ApiOkResponse({ description: 'OTP sent to the user email address.' })
   @ApiBadRequestResponse({
     description: 'Missing configuration or invalid input.',
@@ -81,6 +79,7 @@ export class AuthController {
   }
 
   @Post('verify-otp')
+  @Public()
   @ApiOkResponse({
     description: 'Email verified and account activated.',
   })
@@ -94,6 +93,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
   @ApiOkResponse({
     description:
       'Returns an access token and sets the refresh token as an httpOnly cookie.',
@@ -117,6 +117,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Public()
   @ApiOkResponse({
     description:
       'Rotates the refresh token cookie and returns a new access token.',
@@ -153,6 +154,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @Public()
   @HttpCode(200)
   @ApiOkResponse({
     description: 'Revokes the refresh token and clears the cookie.',
@@ -169,6 +171,7 @@ export class AuthController {
   }
 
   @Post('password-reset/request')
+  @Public()
   @ApiOkResponse({
     description: 'Password reset OTP sent to email (or generic response).',
   })
@@ -179,6 +182,7 @@ export class AuthController {
   }
 
   @Post('password-reset/confirm')
+  @Public()
   @ApiOkResponse({
     description: 'Password updated after OTP verification.',
   })
@@ -196,9 +200,9 @@ export class AuthController {
     description: 'Missing or invalid bearer token.',
   })
   async deactivate(
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<{ message: string }> {
-    return await this.authService.deactivate(authorization ?? '');
+    return await this.authService.deactivate(userId);
   }
 
   @Get('theme')
@@ -209,9 +213,9 @@ export class AuthController {
     description: 'Missing or invalid bearer token.',
   })
   async getTheme(
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<{ themePreference: string }> {
-    return await this.authService.getTheme(authorization ?? '');
+    return await this.authService.getTheme(userId);
   }
 
   @Post('theme')
@@ -222,9 +226,9 @@ export class AuthController {
     description: 'Missing or invalid bearer token.',
   })
   async setTheme(
-    @Headers('authorization') authorization: string,
+    @CurrentUser('sub') userId: string,
     @Body() dto: SetThemePreferenceDto,
   ): Promise<{ themePreference: string }> {
-    return await this.authService.setTheme(authorization, dto);
+    return await this.authService.setTheme(userId, dto);
   }
 }

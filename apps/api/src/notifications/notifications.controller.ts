@@ -3,11 +3,11 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   Param,
   Post,
   Query,
 } from '@nestjs/common';
+import { CurrentUser } from '../auth/jwt-auth.guard';
 import {
   ApiBadRequestResponse,
   ApiOkResponse,
@@ -26,14 +26,11 @@ export class NotificationsController {
   @ApiOkResponse({ description: 'List notifications for current user.' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async list(
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
     @Query('includeRead') includeReadRaw?: string,
   ): Promise<unknown> {
     const includeRead = includeReadRaw === 'true';
-    return this.notificationsService.listNotifications(
-      authorization,
-      includeRead,
-    );
+    return this.notificationsService.listNotifications(userId, includeRead);
   }
 
   @Get(':notificationId')
@@ -41,12 +38,9 @@ export class NotificationsController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async getOne(
     @Param('notificationId') notificationId: string,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.notificationsService.getNotification(
-      authorization,
-      notificationId,
-    );
+    return this.notificationsService.getNotification(userId, notificationId);
   }
 
   @Post()
@@ -55,9 +49,9 @@ export class NotificationsController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async create(
     @Body() dto: CreateNotificationDto,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.notificationsService.createNotification(authorization, dto);
+    return this.notificationsService.createNotification(userId, dto);
   }
 
   @Post(':notificationId/read')
@@ -65,9 +59,9 @@ export class NotificationsController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async markRead(
     @Param('notificationId') notificationId: string,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<{ message: string }> {
-    return this.notificationsService.markAsRead(authorization, notificationId);
+    return this.notificationsService.markAsRead(userId, notificationId);
   }
 
   @Delete(':notificationId')
@@ -75,11 +69,8 @@ export class NotificationsController {
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async deleteOne(
     @Param('notificationId') notificationId: string,
-    @Headers('authorization') authorization?: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<{ message: string }> {
-    return this.notificationsService.deleteNotification(
-      authorization,
-      notificationId,
-    );
+    return this.notificationsService.deleteNotification(userId, notificationId);
   }
 }

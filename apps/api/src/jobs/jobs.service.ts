@@ -1,11 +1,11 @@
-/* global process, fetch, Buffer, AbortController, setTimeout, clearTimeout */
+/* global fetch, Buffer, AbortController, setTimeout, clearTimeout */
 
 import {
   BadRequestException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { verifyAccessToken } from '../auth/jwt/jwt-utils';
+import { env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { CvScanStatus, JobStatus, MediaType } from '@prisma/client';
 import { ApplyJobDto } from './dto/apply-job.dto';
@@ -21,8 +21,6 @@ export type BrowseJobsParams = {
   page: number;
   limit: number;
 };
-
-type AuthUser = { sub: string };
 
 type JobCatalogItem = {
   id: string;
@@ -141,37 +139,12 @@ function skillMatches(candidateSkill: string, requestedSkill: string): boolean {
   );
 }
 
-function extractBearerToken(authorizationHeader: string | undefined): string {
-  if (!authorizationHeader) return '';
-  return authorizationHeader.replace(/^Bearer\s+/i, '').trim();
-}
-
 @Injectable()
 export class JobsService {
   private readonly prisma: PrismaService;
 
   constructor(prisma: PrismaService) {
     this.prisma = prisma;
-  }
-
-  private getAuthUser(authorizationHeader: string | undefined): AuthUser {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    const token = extractBearerToken(authorizationHeader);
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const payload = verifyAccessToken({ secret: accessSecret, token });
-
-    if (!payload?.sub) {
-      throw new UnauthorizedException('Invalid token');
-    }
-
-    return { sub: payload.sub };
   }
 
   async browse(params: BrowseJobsParams): Promise<{
@@ -303,13 +276,7 @@ export class JobsService {
     return { items, page, limit, total };
   }
 
-  async apply(
-    authorizationHeader: string | undefined,
-    jobId: string,
-    dto: ApplyJobDto,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async apply(userId: string, jobId: string, dto: ApplyJobDto) {
     const job = await this.prisma.job.findFirst({
       where: { id: jobId },
       select: { id: true, status: true },
@@ -337,16 +304,13 @@ export class JobsService {
     });
   }
 
-  async ingestJobDemand(authorizationHeader: string | undefined): Promise<{
+  async ingestJobDemand(): Promise<{
     indexed: number;
     index: string;
   }> {
-    // Validate auth (reuses the existing auth style)
-    void this.getAuthUser(authorizationHeader);
-
-    const opensearchUrl = process.env.OPENSEARCH_URL;
-    const username = process.env.OPENSEARCH_USERNAME;
-    const password = process.env.OPENSEARCH_PASSWORD;
+    const opensearchUrl = env.opensearch.url;
+    const username = env.opensearch.username;
+    const password = env.opensearch.password;
 
     if (!opensearchUrl || !username || !password) {
       throw new UnauthorizedException('OpenSearch is not configured');
@@ -411,12 +375,7 @@ export class JobsService {
     return { indexed, index: indexName };
   }
 
-  async rerankJobs(
-    authorizationHeader: string | undefined,
-    dto: RerankJobsDto,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async rerankJobs(userId: string, dto: RerankJobsDto) {
     const limit = dto.limit ?? 5;
 
     const activeJobs = await this.prisma.job.findMany({
@@ -490,9 +449,7 @@ export class JobsService {
     };
   }
 
-  async matchedJobs(authorizationHeader: string | undefined): Promise<unknown> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async matchedJobs(userId: string): Promise<unknown> {
     // Phase 5: align allowed-skills precedence with AiService:
     // 1) CV extracted skills (when available)
     // 2) JobApplication -> Job.skills
@@ -741,10 +698,7 @@ export class JobsService {
     // FALLBACK: Ollama Cloud via OLLAMA_API_KEY (model: glm-4.6:cloud)
     let provider: ReturnType<typeof getAIProvider> | null = null;
     try {
-      provider =
-        process.env.GEMINI_JOB_MATCH_ENABLED === 'true'
-          ? getAIProvider()
-          : null;
+      provider = env.ai.geminiJobMatchEnabled ? getAIProvider() : null;
     } catch {
       provider = null;
     }
@@ -754,7 +708,7 @@ export class JobsService {
     const ollamaBaseUrl = provider?.ollama?.baseUrl ?? 'https://ollama.com/v1';
 
     const geminiEnabled =
-      process.env.GEMINI_JOB_MATCH_ENABLED === 'true' &&
+      env.ai.geminiJobMatchEnabled &&
       provider !== null &&
       ((typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0) ||
         (typeof ollamaApiKey === 'string' && ollamaApiKey.trim().length > 0));
@@ -1028,11 +982,7 @@ Task:
     };
   }
 
-  async myApplications(
-    authorizationHeader: string | undefined,
-  ): Promise<unknown> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async myApplications(userId: string): Promise<unknown> {
     const apps = await this.prisma.jobApplication.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },

@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertProfileDto } from './dto/profile.dto';
@@ -13,9 +9,6 @@ import {
 } from './dto/work-experience.dto';
 import { CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
 import { CreateReferenceDto, UpdateReferenceDto } from './dto/reference.dto';
-import { verifyAccessToken } from '../auth/jwt/jwt-utils';
-
-type AuthUser = { sub: string };
 
 const USER_PURPOSE_FORBIDDEN = 'Invalid request';
 
@@ -30,34 +23,9 @@ type ProfileWriteData = Pick<
   | 'cvWizardData'
 >;
 
-function extractBearerToken(authorizationHeader: string | undefined): string {
-  if (!authorizationHeader) return '';
-  return authorizationHeader.replace(/^Bearer\s+/i, '').trim();
-}
-
 @Injectable()
 export class ProfileService {
   constructor(private readonly prisma: PrismaService) {}
-
-  private getAuthUser(authorizationHeader: string | undefined): AuthUser {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    const token = extractBearerToken(authorizationHeader);
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const payload = verifyAccessToken({ secret: accessSecret, token });
-
-    if (!payload?.sub) {
-      throw new UnauthorizedException('Invalid token');
-    }
-
-    return { sub: payload.sub };
-  }
 
   private toProfileWriteData(dto: UpsertProfileDto): ProfileWriteData {
     const data: ProfileWriteData = {};
@@ -75,9 +43,7 @@ export class ProfileService {
     return data;
   }
 
-  async getProfile(authorizationHeader: string | undefined) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async getProfile(userId: string) {
     return this.prisma.profile.upsert({
       where: { userId },
       create: { userId },
@@ -85,11 +51,7 @@ export class ProfileService {
     });
   }
 
-  async upsertProfile(
-    authorizationHeader: string | undefined,
-    dto: UpsertProfileDto,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
+  async upsertProfile(userId: string, dto: UpsertProfileDto) {
     const data = this.toProfileWriteData(dto);
 
     return this.prisma.profile.upsert({
@@ -99,33 +61,24 @@ export class ProfileService {
     });
   }
 
-  async listEducations(authorizationHeader: string | undefined) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async listEducations(userId: string) {
     return this.prisma.education.findMany({
       where: { userId },
       orderBy: { startYear: 'desc' },
     });
   }
 
-  async createEducation(
-    authorizationHeader: string | undefined,
-    dto: CreateEducationDto,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async createEducation(userId: string, dto: CreateEducationDto) {
     return this.prisma.education.create({
       data: { userId, ...dto },
     });
   }
 
   async updateEducation(
-    authorizationHeader: string | undefined,
+    userId: string,
     educationId: string,
     dto: UpdateEducationDto,
   ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const existing = await this.prisma.education.findFirst({
       where: { id: educationId, userId },
       select: { id: true },
@@ -141,12 +94,7 @@ export class ProfileService {
     });
   }
 
-  async deleteEducation(
-    authorizationHeader: string | undefined,
-    educationId: string,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async deleteEducation(userId: string, educationId: string) {
     const existing = await this.prisma.education.findFirst({
       where: { id: educationId, userId },
       select: { id: true },
@@ -163,33 +111,24 @@ export class ProfileService {
     return { message: 'Education deleted' };
   }
 
-  async listWorkExperiences(authorizationHeader: string | undefined) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async listWorkExperiences(userId: string) {
     return this.prisma.workExperience.findMany({
       where: { userId },
       orderBy: { startYear: 'desc' },
     });
   }
 
-  async createWorkExperience(
-    authorizationHeader: string | undefined,
-    dto: CreateWorkExperienceDto,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async createWorkExperience(userId: string, dto: CreateWorkExperienceDto) {
     return this.prisma.workExperience.create({
       data: { userId, ...dto },
     });
   }
 
   async updateWorkExperience(
-    authorizationHeader: string | undefined,
+    userId: string,
     workExperienceId: string,
     dto: UpdateWorkExperienceDto,
   ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const existing = await this.prisma.workExperience.findFirst({
       where: { id: workExperienceId, userId },
       select: { id: true },
@@ -205,12 +144,7 @@ export class ProfileService {
     });
   }
 
-  async deleteWorkExperience(
-    authorizationHeader: string | undefined,
-    workExperienceId: string,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async deleteWorkExperience(userId: string, workExperienceId: string) {
     const existing = await this.prisma.workExperience.findFirst({
       where: { id: workExperienceId, userId },
       select: { id: true },
@@ -227,33 +161,24 @@ export class ProfileService {
     return { message: 'Work experience deleted' };
   }
 
-  async listProjects(authorizationHeader: string | undefined) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async listProjects(userId: string) {
     return this.prisma.project.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async createProject(
-    authorizationHeader: string | undefined,
-    dto: CreateProjectDto,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async createProject(userId: string, dto: CreateProjectDto) {
     return this.prisma.project.create({
       data: { userId, ...dto },
     });
   }
 
   async updateProject(
-    authorizationHeader: string | undefined,
+    userId: string,
     projectId: string,
     dto: UpdateProjectDto,
   ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const existing = await this.prisma.project.findFirst({
       where: { id: projectId, userId },
       select: { id: true },
@@ -269,12 +194,7 @@ export class ProfileService {
     });
   }
 
-  async deleteProject(
-    authorizationHeader: string | undefined,
-    projectId: string,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async deleteProject(userId: string, projectId: string) {
     const existing = await this.prisma.project.findFirst({
       where: { id: projectId, userId },
       select: { id: true },
@@ -291,33 +211,24 @@ export class ProfileService {
     return { message: 'Project deleted' };
   }
 
-  async listReferences(authorizationHeader: string | undefined) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async listReferences(userId: string) {
     return this.prisma.reference.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async createReference(
-    authorizationHeader: string | undefined,
-    dto: CreateReferenceDto,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async createReference(userId: string, dto: CreateReferenceDto) {
     return this.prisma.reference.create({
       data: { userId, ...dto },
     });
   }
 
   async updateReference(
-    authorizationHeader: string | undefined,
+    userId: string,
     referenceId: string,
     dto: UpdateReferenceDto,
   ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const existing = await this.prisma.reference.findFirst({
       where: { id: referenceId, userId },
       select: { id: true },
@@ -333,12 +244,7 @@ export class ProfileService {
     });
   }
 
-  async deleteReference(
-    authorizationHeader: string | undefined,
-    referenceId: string,
-  ) {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async deleteReference(userId: string, referenceId: string) {
     const existing = await this.prisma.reference.findFirst({
       where: { id: referenceId, userId },
       select: { id: true },

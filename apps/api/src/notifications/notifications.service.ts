@@ -1,49 +1,16 @@
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { verifyAccessToken } from '../auth/jwt/jwt-utils';
+import { env } from '../config/env';
 import { CreateNotificationDto } from './dto/create-notification.dto';
-
-type AuthUser = { sub: string };
-
-function extractBearerToken(authorizationHeader: string | undefined): string {
-  if (!authorizationHeader) return '';
-  return authorizationHeader.replace(/^Bearer\s+/i, '').trim();
-}
 
 @Injectable()
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private getAuthUser(authorizationHeader: string | undefined): AuthUser {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    const token = extractBearerToken(authorizationHeader);
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const payload = verifyAccessToken({ secret: accessSecret, token });
-
-    if (!payload?.sub) {
-      throw new UnauthorizedException('Invalid token');
-    }
-
-    return { sub: payload.sub };
-  }
-
   async listNotifications(
-    authorizationHeader: string | undefined,
+    userId: string,
     includeRead = false,
   ): Promise<unknown> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const where = includeRead ? { userId } : { userId, isRead: false };
 
     return this.prisma.notification.findMany({
@@ -61,11 +28,9 @@ export class NotificationsService {
   }
 
   async createNotification(
-    authorizationHeader: string | undefined,
+    userId: string,
     dto: CreateNotificationDto,
   ): Promise<unknown> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     if (!dto.type?.trim()) {
       throw new BadRequestException('Notification type is required');
     }
@@ -80,8 +45,8 @@ export class NotificationsService {
 
     // Milestone 4.4: enqueue async worker update when enabled.
     // Keep this guarded so tests/configs without Redis won't break.
-    if (process.env.NOTIFICATIONS_WORKER_ENABLED === 'true') {
-      const redisUrl = process.env.REDIS_URL;
+    if (env.notificationsWorker.enabled) {
+      const redisUrl = env.redisUrl;
       if (redisUrl) {
         // Lazy require so TS/tests don't need extra static imports.
         // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -103,11 +68,9 @@ export class NotificationsService {
   }
 
   async markAsRead(
-    authorizationHeader: string | undefined,
+    userId: string,
     notificationId: string,
   ): Promise<{ message: string }> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const existing = await this.prisma.notification.findFirst({
       where: { id: notificationId, userId },
       select: { id: true },
@@ -126,11 +89,9 @@ export class NotificationsService {
   }
 
   async getNotification(
-    authorizationHeader: string | undefined,
+    userId: string,
     notificationId: string,
   ): Promise<unknown> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const existing = await this.prisma.notification.findFirst({
       where: { id: notificationId, userId },
     });
@@ -143,11 +104,9 @@ export class NotificationsService {
   }
 
   async deleteNotification(
-    authorizationHeader: string | undefined,
+    userId: string,
     notificationId: string,
   ): Promise<{ message: string }> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
     const existing = await this.prisma.notification.findFirst({
       where: { id: notificationId, userId },
       select: { id: true },

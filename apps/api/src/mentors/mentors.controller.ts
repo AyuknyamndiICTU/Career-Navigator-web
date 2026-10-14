@@ -2,6 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiTags, ApiBadRequestResponse } from '@nestjs/swagger';
 import { MentorsService } from './mentors.service';
 import { parsePagination } from '../lib/pagination';
+import { Public } from '../auth/jwt-auth.guard';
 
 @ApiTags('mentors')
 @Controller('mentors')
@@ -9,6 +10,7 @@ export class MentorsController {
   constructor(private readonly mentorsService: MentorsService) {}
 
   @Get()
+  @Public()
   @ApiOkResponse({ description: 'Search mentors by skill/expertise.' })
   @ApiBadRequestResponse({ description: 'Invalid query parameters.' })
   async search(

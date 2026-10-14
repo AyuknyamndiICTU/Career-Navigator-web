@@ -1,53 +1,19 @@
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { verifyAccessToken } from '../auth/jwt/jwt-utils';
+import { env } from '../config/env';
 import { API_PREFIX } from '../lib/api-prefix';
 import { BuildResumeDto, ResumeTemplateId } from './dto/build-resume.dto';
 
-type AuthUser = { sub: string };
 type CvWizardData = Record<string, unknown>;
 
 const DEFAULT_TEMPLATE: ResumeTemplateId = 'CLASSIC';
-
-function extractBearerToken(authorizationHeader: string | undefined): string {
-  if (!authorizationHeader) return '';
-  return authorizationHeader.replace(/^Bearer\s+/i, '').trim();
-}
 
 @Injectable()
 export class ResumeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private getAuthUser(authorizationHeader: string | undefined): AuthUser {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    const token = extractBearerToken(authorizationHeader);
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const payload = verifyAccessToken({ secret: accessSecret, token });
-    if (!payload?.sub) {
-      throw new UnauthorizedException('Invalid token');
-    }
-
-    return { sub: payload.sub };
-  }
-
-  async buildResume(
-    authorizationHeader: string | undefined,
-    dto: BuildResumeDto,
-  ): Promise<unknown> {
-    const { sub: userId } = this.getAuthUser(authorizationHeader);
-
+  async buildResume(userId: string, dto: BuildResumeDto): Promise<unknown> {
     const template: ResumeTemplateId = dto.template ?? DEFAULT_TEMPLATE;
 
     const profile = await this.prisma.profile.findUnique({
@@ -326,9 +292,7 @@ export class ResumeService {
     // The browser will fetch <apiBase>/upload/file/<objectKey> which the API
     // proxies from MinIO, avoiding CORS and port-accessibility issues.
     const apiBase = (
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      process.env.API_BASE_URL ||
-      `http://localhost:${process.env.PORT || '3000'}/${API_PREFIX}`
+      env.publicApiBaseUrl ?? `http://localhost:${env.port}/${API_PREFIX}`
     ).replace(/\/+$/, '');
     return `${apiBase}/upload/file/${objectKey}`;
   }

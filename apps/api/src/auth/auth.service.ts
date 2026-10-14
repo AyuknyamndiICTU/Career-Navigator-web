@@ -7,6 +7,7 @@ import type { OtpPurpose } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { env } from '../config/env';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginDto } from './dto/login.dto';
@@ -19,7 +20,6 @@ import {
   hashToken,
   signAccessToken,
   signRefreshToken,
-  verifyAccessToken,
   verifyRefreshToken,
 } from './jwt/jwt-utils';
 
@@ -35,10 +35,10 @@ export class AuthService {
   async register(dto: RegisterDto): Promise<{ message: string }> {
     const { email, password } = dto;
 
-    const otpEmailLogOnly = process.env.OTP_EMAIL_LOG_ONLY === 'true';
+    const otpEmailLogOnly = env.otp.emailLogOnly;
 
-    const brevoApiKey = process.env.BREVO_API_KEY;
-    const brevoSenderEmail = process.env.BREVO_SENDER_EMAIL;
+    const brevoApiKey = env.brevo.apiKey;
+    const brevoSenderEmail = env.brevo.senderEmail;
 
     if (!otpEmailLogOnly && (!brevoApiKey || !brevoSenderEmail)) {
       throw new BadRequestException('Email OTP configuration is missing');
@@ -184,15 +184,15 @@ export class AuthService {
   }
 
   private getJwtSecretsOrThrow() {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    const refreshSecret = process.env.JWT_REFRESH_SECRET;
+    const accessSecret = env.jwt.accessSecret;
+    const refreshSecret = env.jwt.refreshSecret;
 
     if (!accessSecret || !refreshSecret) {
       throw new BadRequestException('JWT secrets are not configured');
     }
 
-    const accessExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN ?? '15m';
-    const refreshExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN ?? '30d';
+    const accessExpiresIn = env.jwt.accessExpiresIn;
+    const refreshExpiresIn = env.jwt.refreshExpiresIn;
 
     return { accessSecret, refreshSecret, accessExpiresIn, refreshExpiresIn };
   }
@@ -366,10 +366,10 @@ export class AuthService {
   ): Promise<{ message: string }> {
     const { email } = dto;
 
-    const otpEmailLogOnly = process.env.OTP_EMAIL_LOG_ONLY === 'true';
+    const otpEmailLogOnly = env.otp.emailLogOnly;
 
-    const brevoApiKey = process.env.BREVO_API_KEY;
-    const brevoSenderEmail = process.env.BREVO_SENDER_EMAIL;
+    const brevoApiKey = env.brevo.apiKey;
+    const brevoSenderEmail = env.brevo.senderEmail;
 
     if (!otpEmailLogOnly && (!brevoApiKey || !brevoSenderEmail)) {
       throw new BadRequestException('Email OTP configuration is missing');
@@ -474,32 +474,16 @@ export class AuthService {
     return { message: 'Password has been reset.' };
   }
 
-  async deactivate(authorizationHeader: string): Promise<{ message: string }> {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    if (!authorizationHeader) {
-      throw new UnauthorizedException('Missing Authorization header');
-    }
-
-    const token = authorizationHeader.replace(/^Bearer\s+/i, '').trim();
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const payload = verifyAccessToken({ secret: accessSecret, token });
-
+  async deactivate(userId: string): Promise<{ message: string }> {
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
-        where: { id: payload.sub },
+        where: { id: userId },
         data: { isActive: false, deactivatedAt: now },
       });
 
       await tx.refreshToken.updateMany({
-        where: { userId: payload.sub, revokedAt: null },
+        where: { userId, revokedAt: null },
         data: { revokedAt: now },
       });
     });
@@ -507,23 +491,11 @@ export class AuthService {
     return { message: 'Account deactivated' };
   }
 
-  async getTheme(authorizationHeader: string): Promise<{
+  async getTheme(userId: string): Promise<{
     themePreference: string;
   }> {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    const token = authorizationHeader.replace(/^Bearer\s+/i, '').trim();
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const payload = verifyAccessToken({ secret: accessSecret, token });
-
     const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
+      where: { id: userId },
       select: { themePreference: true },
     });
 
@@ -535,23 +507,11 @@ export class AuthService {
   }
 
   async setTheme(
-    authorizationHeader: string,
+    userId: string,
     dto: SetThemePreferenceDto,
   ): Promise<{ themePreference: string }> {
-    const accessSecret = process.env.JWT_ACCESS_SECRET;
-    if (!accessSecret) {
-      throw new UnauthorizedException('JWT secrets are not configured');
-    }
-
-    const token = authorizationHeader.replace(/^Bearer\s+/i, '').trim();
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
-
-    const payload = verifyAccessToken({ secret: accessSecret, token });
-
     const user = await this.prisma.user.update({
-      where: { id: payload.sub },
+      where: { id: userId },
       data: { themePreference: dto.themePreference as any },
       select: { themePreference: true },
     });
