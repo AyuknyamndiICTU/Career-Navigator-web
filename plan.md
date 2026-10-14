@@ -92,11 +92,11 @@
   - Done when: `git grep -nE "minioadmin|change-me|AdminPassword|postgres:postgres"` only matches dev-only files and examples.
   - Status: code done (prod Compose requires `.env` per [.env.prod.example](infra/docker/.env.prod.example), data ports bound to 127.0.0.1, Redis password, Jenkins `vps-deploy-target` credential, env-based seed). Remaining manual steps: rotate Gemini/Ollama keys, create the server `.env`, change the existing Postgres password, add the Jenkins credential and a non-root deploy user.
 
-- [/] **10.8 Personal data committed to git**
+- [x] **10.8 Personal data committed to git**
   - Problem: 66 uploaded files (profile photos and CVs) are tracked under `apps/api/tmp/` because uploads are written to disk first.
   - Fix: `git rm -r --cached apps/api/tmp`, ignore `tmp/`, stop writing uploads to disk (13.6). Decide as a team whether to purge history (`git filter-repo --path apps/api/tmp --invert-paths` + coordinated force-push — irreversible).
   - Done when: `git ls-files apps/api/tmp` is empty.
-  - Status: untracked and ignored (files kept on disk). History purge still awaiting a team decision.
+  - Status: untracked and ignored (files kept on disk). History purged on 2026-10-14 from both GitHub repos (Career-Navigator-web and AyuknyamndiICTU/api, which also lost the leaked keys) and force-pushed; verified with fresh clones.
 
 - [x] **10.9 Prisma package version mismatch**
   - Problem: [apps/api/package.json](apps/api/package.json) mixes `@prisma/adapter-pg ^7.8.0` with `@prisma/client`/`prisma ^6.19.3`.
