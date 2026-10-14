@@ -124,9 +124,15 @@ export class UploadService {
       });
     }
 
+    const bucketExists = await this.minio.bucketExists(minioBucket);
+    if (!bucketExists) {
+      await this.minio.makeBucket(minioBucket);
+    }
+
     await this.minio.putObject(minioBucket, objectKey, stream, size, {
       'Content-Type': params.file.mimetype ?? 'application/octet-stream',
     });
+
 
     return {
       objectKey,
@@ -278,4 +284,47 @@ export class UploadService {
     };
   }
 
+  /**
+   * Retrieve a file from MinIO as a readable stream.
+   * Used by the proxy endpoint so the browser can load images via the API
+   * instead of hitting MinIO directly (which may have CORS / port issues).
+   */
+  async getFileStream(objectKey: string): Promise<{
+    stream: import('stream').Readable;
+    contentType: string;
+  }> {
+    const minioBucket = process.env.MINIO_BUCKET ?? MINIO_BUCKET_DEFAULT;
+
+    if (!this.minio) {
+      const minioEndpoint = process.env.MINIO_ENDPOINT;
+      const minioAccessKey = process.env.MINIO_ACCESS_KEY;
+      const minioSecretKey = process.env.MINIO_SECRET_KEY;
+
+      if (!minioEndpoint || !minioAccessKey || !minioSecretKey || !minioBucket) {
+        throw new BadRequestException('MinIO is not configured');
+      }
+
+      const { endPoint, port, useSSL } = parseMinioEndpoint(minioEndpoint);
+
+      this.minio = new MinioClient({
+        endPoint,
+        port,
+        useSSL,
+        accessKey: minioAccessKey,
+        secretKey: minioSecretKey,
+      });
+    }
+
+    // Get stat for content-type, then stream the object
+    let contentType = 'application/octet-stream';
+    try {
+      const stat = await this.minio.statObject(minioBucket, objectKey);
+      contentType = stat.metaData?.['content-type'] ?? 'application/octet-stream';
+    } catch {
+      // Ignore stat errors; we'll still try to stream
+    }
+
+    const stream = await this.minio.getObject(minioBucket, objectKey);
+    return { stream, contentType };
+  }
 }

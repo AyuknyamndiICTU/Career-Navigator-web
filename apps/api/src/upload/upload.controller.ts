@@ -5,6 +5,9 @@ import {
   HttpCode,
   Post,
   Get,
+  Req,
+  Res,
+  NotFoundException,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -18,6 +21,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
+import type { Request, Response } from 'express';
 
 import { UploadService } from './upload.service';
 
@@ -117,5 +121,29 @@ export class UploadController {
     @Headers('authorization') authorization?: string,
   ): Promise<unknown> {
     return this.uploadService.getCvStatus(authorization);
+  }
+
+  @Get('file/*')
+  @ApiOkResponse({ description: 'Serve an uploaded file from storage.' })
+  async serveFile(
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    // Safely extract the full object key, accounting for possible trailing or leading slashes.
+    // req.path will be like "/upload/file/userId/PROFILE_PICTURE/uuid.jpg"
+    const objectKey = decodeURIComponent(req.path.replace(/^\/upload\/file\//, ''));
+    if (!objectKey) {
+      throw new NotFoundException('File not found');
+    }
+
+    try {
+      const { stream, contentType } = await this.uploadService.getFileStream(objectKey);
+      res.set('Content-Type', contentType);
+      res.set('Cache-Control', 'public, max-age=86400');
+      stream.pipe(res);
+    } catch (err) {
+      console.error('Error serving file from MinIO:', err);
+      throw new NotFoundException('File not found');
+    }
   }
 }

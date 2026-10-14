@@ -320,13 +320,18 @@ export class ResumeService {
   }
 
   private buildMinioUrl(objectKey: string): string | null {
-    const endpoint = process.env.MINIO_ENDPOINT;
-    const bucket = process.env.MINIO_BUCKET ?? 'resumes';
-    if (!endpoint || !objectKey) return null;
-    // MinIO endpoint format: http://localhost:9000 or http://minio:9000
-    const base = endpoint.replace(/\/+$/, '');
-    return `${base}/${bucket}/${objectKey}`;
+    if (!objectKey) return null;
+    // Build a full URL through the API's file-serving proxy endpoint.
+    // The browser will fetch <apiBase>/upload/file/<objectKey> which the API
+    // proxies from MinIO, avoiding CORS and port-accessibility issues.
+    const apiBase = (
+      process.env.NEXT_PUBLIC_API_BASE_URL ||
+      process.env.API_BASE_URL ||
+      `http://localhost:${process.env.PORT || '3000'}`
+    ).replace(/\/+$/, '');
+    return `${apiBase}/upload/file/${objectKey}`;
   }
+
 
   private asCvWizardData(
     value: Prisma.JsonValue | null | undefined,

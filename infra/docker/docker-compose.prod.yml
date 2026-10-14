@@ -1,0 +1,124 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: career_navigator
+    ports:
+      - "5433:5432"
+    volumes:
+      - cn-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    cpus: 1
+    mem_limit: 512m
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - cn-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    cpus: 0.5
+    mem_limit: 256m
+    restart: unless-stopped
+
+  api:
+    image: ${DOCKERHUB_USER:-your_dockerhub_username}/career-navigator-api:${TAG:-latest}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      
+      # JWT Secrets (CHANGE THESE IN PRODUCTION)
+      JWT_ACCESS_SECRET: "prod-access-secret-change-me"
+      JWT_ACCESS_EXPIRES_IN: "2h"
+      JWT_REFRESH_SECRET: "prod-refresh-secret-change-me"
+      JWT_REFRESH_EXPIRES_IN: "30d"
+      
+      # Database and Services
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/career_navigator?schema=public"
+      REDIS_URL: "redis://redis:6379"
+      
+      # MinIO (Resumes and Profiles)
+      MINIO_ENDPOINT: "http://minio:9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"
+      MINIO_BUCKET: "resumes"
+      
+      # API Keys & Email Setup
+      OTP_EMAIL_LOG_ONLY: "false" # Set to false to actually send emails
+      BREVO_API_KEY: "${BREVO_API_KEY:-}"
+      BREVO_SENDER_EMAIL: "no-reply@yourdomain.com"
+      
+      # AI Provider keys
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
+      OLLAMA_BASE_URL: "https://ollama.com/v1"
+      
+      # Workers and CORS
+      CV_SCAN_ENABLED: "true"
+      CV_SCAN_WORKER_CONCURRENCY: "1"
+      CORS_ALLOWED_ORIGINS: "https://yourdomain.com"
+      AI_DEBUG_ERRORS: "false"
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    cpus: 1
+    mem_limit: 1024m
+    restart: unless-stopped
+
+  web:
+    image: ${DOCKERHUB_USER:-your_dockerhub_username}/career-navigator-web:${TAG:-latest}
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: "https://api.yourdomain.com"
+      NEXT_PUBLIC_SOCKET_URL: "https://api.yourdomain.com"
+      NEXT_PUBLIC_AGORA_APP_ID: "${AGORA_APP_ID:-}"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    cpus: 0.5
+    mem_limit: 512m
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - cn-minio:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    cpus: 1
+    mem_limit: 1024m
+    restart: unless-stopped
+
+volumes:
+  cn-postgres:
+  cn-redis:
+  cn-minio:

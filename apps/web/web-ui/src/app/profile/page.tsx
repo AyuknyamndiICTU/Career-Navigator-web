@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/DashboardLayout';
-import { apiFetch, apiFetchFile } from '@/lib/auth';
+import { apiFetch, apiFetchFile, getApiBaseUrl } from '@/lib/auth';
 import SuccessToast from '@/components/SuccessToast';
 
 type CvWizardData = {
@@ -252,9 +252,11 @@ export default function ProfilePage() {
 
   useEffect(() => {
     setDraft(form);
-    // Set photo preview from loaded profile
+    // Set photo preview from loaded profile.
+    // form.photoUrl is a MinIO object key – build the API proxy URL for display.
     if (form.photoUrl) {
-      setPhotoPreview(form.photoUrl);
+      const apiBase = getApiBaseUrl();
+      setPhotoPreview(`${apiBase}/upload/file/${form.photoUrl}`);
     }
   }, [form]);
 
