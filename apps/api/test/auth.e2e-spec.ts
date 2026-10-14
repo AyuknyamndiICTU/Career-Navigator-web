@@ -178,9 +178,9 @@ describe('Auth flows (Milestone: Phase 6.2)', () => {
 
     const { expiresAt } = mockRefreshToken.create.mock.calls[0][0].data;
     const sevenDaysMs = 7 * 24 * 60 * 60_000;
-    expect(Math.abs(expiresAt.getTime() - (Date.now() + sevenDaysMs))).toBeLessThan(
-      60_000,
-    );
+    expect(
+      Math.abs(expiresAt.getTime() - (Date.now() + sevenDaysMs)),
+    ).toBeLessThan(60_000);
   });
 
   // ─── Password Reset ──────────────────────────────────────────
