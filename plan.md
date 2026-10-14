@@ -53,55 +53,62 @@
 
 ## Phase 10 — P0: Critical bugs & production risks
 
-- [ ] **10.1 Random logouts from the refresh-token race**
+- [x] **10.1 Random logouts from the refresh-token race**
   - Problem: when several requests get 401 at once, each calls `refreshSession()` in [auth.ts](apps/web/web-ui/src/lib/auth.ts) with the same refresh token. The backend reuse detection in [auth.service.ts](apps/api/src/auth/auth.service.ts) then revokes **all** of the user's sessions. Two open tabs trigger the same race.
   - Fix: single-flight refresh promise shared by `apiFetch` and `apiFetchFile`; cross-tab lock with `navigator.locks.request('cn-auth-refresh', …)` and re-read the token after acquiring it.
   - Done when: 5 parallel requests with an expired access token cause exactly one `POST /auth/refresh`; two tabs stay logged in.
 
-- [ ] **10.2 Destructive schema sync on every container start**
+- [x] **10.2 Destructive schema sync on every container start**
   - Problem: [apps/api/Dockerfile](apps/api/Dockerfile) runs `prisma db push --accept-data-loss` in `CMD`; there is no `prisma/migrations` folder; replicas race each other; `apps/api/.dockerignore` excludes migrations.
   - Fix: create a baseline migration (`prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script` → `migrations/0001_baseline`, then `prisma migrate resolve --applied 0001_baseline` on existing databases). Run `prisma migrate deploy` once per deploy via a one-shot `migrate` service in Compose (`depends_on: condition: service_completed_successfully`) and a k8s `Job`. `CMD` becomes `node dist/src/main.js`.
   - Done when: starting a container never changes the schema; migrations are committed; `migrate deploy` is idempotent.
+  - Status: baseline is `prisma/migrations/0_init`; Compose `migrate` service + [api-migrate-job.yaml](infra/k8s/api-migrate-job.yaml). Existing databases need `prisma migrate resolve --applied 0_init` once.
 
-- [ ] **10.3 Ingress `/api` prefix does not match the API**
+- [x] **10.3 Ingress `/api` prefix does not match the API**
   - Problem: [ingress.yaml](infra/k8s/ingress.yaml) forwards `/api/*` unchanged, but the API has no global prefix → every call 404s.
   - Fix: `app.setGlobalPrefix('api')` in [main.ts](apps/api/src/main.ts); update Socket.IO path, frontend base path (14.1) and e2e tests.
   - Done when: `GET https://<host>/api/health/ready` returns 200 through the ingress and the Compose reverse proxy.
+  - Status: prefix live; `NEXT_PUBLIC_API_BASE_URL` now ends with `/api`; ingress also routes `/socket.io`. The health endpoint itself arrives with 11.3.
 
-- [ ] **10.4 Silent fallback to a localhost database**
+- [x] **10.4 Silent fallback to a localhost database**
   - Problem: [prisma.service.ts](apps/api/src/prisma/prisma.service.ts) sets `DATABASE_URL` to `postgres:postgres@localhost` when missing.
   - Fix: remove `DATABASE_URL_FALLBACK`; rely on the config schema (11.1).
   - Done when: a missing `DATABASE_URL` stops boot with a clear message.
 
-- [ ] **10.5 Refresh-token DB expiry hard-coded to 30 days**
+- [x] **10.5 Refresh-token DB expiry hard-coded to 30 days**
   - Problem: `expiresAt` in [auth.service.ts](apps/api/src/auth/auth.service.ts) (login and refresh paths) ignores `JWT_REFRESH_EXPIRES_IN`.
   - Fix: derive `expiresAt` from the signed token's `exp` claim (single source of truth).
   - Done when: `JWT_REFRESH_EXPIRES_IN=7d` produces DB rows that expire in 7 days.
 
-- [ ] **10.6 Unbounded page size**
+- [x] **10.6 Unbounded page size**
   - Problem: `?limit=1000000` is accepted by [jobs.controller.ts](apps/api/src/jobs/jobs.controller.ts) and [mentors.service.ts](apps/api/src/mentors/mentors.service.ts).
   - Fix: shared `PaginationQueryDto` (`@Type(() => Number) @IsInt() @Min(1) @Max(100)`) used by jobs, mentors, admin users, notifications and conversation messages.
   - Done when: `limit > 100` returns 400.
+  - Status: shared `parsePagination` in `apps/api/src/lib/pagination.ts`; jobs and mentors are the only endpoints that accept a client page size today.
 
-- [ ] **10.7 Committed and weak secrets**
+- [/] **10.7 Committed and weak secrets**
   - Problem: [docker-compose.prod.yml](infra/docker/docker-compose.prod.yml) hard-codes Postgres `postgres/postgres`, MinIO `minioadmin` and `*-change-me` JWT secrets; [Jenkinsfile](Jenkinsfile) hard-codes the VPS IP and deploys as `root`; [seed-admin.ts](apps/api/seed-admin.ts) hard-codes the admin password and prints it.
   - Fix: prod Compose reads `env_file: .env.prod` with required-variable syntax (`${JWT_ACCESS_SECRET:?missing}`); strong generated secrets; Jenkins host/user/registry from credentials or job parameters; a non-root deploy user in the `docker` group; seed reads `ADMIN_EMAIL`/`ADMIN_PASSWORD` from env and never logs the password; **rotate every secret that was ever committed**.
   - Done when: `git grep -nE "minioadmin|change-me|AdminPassword|postgres:postgres"` only matches dev-only files and examples.
+  - Status: code done (prod Compose requires `.env` per [.env.prod.example](infra/docker/.env.prod.example), data ports bound to 127.0.0.1, Redis password, Jenkins `vps-deploy-target` credential, env-based seed). Remaining manual steps: rotate Gemini/Ollama keys, create the server `.env`, change the existing Postgres password, add the Jenkins credential and a non-root deploy user.
 
-- [ ] **10.8 Personal data committed to git**
+- [/] **10.8 Personal data committed to git**
   - Problem: 66 uploaded files (profile photos and CVs) are tracked under `apps/api/tmp/` because uploads are written to disk first.
   - Fix: `git rm -r --cached apps/api/tmp`, ignore `tmp/`, stop writing uploads to disk (13.6). Decide as a team whether to purge history (`git filter-repo --path apps/api/tmp --invert-paths` + coordinated force-push — irreversible).
   - Done when: `git ls-files apps/api/tmp` is empty.
+  - Status: untracked and ignored (files kept on disk). History purge still awaiting a team decision.
 
-- [ ] **10.9 Prisma package version mismatch**
+- [x] **10.9 Prisma package version mismatch**
   - Problem: [apps/api/package.json](apps/api/package.json) mixes `@prisma/adapter-pg ^7.8.0` with `@prisma/client`/`prisma ^6.19.3`.
   - Fix: align all three on Prisma 7 (see 15.4).
   - Done when: `npm ls @prisma/client @prisma/adapter-pg prisma` shows a single major version.
+  - Status: aligned on 6.19.3 for now (lowest-risk fix); the Prisma 7 upgrade stays in 15.4.
 
-- [ ] **10.10 Tokens stored in `localStorage`**
+- [x] **10.10 Tokens stored in `localStorage`**
   - Problem: any injected script can read both tokens ([auth.ts](apps/web/web-ui/src/lib/auth.ts)).
   - Fix: API sets the refresh token as `httpOnly; Secure; SameSite=Lax; Path=/api/auth` cookie; the access token lives in memory only; `/auth/refresh` reads the cookie; logout clears it. CSRF: SameSite + POST-only refresh + `Origin` check. Depends on 14.1 (same-origin).
   - Done when: no tokens in `localStorage`; a page reload restores the session through the cookie.
+  - Status: works without 14.1 because web and API are same-site (`localhost`, or `yourdomain.com` + `api.yourdomain.com`). New `POST /api/auth/logout`; `COOKIE_SECURE=false` only for plain-http local Compose.
 
 ---
 
