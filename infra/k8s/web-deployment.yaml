@@ -23,9 +23,10 @@ spec:
           env:
             - name: NODE_ENV
               value: "production"
-            # Your web app should call the API through this base URL
+            # Browser calls go to the same host; the ingress routes /api and /socket.io to cn-api.
+            # NEXT_PUBLIC_* values are baked in at build time, so pass the same value as a build arg.
             - name: NEXT_PUBLIC_API_BASE_URL
-              value: "http://cn-api"
+              value: "/api"
           readinessProbe:
             httpGet:
               path: /

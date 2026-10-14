@@ -48,13 +48,30 @@ services:
     mem_limit: 5g
     restart: unless-stopped
 
+  # Applies pending Prisma migrations once, then exits; the API starts only after it succeeds.
+  migrate:
+    image: career-navigator-api:local
+    build:
+      context: ../../
+      dockerfile: apps/api/Dockerfile
+    command: ["sh", "-c", "cd apps/api && npx prisma migrate deploy --schema prisma/schema.prisma"]
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/career_navigator?schema=public"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
+    image: career-navigator-api:local
     build:
       context: ../../
       dockerfile: apps/api/Dockerfile
     environment:
       NODE_ENV: production
       PORT: 3000
+      # Local http only; production keeps Secure cookies.
+      COOKIE_SECURE: "false"
 
       # JWT
       JWT_ACCESS_SECRET: "dev-access-secret"
@@ -111,6 +128,8 @@ services:
     ports:
       - "3001:3000"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -126,14 +145,14 @@ services:
       context: ../../
       dockerfile: apps/web/web-ui/Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: "http://localhost:3001"
-        NEXT_PUBLIC_BACKEND_URL: "http://localhost:3001"
+        NEXT_PUBLIC_API_BASE_URL: "http://localhost:3001/api"
+        NEXT_PUBLIC_BACKEND_URL: "http://localhost:3001/api"
         NEXT_PUBLIC_SOCKET_URL: "http://localhost:3001"
         NEXT_PUBLIC_AGORA_APP_ID: "dev"
     environment:
       NODE_ENV: production
       # Keep runtime env too (for local runs / any runtime reads)
-      NEXT_PUBLIC_API_BASE_URL: "http://localhost:3001"
+      NEXT_PUBLIC_API_BASE_URL: "http://localhost:3001/api"
       NEXT_PUBLIC_SOCKET_URL: "http://localhost:3001"
       NEXT_PUBLIC_AGORA_APP_ID: "dev"
     ports:

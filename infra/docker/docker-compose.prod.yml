@@ -1,16 +1,19 @@
+# Secrets come from a `.env` file next to this compose file on the server (never committed).
+# Template: infra/docker/.env.prod.example. Missing required values abort `docker compose up`.
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: career_navigator
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+      POSTGRES_DB: "${POSTGRES_DB:-career_navigator}"
     ports:
-      - "5433:5432"
+      # Reachable only from the server itself (use an SSH tunnel for admin access).
+      - "127.0.0.1:5433:5432"
     volumes:
       - cn-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -20,8 +23,11 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"]
+    environment:
+      REDISCLI_AUTH: "${REDIS_PASSWORD}"
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - cn-redis:/data
     healthcheck:
@@ -33,46 +39,55 @@ services:
     mem_limit: 256m
     restart: unless-stopped
 
+  # Applies pending Prisma migrations once per deploy, then exits.
+  # First deploy on a database created by the old `prisma db push`: run once
+  #   docker compose run --rm migrate sh -c "cd apps/api && npx prisma migrate resolve --applied 0_init --schema prisma/schema.prisma"
+  migrate:
+    image: ${DOCKERHUB_USER:-your_dockerhub_username}/career-navigator-api:${TAG:-latest}
+    command: ["sh", "-c", "cd apps/api && npx prisma migrate deploy --schema prisma/schema.prisma"]
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-career_navigator}?schema=public"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
     image: ${DOCKERHUB_USER:-your_dockerhub_username}/career-navigator-api:${TAG:-latest}
     environment:
       NODE_ENV: production
       PORT: 3000
-      
-      # JWT Secrets (CHANGE THESE IN PRODUCTION)
-      JWT_ACCESS_SECRET: "prod-access-secret-change-me"
-      JWT_ACCESS_EXPIRES_IN: "2h"
-      JWT_REFRESH_SECRET: "prod-refresh-secret-change-me"
-      JWT_REFRESH_EXPIRES_IN: "30d"
-      
-      # Database and Services
-      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/career_navigator?schema=public"
-      REDIS_URL: "redis://redis:6379"
-      
-      # MinIO (Resumes and Profiles)
+
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env}"
+      JWT_ACCESS_EXPIRES_IN: "${JWT_ACCESS_EXPIRES_IN:-15m}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}"
+      JWT_REFRESH_EXPIRES_IN: "${JWT_REFRESH_EXPIRES_IN:-30d}"
+
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-career_navigator}?schema=public"
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379"
+
       MINIO_ENDPOINT: "http://minio:9000"
-      MINIO_ACCESS_KEY: "minioadmin"
-      MINIO_SECRET_KEY: "minioadmin"
-      MINIO_BUCKET: "resumes"
-      
-      # API Keys & Email Setup
-      OTP_EMAIL_LOG_ONLY: "false" # Set to false to actually send emails
-      BREVO_API_KEY: "${BREVO_API_KEY:-}"
-      BREVO_SENDER_EMAIL: "no-reply@yourdomain.com"
-      
-      # AI Provider keys
+      MINIO_ACCESS_KEY: "${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}"
+      MINIO_SECRET_KEY: "${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}"
+      MINIO_BUCKET: "${MINIO_BUCKET:-resumes}"
+
+      OTP_EMAIL_LOG_ONLY: "false"
+      BREVO_API_KEY: "${BREVO_API_KEY:?set BREVO_API_KEY in .env}"
+      BREVO_SENDER_EMAIL: "${BREVO_SENDER_EMAIL:?set BREVO_SENDER_EMAIL in .env}"
+
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
       OLLAMA_BASE_URL: "https://ollama.com/v1"
-      
-      # Workers and CORS
+
       CV_SCAN_ENABLED: "true"
       CV_SCAN_WORKER_CONCURRENCY: "1"
-      CORS_ALLOWED_ORIGINS: "https://yourdomain.com"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:?set CORS_ALLOWED_ORIGINS in .env}"
       AI_DEBUG_ERRORS: "false"
     ports:
       - "3001:3000"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -87,9 +102,6 @@ services:
     image: ${DOCKERHUB_USER:-your_dockerhub_username}/career-navigator-web:${TAG:-latest}
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_BASE_URL: "https://api.yourdomain.com"
-      NEXT_PUBLIC_SOCKET_URL: "https://api.yourdomain.com"
-      NEXT_PUBLIC_AGORA_APP_ID: "${AGORA_APP_ID:-}"
     ports:
       - "3000:3000"
     depends_on:
@@ -102,11 +114,11 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - cn-minio:/data
     healthcheck:

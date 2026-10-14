@@ -1,0 +1,28 @@
+# Run once per release, before rolling out cn-api:
+#   kubectl delete job cn-api-migrate --ignore-not-found && kubectl apply -f api-migrate-job.yaml
+#   kubectl wait --for=condition=complete job/cn-api-migrate --timeout=300s
+# Databases created earlier with `prisma db push` need a one-time baseline first:
+#   prisma migrate resolve --applied 0_init
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cn-api-migrate
+  labels:
+    app: cn-api
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: cn-api-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: cn-api:latest # same image as cn-api
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "cd apps/api && npx prisma migrate deploy --schema prisma/schema.prisma"]
+          env:
+            - name: DATABASE_URL
+              value: "REPLACE_ME"

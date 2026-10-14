@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 // Browser auth client: the access token lives in memory only; the refresh token is an
 // httpOnly cookie set by the API, so scripts can never read it.
 
