@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { UnauthorizedException } from '@nestjs/common';
 import type { JwtPayload } from 'jsonwebtoken';
-import { sign, verify } from 'jsonwebtoken';
+import { decode, sign, verify } from 'jsonwebtoken';
 
 export type AccessTokenPayload = {
   sub: string;
@@ -60,7 +60,7 @@ export function signRefreshToken(params: {
   secret: string;
   expiresIn: string;
   userId: string;
-}): { token: string; jti: string } {
+}): { token: string; jti: string; expiresAt: Date } {
   const { secret, expiresIn, userId } = params;
 
   const jti = randomUUID();
@@ -71,7 +71,12 @@ export function signRefreshToken(params: {
     jwtid: jti,
   } as any);
 
-  return { token, jti };
+  const { exp } = decode(token) as JwtPayload;
+  if (typeof exp !== 'number') {
+    throw new Error('Refresh token was signed without an exp claim');
+  }
+
+  return { token, jti, expiresAt: new Date(exp * 1000) };
 }
 
 export function verifyAccessToken(params: {
