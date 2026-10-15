@@ -39,7 +39,9 @@ export class ConversationsService {
     }
 
     if (otherUser.id === userId) {
-      throw new BadRequestException('Cannot create a conversation with yourself');
+      throw new BadRequestException(
+        'Cannot create a conversation with yourself',
+      );
     }
 
     // Check if a conversation between these two users already exists
@@ -60,10 +62,7 @@ export class ConversationsService {
     const conversation = await this.prisma.conversation.create({
       data: {
         participants: {
-          create: [
-            { userId },
-            { userId: dto.participantUserId },
-          ],
+          create: [{ userId }, { userId: dto.participantUserId }],
         },
       },
       select: { id: true },

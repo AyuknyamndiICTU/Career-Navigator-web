@@ -450,7 +450,7 @@ export default function ResumeBuilderPage() {
             <p className="mt-2 text-slate-500 max-w-xl mx-auto">
               Explore these platforms for hundreds of professionally designed
               resume templates. Download and import them — then let Career
-              Navigator's AI fill them with your data.
+              Navigator&apos;s AI fill them with your data.
             </p>
           </div>
 

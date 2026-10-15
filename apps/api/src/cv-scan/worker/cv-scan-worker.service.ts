@@ -1,9 +1,10 @@
-/* global fetch, Buffer, AbortController, setTimeout, clearTimeout, URL, NodeJS */
+/* global fetch, Buffer, AbortController, setTimeout, clearTimeout, NodeJS */
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Client as MinioClient } from 'minio';
+import type { Client as MinioClient } from 'minio';
 import { getAIProvider, GEMINI_MODEL } from '../../lib/aiProvider';
 import { env } from '../../config/env';
+import { createMinioClient } from '../../lib/minio-client';
 
 type CvScanJobPayload = {
   userId: string;
@@ -15,27 +16,6 @@ const CV_SCAN_QUEUE_NAME = 'cv-scan';
 
 function isCvScanEnabled(): boolean {
   return env.cvScan.enabled;
-}
-
-function parseMinioEndpoint(endpoint: string): {
-  endPoint: string;
-  port: number;
-  useSSL: boolean;
-} {
-  const trimmed = endpoint.trim();
-  const url = new URL(trimmed);
-
-  const port = url.port
-    ? Number(url.port)
-    : url.protocol === 'https:'
-      ? 443
-      : 80;
-
-  return {
-    endPoint: url.hostname,
-    port,
-    useSSL: url.protocol === 'https:',
-  };
 }
 
 async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
@@ -118,13 +98,15 @@ export class CvScanWorkerService implements OnModuleDestroy {
   }
 
   private async processJob(payload: CvScanJobPayload): Promise<void> {
-    const { uploadMediaId, objectKey } = payload;
+    const { uploadMediaId } = payload;
 
     // Overall timeout: fail the job if it takes longer than 30 seconds total
     const JOB_TIMEOUT_MS = 30_000;
     const timeoutController = new AbortController();
     const jobTimeoutId = setTimeout(() => {
-      this.logger.error(`cv-scan job timed out after ${JOB_TIMEOUT_MS}ms. uploadMediaId=${uploadMediaId}`);
+      this.logger.error(
+        `cv-scan job timed out after ${JOB_TIMEOUT_MS}ms. uploadMediaId=${uploadMediaId}`,
+      );
       timeoutController.abort();
     }, JOB_TIMEOUT_MS);
 
@@ -135,7 +117,10 @@ export class CvScanWorkerService implements OnModuleDestroy {
     }
   }
 
-  private async processJobInternal(payload: CvScanJobPayload, abortSignal: AbortSignal): Promise<void> {
+  private async processJobInternal(
+    payload: CvScanJobPayload,
+    abortSignal: AbortSignal,
+  ): Promise<void> {
     const { uploadMediaId, objectKey } = payload;
 
     // Skip if already processed for the same upload file.
@@ -171,6 +156,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
 
     try {
       const extractedText = await this.extractCvTextFromMinio(objectKey);
+      abortSignal.throwIfAborted();
 
       // DOCX support is handled here.
       if (!extractedText.trim()) {
@@ -180,6 +166,8 @@ export class CvScanWorkerService implements OnModuleDestroy {
       }
 
       const structured = await this.extractStructuredCvViaGemini(extractedText);
+      // A timed-out job is marked FAILED instead of writing late results.
+      abortSignal.throwIfAborted();
 
       await this.prisma.uploadMedia.update({
         where: { id: uploadMediaId },
@@ -223,21 +211,11 @@ export class CvScanWorkerService implements OnModuleDestroy {
   }
 
   private async getMinioClient(): Promise<MinioClient> {
-    const { endpoint: minioEndpoint, accessKey: minioAccessKey, secretKey: minioSecretKey, bucket: minioBucket } = env.minio;
-
-    if (!minioEndpoint || !minioAccessKey || !minioSecretKey || !minioBucket) {
+    const client = createMinioClient();
+    if (!client) {
       throw new Error('MinIO is not configured (missing env vars).');
     }
-
-    const { endPoint, port, useSSL } = parseMinioEndpoint(minioEndpoint);
-
-    return new MinioClient({
-      endPoint,
-      port,
-      useSSL,
-      accessKey: minioAccessKey,
-      secretKey: minioSecretKey,
-    });
+    return client;
   }
 
   private async extractCvTextFromMinio(objectKey: string): Promise<string> {
@@ -329,8 +307,13 @@ export class CvScanWorkerService implements OnModuleDestroy {
       }
 
       if (res.status === 429 || res.status === 403) {
-        this.logger.warn(`Gemini returned ${res.status}, falling back to Ollama Cloud`);
-        return await this.generateWithOllamaCloud(systemInstruction, userMessage);
+        this.logger.warn(
+          `Gemini returned ${res.status}, falling back to Ollama Cloud`,
+        );
+        return await this.generateWithOllamaCloud(
+          systemInstruction,
+          userMessage,
+        );
       }
 
       const errorBody = await res.text().catch(() => '');
@@ -341,10 +324,15 @@ export class CvScanWorkerService implements OnModuleDestroy {
       const errAny = err as { name?: string } | undefined;
       if (errAny?.name === 'AbortError') {
         this.logger.warn('Gemini timed out, falling back to Ollama Cloud');
-        return await this.generateWithOllamaCloud(systemInstruction, userMessage);
+        return await this.generateWithOllamaCloud(
+          systemInstruction,
+          userMessage,
+        );
       }
       // For any other fetch/network error, try fallback
-      this.logger.warn(`Gemini fetch error, falling back to Ollama Cloud: ${(err as Error)?.message}`);
+      this.logger.warn(
+        `Gemini fetch error, falling back to Ollama Cloud: ${(err as Error)?.message}`,
+      );
       return await this.generateWithOllamaCloud(systemInstruction, userMessage);
     } finally {
       clearTimeout(timeoutId);

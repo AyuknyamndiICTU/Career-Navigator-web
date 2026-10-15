@@ -11,14 +11,14 @@ import {
 jest.mock('minio', () => {
   return {
     Client: jest.fn().mockImplementation(() => ({
-      putObject: jest.fn().mockResolvedValue({}),
+      bucketExists: jest.fn().mockResolvedValue(true as never),
+      makeBucket: jest.fn().mockResolvedValue(undefined as never),
+      putObject: jest.fn().mockResolvedValue({} as never),
     })),
   };
 });
 
 import request from 'supertest';
-import fs from 'node:fs';
-import path from 'node:path';
 
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -46,9 +46,6 @@ describe('Upload endpoints (Milestone 2.3)', () => {
   };
 
   beforeAll(() => {
-    // multer destination is './tmp' (relative to process.cwd())
-    fs.mkdirSync(path.join(process.cwd(), 'tmp'), { recursive: true });
-
     process.env.JWT_ACCESS_SECRET = 'test-secret';
     process.env.MINIO_ENDPOINT = 'http://localhost:9000';
     process.env.MINIO_ACCESS_KEY = 'minio-access';
@@ -86,7 +83,16 @@ describe('Upload endpoints (Milestone 2.3)', () => {
     });
   };
 
-  const fileBuffer = Buffer.from('dummy-content');
+  const pngBuffer = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from('png-body'),
+  ]);
+  const pdfBuffer = Buffer.from('%PDF-1.7\ndummy');
+  const docxBuffer = Buffer.concat([
+    Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+    Buffer.from('docx-body'),
+  ]);
+  const fileBuffer = pngBuffer;
 
   it('POST /upload/picture without auth returns 401', async () => {
     await request(app.getHttpServer())
@@ -114,10 +120,24 @@ describe('Upload endpoints (Milestone 2.3)', () => {
     expect(mockPrisma.uploadMedia.upsert).toHaveBeenCalledTimes(1);
   });
 
+  it('POST /upload/picture rejects content that is not really an image', async () => {
+    const token = signTestToken();
+    await request(app.getHttpServer())
+      .post('/upload/picture')
+      .set('authorization', `Bearer ${token}`)
+      .attach('file', Buffer.from('<script>alert(1)</script>'), {
+        filename: 'pic.png',
+        contentType: 'image/png',
+      })
+      .expect(400);
+
+    expect(mockPrisma.uploadMedia.upsert).not.toHaveBeenCalled();
+  });
+
   it('POST /upload/cv without auth returns 401', async () => {
     await request(app.getHttpServer())
       .post('/upload/cv')
-      .attach('file', fileBuffer, {
+      .attach('file', pdfBuffer, {
         filename: 'cv.pdf',
         contentType: 'application/pdf',
       })
@@ -131,7 +151,7 @@ describe('Upload endpoints (Milestone 2.3)', () => {
     await request(app.getHttpServer())
       .post('/upload/cv')
       .set('authorization', `Bearer ${token}`)
-      .attach('file', fileBuffer, {
+      .attach('file', pdfBuffer, {
         filename: 'cv.pdf',
         contentType: 'application/pdf',
       })
@@ -147,7 +167,7 @@ describe('Upload endpoints (Milestone 2.3)', () => {
     await request(app.getHttpServer())
       .post('/upload/cv')
       .set('authorization', `Bearer ${token}`)
-      .attach('file', fileBuffer, {
+      .attach('file', docxBuffer, {
         filename: 'cv.docx',
         contentType:
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -175,7 +195,7 @@ describe('Upload endpoints (Milestone 2.3)', () => {
     await request(app.getHttpServer())
       .post('/upload/cv')
       .set('authorization', `Bearer ${token}`)
-      .attach('file', fileBuffer, {
+      .attach('file', pdfBuffer, {
         filename: 'cv.pdf',
         contentType: 'application/pdf',
       })

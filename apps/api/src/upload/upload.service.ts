@@ -3,35 +3,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CvScanService } from '../cv-scan/cv-scan.service';
 import { env } from '../config/env';
 import { randomUUID } from 'node:crypto';
-import { createReadStream } from 'node:fs';
 import type { Express } from 'express';
-import { Client as MinioClient } from 'minio';
+import type { Client as MinioClient } from 'minio';
+import { verifiedExtension } from './file-signature';
+import { createMinioClient } from '../lib/minio-client';
 
 const MEDIA_TYPE_PROFILE_PICTURE = 'PROFILE_PICTURE' as const;
 const MEDIA_TYPE_CV = 'CV' as const;
 
 type UploadMediaType = typeof MEDIA_TYPE_PROFILE_PICTURE | typeof MEDIA_TYPE_CV;
-
-function parseMinioEndpoint(endpoint: string): {
-  endPoint: string;
-  port: number;
-  useSSL: boolean;
-} {
-  const trimmed = endpoint.trim();
-  const url = new URL(trimmed);
-
-  const port = url.port
-    ? Number(url.port)
-    : url.protocol === 'https:'
-      ? 443
-      : 80;
-
-  return {
-    endPoint: url.hostname,
-    port,
-    useSSL: url.protocol === 'https:',
-  };
-}
 
 @Injectable()
 export class UploadService {
@@ -40,9 +20,15 @@ export class UploadService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cvScanService: CvScanService,
-  ) {
-    // Lazy init: do not throw during app bootstrap (tests and other routes need to work).
-    // We’ll instantiate MinIO only when an upload endpoint is called.
+  ) {}
+
+  /** Lazy so the app boots (and non-upload routes work) without storage configured. */
+  private getMinio(): MinioClient {
+    this.minio ??= createMinioClient() ?? undefined;
+    if (!this.minio) {
+      throw new BadRequestException('MinIO is not configured');
+    }
+    return this.minio;
   }
 
   private async uploadToMinio(params: {
@@ -56,51 +42,25 @@ export class UploadService {
   }> {
     const minioBucket = env.minio.bucket;
 
-    const originalFilename = params.file.originalname ?? '';
-    const ext = originalFilename.includes('.')
-      ? originalFilename.slice(originalFilename.lastIndexOf('.'))
-      : '';
+    const content = params.file.buffer;
+    if (!content?.length) throw new BadRequestException('Invalid file size');
+
+    const ext = verifiedExtension(params.file.mimetype, content);
+    if (!ext) {
+      throw new BadRequestException('File content does not match its type');
+    }
 
     const objectKey = `${params.userId}/${params.type}/${randomUUID()}${ext}`;
-    const stream = createReadStream(params.file.path);
+    const minio = this.getMinio();
 
-    const size = params.file.size;
-    if (!size) throw new BadRequestException('Invalid file size');
-
-    if (!this.minio) {
-      const minioEndpoint = env.minio.endpoint;
-      const minioAccessKey = env.minio.accessKey;
-      const minioSecretKey = env.minio.secretKey;
-
-      if (
-        !minioEndpoint ||
-        !minioAccessKey ||
-        !minioSecretKey ||
-        !minioBucket
-      ) {
-        throw new BadRequestException('MinIO is not configured');
-      }
-
-      const { endPoint, port, useSSL } = parseMinioEndpoint(minioEndpoint);
-
-      this.minio = new MinioClient({
-        endPoint,
-        port,
-        useSSL,
-        accessKey: minioAccessKey,
-        secretKey: minioSecretKey,
-      });
-    }
-
-    const bucketExists = await this.minio.bucketExists(minioBucket);
+    const bucketExists = await minio.bucketExists(minioBucket);
     if (!bucketExists) {
-      await this.minio.makeBucket(minioBucket);
+      await minio.makeBucket(minioBucket);
     }
 
-    await this.minio.putObject(minioBucket, objectKey, stream, size, {
+    await minio.putObject(minioBucket, objectKey, content, content.length, {
       'Content-Type': params.file.mimetype ?? 'application/octet-stream',
     });
-
 
     return {
       objectKey,
@@ -147,10 +107,7 @@ export class UploadService {
     return { message: 'Picture uploaded', objectKey };
   }
 
-  async uploadCv(
-    userId: string,
-    file: Express.Multer.File,
-  ): Promise<unknown> {
+  async uploadCv(userId: string, file: Express.Multer.File): Promise<unknown> {
     if (!file) throw new BadRequestException('Missing file');
 
     const { objectKey, contentType, originalFilename } =
@@ -211,7 +168,8 @@ export class UploadService {
       select: { cvScanStatus: true, cvScanError: true, cvExtractedText: true },
     });
 
-    if (!media) return { status: null, error: null, skills: [], extractedData: null };
+    if (!media)
+      return { status: null, error: null, skills: [], extractedData: null };
 
     let skills: string[] = [];
     let extractedData: {
@@ -224,15 +182,25 @@ export class UploadService {
 
     if (media.cvExtractedText) {
       try {
-        const parsed = JSON.parse(media.cvExtractedText) as Record<string, unknown>;
+        const parsed = JSON.parse(media.cvExtractedText) as Record<
+          string,
+          unknown
+        >;
         if (Array.isArray(parsed.skills)) skills = parsed.skills as string[];
 
         extractedData = {
-          fullName: typeof parsed.fullName === 'string' ? parsed.fullName : null,
+          fullName:
+            typeof parsed.fullName === 'string' ? parsed.fullName : null,
           summary: typeof parsed.summary === 'string' ? parsed.summary : null,
-          skills: Array.isArray(parsed.skills) ? (parsed.skills as string[]) : [],
-          education: Array.isArray(parsed.education) ? (parsed.education as Array<Record<string, unknown>>) : [],
-          experience: Array.isArray(parsed.experience) ? (parsed.experience as Array<Record<string, unknown>>) : [],
+          skills: Array.isArray(parsed.skills)
+            ? (parsed.skills as string[])
+            : [],
+          education: Array.isArray(parsed.education)
+            ? (parsed.education as Array<Record<string, unknown>>)
+            : [],
+          experience: Array.isArray(parsed.experience)
+            ? (parsed.experience as Array<Record<string, unknown>>)
+            : [],
         };
       } catch {
         // ignore invalid extracted JSON
@@ -257,37 +225,19 @@ export class UploadService {
     contentType: string;
   }> {
     const minioBucket = env.minio.bucket;
-
-    if (!this.minio) {
-      const minioEndpoint = env.minio.endpoint;
-      const minioAccessKey = env.minio.accessKey;
-      const minioSecretKey = env.minio.secretKey;
-
-      if (!minioEndpoint || !minioAccessKey || !minioSecretKey || !minioBucket) {
-        throw new BadRequestException('MinIO is not configured');
-      }
-
-      const { endPoint, port, useSSL } = parseMinioEndpoint(minioEndpoint);
-
-      this.minio = new MinioClient({
-        endPoint,
-        port,
-        useSSL,
-        accessKey: minioAccessKey,
-        secretKey: minioSecretKey,
-      });
-    }
+    const minio = this.getMinio();
 
     // Get stat for content-type, then stream the object
     let contentType = 'application/octet-stream';
     try {
-      const stat = await this.minio.statObject(minioBucket, objectKey);
-      contentType = stat.metaData?.['content-type'] ?? 'application/octet-stream';
+      const stat = await minio.statObject(minioBucket, objectKey);
+      contentType =
+        stat.metaData?.['content-type'] ?? 'application/octet-stream';
     } catch {
       // Ignore stat errors; we'll still try to stream
     }
 
-    const stream = await this.minio.getObject(minioBucket, objectKey);
+    const stream = await minio.getObject(minioBucket, objectKey);
     return { stream, contentType };
   }
 }

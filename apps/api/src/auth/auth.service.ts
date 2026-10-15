@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { OtpPurpose } from '@prisma/client';
@@ -30,6 +32,8 @@ const REGISTER_PURPOSE: OtpPurpose = 'REGISTER';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async register(dto: RegisterDto): Promise<{ message: string }> {
@@ -95,9 +99,8 @@ export class AuthService {
     });
 
     if (otpEmailLogOnly) {
-      // Local/dev mode: don't call external email provider.
-
-      console.log(`[DEV OTP] Register OTP for ${email}: ${code}`);
+      // Local/dev mode: don't call external email provider (validateEnv forbids this in production).
+      this.logger.warn(`[DEV OTP] Register OTP for ${email}: ${code}`);
       return { message: 'OTP generated (check server logs)' };
     }
 
@@ -112,12 +115,17 @@ export class AuthService {
 
       return { message: 'OTP sent to email' };
     } catch (e) {
-      // Don’t block signup if Brevo is misconfigured in dev/staging.
-      // Fall back to server-log-only OTP flow.
+      this.logger.error(`Brevo OTP email failed: ${String(e)}`);
 
-      console.error('Brevo send failed; falling back to log-only OTP:', e);
+      // Never write a live OTP into production logs.
+      if (env.isProduction) {
+        throw new ServiceUnavailableException(
+          'Could not send the verification email. Please try again shortly.',
+        );
+      }
 
-      console.log(`[DEV OTP] Register OTP for ${email}: ${code}`);
+      // Dev/staging: don't block signup on a misconfigured Brevo account.
+      this.logger.warn(`[DEV OTP] Register OTP for ${email}: ${code}`);
 
       return { message: 'OTP generated (check server logs)' };
     }
@@ -400,7 +408,7 @@ export class AuthService {
     });
 
     if (otpEmailLogOnly) {
-      console.log(`[DEV OTP] Password reset OTP for ${email}: ${code}`);
+      this.logger.warn(`[DEV OTP] Password reset OTP for ${email}: ${code}`);
       return {
         message:
           'If the account exists, a reset code was generated (check server logs).',

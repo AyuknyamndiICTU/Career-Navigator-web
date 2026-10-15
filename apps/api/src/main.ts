@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
@@ -9,19 +9,28 @@ import { getAIProvider } from './lib/aiProvider';
 import { API_PREFIX } from './lib/api-prefix';
 import { env, validateEnv } from './config/env';
 import { corsOriginCallback } from './config/cors';
+import { RedactingLogger } from './logging/redacting-logger';
 
 async function bootstrap() {
   validateEnv();
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    // One JSON object per line in production (log shippers parse it); readable output in dev.
+    // Tokens, cookies, passwords, OTPs and API keys are masked before anything is written.
+    logger: new RedactingLogger({ json: env.isProduction }),
+  });
   app.setGlobalPrefix(API_PREFIX);
+  // SIGTERM/SIGINT run onModuleDestroy: BullMQ workers, queues, Redis and Prisma close cleanly.
+  app.enableShutdownHooks();
 
   // Log active provider once at startup (Gemini vs Ollama Cloud).
   // The utility itself prints: "[AI Provider] Active: Gemini|Ollama Cloud"
   try {
     getAIProvider();
   } catch (err) {
-    console.warn('AI Provider initialization warning:', err);
+    new Logger('Bootstrap').warn(
+      `AI provider initialization warning: ${String(err)}`,
+    );
   }
 
   // CORS: an explicit allow-list (required in production); dev without a list reflects the origin.
@@ -29,7 +38,8 @@ async function bootstrap() {
     origin: corsOriginCallback,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+    exposedHeaders: ['X-Request-Id'],
   });
 
   const redisUrl = env.redisUrl;
@@ -53,7 +63,9 @@ async function bootstrap() {
       limit: 5, // max 5 login attempts per minute per IP
       standardHeaders: true,
       legacyHeaders: false,
-      message: { message: 'Too many login attempts. Please try again in a minute.' },
+      message: {
+        message: 'Too many login attempts. Please try again in a minute.',
+      },
     }),
   );
 
@@ -66,15 +78,6 @@ async function bootstrap() {
       skip: (req) =>
         req.path.startsWith('/api-docs') ||
         req.path.startsWith(`/${API_PREFIX}/health`),
-    }),
-  );
-
-  // Validation
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
     }),
   );
 

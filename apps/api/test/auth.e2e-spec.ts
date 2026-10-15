@@ -50,7 +50,7 @@ describe('Auth flows (Milestone: Phase 6.2)', () => {
     user: mockUser,
     emailVerificationOtp: mockOtp,
     refreshToken: mockRefreshToken,
-    $transaction: jest.fn((fn: Function) => fn(mockPrisma)),
+    $transaction: jest.fn((fn: (tx: unknown) => unknown) => fn(mockPrisma)),
   };
 
   beforeEach(async () => {

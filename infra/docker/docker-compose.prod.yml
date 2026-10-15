@@ -105,7 +105,8 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     cpus: 0.5
     mem_limit: 512m
     restart: unless-stopped

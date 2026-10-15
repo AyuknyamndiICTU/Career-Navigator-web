@@ -1,4 +1,4 @@
-/* global console */
+import { Logger } from '@nestjs/common';
 import { env } from '../config/env';
 
 export type AIProviderResult = {
@@ -98,7 +98,7 @@ export function getAIProvider(): AIProviderResult {
 
   if (!didLogActiveProvider) {
     didLogActiveProvider = true;
-    console.log(`[AI Provider] Active: ${result.activeProvider}`);
+    new Logger('AIProvider').log(`Active: ${result.activeProvider}`);
   }
 
   return result;

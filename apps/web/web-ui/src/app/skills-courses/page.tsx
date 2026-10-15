@@ -588,7 +588,7 @@ export default function SkillsCoursesPage() {
               </div>
               <h3 className="text-lg font-semibold text-slate-700">No Recommendations Yet</h3>
               <p className="mt-1 text-sm text-slate-500 max-w-sm">
-                Enter a career goal above and click "Get Recommendations" to receive AI-powered course suggestions.
+                Enter a career goal above and click &quot;Get Recommendations&quot; to receive AI-powered course suggestions.
               </p>
             </motion.div>
           ) : null}

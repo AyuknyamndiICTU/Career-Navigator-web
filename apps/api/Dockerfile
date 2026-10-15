@@ -49,4 +49,6 @@ COPY --from=builder /app/apps/api/node_modules/prisma ./apps/api/node_modules/pr
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health/live').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 CMD ["node", "apps/api/dist/src/main.js"]

@@ -103,7 +103,6 @@ export class AiService {
     systemInstruction: string,
     userMessage: string,
   ): string[] {
-    const combined = `${systemInstruction}\n${userMessage}`.toLowerCase();
     const userText = userMessage.toLowerCase();
 
     const isCodeTask = this.isCodeRelatedTask(systemInstruction, userMessage);
@@ -134,7 +133,9 @@ export class AiService {
       'skills',
     ];
 
-    const isResumeBuilderTask = resumeKeywords.some((k) => userText.includes(k));
+    const isResumeBuilderTask = resumeKeywords.some((k) =>
+      userText.includes(k),
+    );
 
     // Coding requests should use the coding/doc model even if the broader
     // assistant prompt mentions conversational career features.
@@ -957,7 +958,10 @@ Task:
         if (!allowed) continue;
 
         const isMatch = normalizedCourseSkills.some(
-          (skill) => skill === allowed || skill.includes(allowed) || allowed.includes(skill),
+          (skill) =>
+            skill === allowed ||
+            skill.includes(allowed) ||
+            allowed.includes(skill),
         );
 
         if (isMatch) return allowedSkill;
@@ -986,7 +990,8 @@ Task:
       }
 
       const matchedSkill =
-        findMatchedAllowedSkill(candidate.skills) ?? allowedSkills[index % allowedSkills.length];
+        findMatchedAllowedSkill(candidate.skills) ??
+        allowedSkills[index % allowedSkills.length];
 
       return {
         platform: candidate.platform,
@@ -1025,7 +1030,8 @@ Task:
           );
         });
 
-        const topSource = filtered.length > 0 ? filtered : (candidates as unknown[]);
+        const topSource =
+          filtered.length > 0 ? filtered : (candidates as unknown[]);
 
         const top = topSource.slice(0, 12) as Array<{
           platform?: string;

@@ -29,6 +29,9 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
   }>({});
 
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // Refs so the unmount cleanup sees the current session and can cancel a join still in flight.
+  const sessionIdRef = useRef<string | null>(null);
+  const joinAttemptRef = useRef(0);
   const [token, setToken] = useState<string | null>(null);
   const [callState, setCallState] = useState<
     'idle' | 'joining' | 'connected' | 'error' | 'ended'
@@ -91,8 +94,8 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
       try {
         audioTrack.stop();
         audioTrack.close();
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn('Could not close the microphone track:', e);
       }
     }
 
@@ -100,8 +103,8 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
       try {
         videoTrack.stop();
         videoTrack.close();
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn('Could not close the camera track:', e);
       }
     }
 
@@ -113,20 +116,25 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
     if (client) {
       try {
         await client.leave();
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn('Could not leave the video channel cleanly:', e);
       }
     }
     clientRef.current = null;
     await stopAndCloseTracks();
 
     setCallState('ended');
-    if (sessionId) {
-      void endAgoraSession(sessionId).catch(() => {});
+    const endingSessionId = sessionIdRef.current;
+    sessionIdRef.current = null;
+    if (endingSessionId) {
+      void endAgoraSession(endingSessionId).catch((e: unknown) => {
+        console.warn('Could not end the video session:', e);
+      });
     }
   }
 
-  async function join() {
+  async function join(attempt: number) {
+    const isStale = () => joinAttemptRef.current !== attempt;
     setError(null);
     setCallState('joining');
 
@@ -145,6 +153,18 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
         role,
       });
 
+      const endStaleSession = () =>
+        endAgoraSession(start.sessionId).catch((e: unknown) => {
+          console.warn('Could not end the abandoned video session:', e);
+        });
+
+      if (isStale()) {
+        // Unmounted (or channel changed) while the session was being created.
+        await endStaleSession();
+        return;
+      }
+
+      sessionIdRef.current = start.sessionId;
       setSessionId(start.sessionId);
       setToken(start.token);
 
@@ -167,12 +187,22 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
 
       await client.join(appId, start.channelName, start.token, start.uid);
 
+      if (isStale()) {
+        // The unmount cleanup ran while joining; leave this attempt's own client.
+        await client.leave().catch((e: unknown) => {
+          console.warn('Could not leave the abandoned video channel:', e);
+        });
+        await endStaleSession();
+        return;
+      }
+
       if (role === 'publisher') {
         await publishLocalTracks(client);
       }
 
       setCallState('connected');
     } catch (e) {
+      if (isStale()) return;
       setError(e instanceof Error ? e.message : 'Failed to join video call');
       setCallState('error');
     }
@@ -180,8 +210,10 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
 
   useEffect(() => {
     if (!channelName) return;
-    void join();
+    const attempt = ++joinAttemptRef.current;
+    void join(attempt);
     return () => {
+      joinAttemptRef.current++;
       void hardLeave();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,8 +226,8 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
     void (async () => {
       try {
         await audioTrack.setMuted(isMuted);
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn('Could not change the microphone state:', e);
       }
     })();
   }, [isMuted]);
@@ -207,8 +239,8 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
     void (async () => {
       try {
         await videoTrack.setEnabled(!isCameraOff);
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn('Could not change the camera state:', e);
       }
     })();
   }, [isCameraOff]);
@@ -398,7 +430,7 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
               {error ?? 'Something went wrong while joining the call.'}
             </p>
             <button
-              onClick={() => void join()}
+              onClick={() => void join(joinAttemptRef.current)}
               className="mt-5 px-5 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-colors shadow-soft"
             >
               Try Again

@@ -169,7 +169,14 @@ export class ResumeService {
       }>;
     },
   ): unknown {
-    const VALID_TEMPLATES = ['CLASSIC', 'MODERN', 'MINIMAL', 'CREATIVE', 'PROFESSIONAL', 'EXECUTIVE'] as const;
+    const VALID_TEMPLATES = [
+      'CLASSIC',
+      'MODERN',
+      'MINIMAL',
+      'CREATIVE',
+      'PROFESSIONAL',
+      'EXECUTIVE',
+    ] as const;
     if (!(VALID_TEMPLATES as readonly string[]).includes(template)) {
       throw new BadRequestException('Invalid template');
     }
@@ -206,7 +213,8 @@ export class ResumeService {
         dateOfBirth: cv ? coerceNullableString(cv.dateOfBirth) : null,
         website: cv ? coerceNullableString(cv.website) : null,
         linkedIn: cv ? coerceNullableString(cv.linkedIn) : null,
-        photoUrl: cv && cv.photoUrl ? this.buildMinioUrl(String(cv.photoUrl)) : null,
+        photoUrl:
+          cv && cv.photoUrl ? this.buildMinioUrl(String(cv.photoUrl)) : null,
       },
     };
 
@@ -252,7 +260,9 @@ export class ResumeService {
     const objective = cv ? coerceNullableString(cv.objective) : null;
     const interests = cv ? coerceStringArray(cv.interests) : [];
     const languages = cv ? coerceStringArray(cv.languages) : [];
-    const achievementsAwards = cv ? coerceStringArray(cv.achievementsAwards) : [];
+    const achievementsAwards = cv
+      ? coerceStringArray(cv.achievementsAwards)
+      : [];
     const activities = cv ? coerceStringArray(cv.activities) : [];
     const publications = cv ? coerceStringArray(cv.publications) : [];
     const signature = cv ? coerceNullableString(cv.signature) : null;
@@ -296,7 +306,6 @@ export class ResumeService {
     ).replace(/\/+$/, '');
     return `${apiBase}/upload/file/${objectKey}`;
   }
-
 
   private asCvWizardData(
     value: Prisma.JsonValue | null | undefined,

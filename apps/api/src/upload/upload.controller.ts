@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   HttpCode,
+  Logger,
   Post,
   Get,
   Req,
@@ -18,7 +19,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 import type { Request, Response } from 'express';
 
@@ -34,33 +35,35 @@ const MAX_PICTURE_SIZE = 5 * 1024 * 1024; // 5 MB
 const MAX_CV_SIZE = 10 * 1024 * 1024; // 10 MB
 
 const pictureMulterOptions: MulterOptions = {
-  storage: diskStorage({
-    destination: './tmp',
-    filename: (_req, file, cb) =>
-      cb(null, `${Date.now()}-${file.originalname}`),
-  }),
+  storage: memoryStorage(),
   limits: { fileSize: MAX_PICTURE_SIZE },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new BadRequestException('Only JPEG, PNG, and WebP images are allowed for profile pictures'), false);
+      cb(
+        new BadRequestException(
+          'Only JPEG, PNG, and WebP images are allowed for profile pictures',
+        ),
+        false,
+      );
     }
   },
 };
 
 const cvMulterOptions: MulterOptions = {
-  storage: diskStorage({
-    destination: './tmp',
-    filename: (_req, file, cb) =>
-      cb(null, `${Date.now()}-${file.originalname}`),
-  }),
+  storage: memoryStorage(),
   limits: { fileSize: MAX_CV_SIZE },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_CV_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new BadRequestException('Only PDF and DOCX files are accepted for CV uploads'), false);
+      cb(
+        new BadRequestException(
+          'Only PDF and DOCX files are accepted for CV uploads',
+        ),
+        false,
+      );
     }
   },
 };
@@ -68,6 +71,8 @@ const cvMulterOptions: MulterOptions = {
 @ApiTags('upload')
 @Controller('upload')
 export class UploadController {
+  private readonly logger = new Logger(UploadController.name);
+
   constructor(private readonly uploadService: UploadService) {}
 
   @Post('picture')
@@ -124,10 +129,7 @@ export class UploadController {
   @Get('file/*')
   @Public()
   @ApiOkResponse({ description: 'Serve an uploaded file from storage.' })
-  async serveFile(
-    @Req() req: Request,
-    @Res() res: Response,
-  ): Promise<void> {
+  async serveFile(@Req() req: Request, @Res() res: Response): Promise<void> {
     // req.path is "[/api]/upload/file/<userId>/<TYPE>/<uuid>.<ext>"
     const objectKey = decodeURIComponent(
       req.path.replace(/^.*?\/upload\/file\//, ''),
@@ -137,12 +139,17 @@ export class UploadController {
     }
 
     try {
-      const { stream, contentType } = await this.uploadService.getFileStream(objectKey);
+      const { stream, contentType } =
+        await this.uploadService.getFileStream(objectKey);
       res.set('Content-Type', contentType);
       res.set('Cache-Control', 'public, max-age=86400');
+      stream.on('error', (streamErr) => {
+        this.logger.warn(`Stored file stream failed: ${String(streamErr)}`);
+        res.destroy();
+      });
       stream.pipe(res);
     } catch (err) {
-      console.error('Error serving file from MinIO:', err);
+      this.logger.warn(`Could not serve stored file: ${String(err)}`);
       throw new NotFoundException('File not found');
     }
   }

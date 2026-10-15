@@ -6,6 +6,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 
 export class RedisIoAdapter extends IoAdapter {
   private readonly logger = new Logger(RedisIoAdapter.name);
+  private readonly redisClients: IORedis[] = [];
 
   constructor(
     app: any,
@@ -14,11 +15,17 @@ export class RedisIoAdapter extends IoAdapter {
     super(app);
   }
 
+  async dispose(): Promise<void> {
+    await Promise.allSettled(this.redisClients.map((c) => c.quit()));
+    await super.dispose();
+  }
+
   createIOServer(port: number, options?: ServerOptions): any {
     const server = super.createIOServer(port, options);
 
     const pubClient = new IORedis(this.redisUrl, { lazyConnect: true });
     const subClient = pubClient.duplicate();
+    this.redisClients.push(pubClient, subClient);
 
     // Ensure redis pub/sub is ready (adapter will also work if already connected)
     void pubClient.connect().catch((e) => {

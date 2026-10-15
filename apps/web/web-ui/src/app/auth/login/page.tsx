@@ -28,7 +28,9 @@ export default function LoginPage() {
       });
 
       setAccessToken(res.accessToken);
-      router.push('/');
+      // Only same-site paths, so `?next=` can't redirect to another origin.
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.push(next && /^\/(?![/\\])/.test(next) ? next : '/');
     } catch (err) {
       console.error('Login error:', err);
       const msg = err instanceof Error ? err.message : 'Login failed';
@@ -149,7 +151,7 @@ export default function LoginPage() {
             </button>
 
             <div className="pt-4 text-center">
-              <span className="text-sm text-slate-500 font-medium">Don't have an account? </span>
+              <span className="text-sm text-slate-500 font-medium">Don&apos;t have an account? </span>
               <button
                 type="button"
                 onClick={() => router.push('/auth/register')}

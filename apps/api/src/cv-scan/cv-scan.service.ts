@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { env } from '../config/env';
 
 export type CvScanJobPayload = {
@@ -27,12 +27,17 @@ type BullMqQueueLike = {
       removeOnFail: number;
     },
   ) => Promise<unknown>;
+  close: () => Promise<void>;
 };
 
 @Injectable()
-export class CvScanService {
+export class CvScanService implements OnModuleDestroy {
   private readonly logger = new Logger(CvScanService.name);
   private queue?: BullMqQueueLike;
+
+  async onModuleDestroy(): Promise<void> {
+    await this.queue?.close();
+  }
 
   private getQueue(): BullMqQueueLike | undefined {
     if (!isCvScanEnabled()) return undefined;

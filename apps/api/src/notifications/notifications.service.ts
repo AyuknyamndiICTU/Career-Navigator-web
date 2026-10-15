@@ -1,11 +1,41 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { env } from '../config/env';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 
+type NotificationsQueue = {
+  add: (...args: unknown[]) => Promise<unknown>;
+  close: () => Promise<void>;
+};
+
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleDestroy {
+  private queue?: NotificationsQueue;
+
   constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleDestroy(): Promise<void> {
+    await this.queue?.close();
+  }
+
+  private getQueue(): NotificationsQueue | undefined {
+    if (!env.notificationsWorker.enabled || !env.redisUrl) return undefined;
+    if (!this.queue) {
+      // Lazy require so TS/tests don't need extra static imports.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Queue } = require('bullmq') as {
+        Queue: new (...args: unknown[]) => NotificationsQueue;
+      };
+      this.queue = new Queue('notifications', {
+        connection: { url: env.redisUrl },
+      });
+    }
+    return this.queue;
+  }
 
   async listNotifications(
     userId: string,
@@ -45,24 +75,7 @@ export class NotificationsService {
 
     // Milestone 4.4: enqueue async worker update when enabled.
     // Keep this guarded so tests/configs without Redis won't break.
-    if (env.notificationsWorker.enabled) {
-      const redisUrl = env.redisUrl;
-      if (redisUrl) {
-        // Lazy require so TS/tests don't need extra static imports.
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { Queue } = require('bullmq') as {
-          Queue: new (...args: unknown[]) => {
-            add: (...args: unknown[]) => Promise<unknown>;
-          };
-        };
-
-        const queue = new Queue('notifications', {
-          connection: { url: redisUrl },
-        });
-
-        await queue.add('process', { notificationId: created.id });
-      }
-    }
+    await this.getQueue()?.add('process', { notificationId: created.id });
 
     return created;
   }

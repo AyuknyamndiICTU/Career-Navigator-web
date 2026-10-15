@@ -67,12 +67,14 @@ describe('Conversations CRUD (Milestone: Phase 4 + 6.3)', () => {
     process.env.JWT_ACCESS_SECRET = 'test-secret';
 
     // Default: other user exists and is active
-    mockUser.findUnique.mockImplementation((args: { where: { id: string } }) => {
-      if (args.where.id === otherUserId) {
-        return Promise.resolve({ id: otherUserId, isActive: true });
-      }
-      return Promise.resolve({ id: args.where.id, isActive: true });
-    });
+    mockUser.findUnique.mockImplementation(
+      (args: { where: { id: string } }) => {
+        if (args.where.id === otherUserId) {
+          return Promise.resolve({ id: otherUserId, isActive: true });
+        }
+        return Promise.resolve({ id: args.where.id, isActive: true });
+      },
+    );
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -168,8 +170,6 @@ describe('Conversations CRUD (Milestone: Phase 4 + 6.3)', () => {
   });
 
   it('GET /conversations without auth returns 401', async () => {
-    await request(app.getHttpServer())
-      .get('/conversations')
-      .expect(401);
+    await request(app.getHttpServer()).get('/conversations').expect(401);
   });
 });

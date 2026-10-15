@@ -116,7 +116,7 @@ export default function GetMatchedPage() {
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-slate-700">No Matches Found</h3>
-                <p className="mt-1 text-sm text-slate-500 max-w-sm">We couldn't find any perfect matches right now. Keep building your skills!</p>
+                <p className="mt-1 text-sm text-slate-500 max-w-sm">We couldn&apos;t find any perfect matches right now. Keep building your skills!</p>
               </div>
             ) : (
               <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">

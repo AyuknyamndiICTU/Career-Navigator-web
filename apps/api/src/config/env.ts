@@ -179,7 +179,11 @@ const URL_KEYS: Array<[key: string, protocols: string[]]> = [
 export function validateEnv(): void {
   const problems: string[] = [];
 
-  for (const key of ['DATABASE_URL', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET']) {
+  for (const key of [
+    'DATABASE_URL',
+    'JWT_ACCESS_SECRET',
+    'JWT_REFRESH_SECRET',
+  ]) {
     if (!read(key)) problems.push(`${key} is required`);
   }
 
@@ -217,7 +221,10 @@ export function validateEnv(): void {
     }
   }
 
-  if ((env.cvScan.enabled || env.notificationsWorker.enabled) && !env.redisUrl) {
+  if (
+    (env.cvScan.enabled || env.notificationsWorker.enabled) &&
+    !env.redisUrl
+  ) {
     problems.push('REDIS_URL is required when a background worker is enabled');
   }
 
@@ -227,8 +234,16 @@ export function validateEnv(): void {
     );
   }
 
+  if (env.isProduction && env.otp.emailLogOnly) {
+    problems.push(
+      'OTP_EMAIL_LOG_ONLY=true would write live OTPs to production logs',
+    );
+  }
+
   if (env.isProduction && !env.corsAllowedOrigins) {
-    problems.push('CORS_ALLOWED_ORIGINS must list the allowed origins in production');
+    problems.push(
+      'CORS_ALLOWED_ORIGINS must list the allowed origins in production',
+    );
   }
 
   if (problems.length > 0) {

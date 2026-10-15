@@ -117,7 +117,9 @@ function recentJobFallbackCatalog(): JobCatalogItem[] {
         'Recent coordinator roles for candidates with communication, leadership, organization, and problem-solving strengths.',
       status: 'ACTIVE',
       skills: ['communication', 'leadership', 'problem solving'],
-      externalUrl: makeJobSearchUrl('project coordinator communication leadership'),
+      externalUrl: makeJobSearchUrl(
+        'project coordinator communication leadership',
+      ),
       source: 'fallback',
       createdAt: now,
       updatedAt: now,

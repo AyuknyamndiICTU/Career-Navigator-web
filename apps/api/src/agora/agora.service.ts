@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { createHmac, randomInt } from 'crypto';
 import { deflateSync } from 'zlib';
+import { env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 
 type AgoraRole = 'publisher' | 'subscriber';

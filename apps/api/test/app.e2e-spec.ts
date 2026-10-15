@@ -80,7 +80,7 @@ describe('Auth flows (e2e routes)', () => {
   it('POST /auth/register works', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send({ email: 'alice@example.com', password: 'password123' })
+      .send({ email: 'alice@example.com', password: 'Password123!' })
       .expect(201)
       .expect({ message: 'OTP sent to email' });
   });
@@ -151,7 +151,7 @@ describe('Auth flows (e2e routes)', () => {
       .send({
         email: 'alice@example.com',
         code: '123456',
-        newPassword: 'newpassword123',
+        newPassword: 'NewPassword123!',
       })
       .expect(201)
       .expect({ message: 'Password has been reset.' });

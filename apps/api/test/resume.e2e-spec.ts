@@ -75,7 +75,7 @@ describe('Resume builder (Milestone 2.4)', () => {
   it('POST /resume/build without auth returns 401', async () => {
     await request(app.getHttpServer())
       .post('/resume/build')
-      .send({ template: 'STANDARD' })
+      .send({ template: 'CLASSIC' })
       .expect(401);
   });
 
@@ -123,10 +123,10 @@ describe('Resume builder (Milestone 2.4)', () => {
     const res = await request(app.getHttpServer())
       .post('/resume/build')
       .set('authorization', `Bearer ${token}`)
-      .send({ template: 'STANDARD' })
+      .send({ template: 'CLASSIC' })
       .expect(200);
 
-    expect(res.body.template).toBe('STANDARD');
+    expect(res.body.template).toBe('CLASSIC');
     expect(res.body.sections.header.fullName).toBe('Alice Doe');
     expect(res.body.sections.experience).toHaveLength(1);
     expect(res.body.sections.education).toHaveLength(1);

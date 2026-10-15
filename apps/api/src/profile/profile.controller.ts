@@ -124,10 +124,7 @@ export class ProfileController {
     @Param('workExperienceId') workExperienceId: string,
     @CurrentUser('sub') userId: string,
   ): Promise<{ message: string }> {
-    return this.profileService.deleteWorkExperience(
-      userId,
-      workExperienceId,
-    );
+    return this.profileService.deleteWorkExperience(userId, workExperienceId);
   }
 
   // -----------------------

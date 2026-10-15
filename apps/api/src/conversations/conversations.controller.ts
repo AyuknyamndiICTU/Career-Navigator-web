@@ -15,7 +15,9 @@ export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
 
   @Post()
-  @ApiOkResponse({ description: 'Create a new conversation with another user.' })
+  @ApiOkResponse({
+    description: 'Create a new conversation with another user.',
+  })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async createConversation(
     @Body() dto: CreateConversationDto,
@@ -44,10 +46,7 @@ export class ConversationsController {
     @Param('conversationId') conversationId: string,
     @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.conversationsService.getMessageHistory(
-      userId,
-      conversationId,
-    );
+    return this.conversationsService.getMessageHistory(userId, conversationId);
   }
 
   @Post(':conversationId/messages')
@@ -60,10 +59,6 @@ export class ConversationsController {
     @Body() dto: SendMessageDto,
     @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.conversationsService.sendMessage(
-      userId,
-      conversationId,
-      dto,
-    );
+    return this.conversationsService.sendMessage(userId, conversationId, dto);
   }
 }

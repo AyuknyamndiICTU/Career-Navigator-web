@@ -3,17 +3,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 
-import {
-  describe,
-  beforeEach,
-  afterEach,
-  it,
-  jest,
-  expect,
-} from '@jest/globals';
+import { describe, beforeEach, afterEach, it, jest } from '@jest/globals';
 
 import { AppModule } from '../src/app.module';
-import { AuthService } from '../src/auth/auth.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { signAccessToken } from '../src/auth/jwt/jwt-utils';
 
@@ -77,8 +69,6 @@ describe('Input validation (Milestone: Phase 3)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideProvider(AuthService)
-      .useValue({})
       .overrideProvider(PrismaService)
       .useValue(mockPrisma)
       .compile();
@@ -107,7 +97,11 @@ describe('Input validation (Milestone: Phase 3)', () => {
 
   it('PUT /profile accepts valid phone "+234-800-555-1234"', async () => {
     const token = signTestToken();
-    mockProfile.upsert.mockResolvedValue({ id: 'pf-1', userId, phone: '+234-800-555-1234' });
+    mockProfile.upsert.mockResolvedValue({
+      id: 'pf-1',
+      userId,
+      phone: '+234-800-555-1234',
+    });
     mockProfile.findUnique.mockResolvedValue(null);
 
     await request(app.getHttpServer())
