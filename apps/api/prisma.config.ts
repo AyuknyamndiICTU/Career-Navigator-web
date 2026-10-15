@@ -6,7 +6,7 @@ import { config } from 'dotenv';
 config({ path: path.join(__dirname, '.env') });
 
 const DATABASE_URL_FALLBACK =
-  'postgresql://postgres:postgres@localhost:5432/career_navigator?schema=public';
+  'postgresql://postgres:postgres@localhost:5435/career_navigator?schema=public';
 
 const prismaRoot = path.join(__dirname, 'prisma');
 

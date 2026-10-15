@@ -1,4 +1,4 @@
-# Host ports can be changed in infra/docker/.env (e.g. POSTGRES_HOST_PORT=5435) when they clash with other projects.
+# Host ports can be changed in infra/docker/.env when they clash with other projects (Postgres defaults to 5435).
 name: career-navigator
 
 services:
@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: career_navigator
     ports:
-      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5435}:5432"
     volumes:
       - cn-postgres:/var/lib/postgresql/data
     healthcheck:
