@@ -1,10 +1,15 @@
-/* global fetch, Buffer, AbortController, setTimeout, clearTimeout, NodeJS */
+/* global Buffer, AbortController, setTimeout, clearTimeout, NodeJS */
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { Client as MinioClient } from 'minio';
-import { getAIProvider, GEMINI_MODEL } from '../../lib/aiProvider';
+import { AiGatewayService } from '../../ai/gateway/ai-gateway.service';
+import { redactPii } from '../../ai/gateway/redact-pii';
 import { env } from '../../config/env';
 import { createMinioClient } from '../../lib/minio-client';
+
+// Re-uploading the same file never calls a model again.
+const CV_CACHE_MS = 30 * 24 * 3_600_000;
 
 type CvScanJobPayload = {
   userId: string;
@@ -46,11 +51,11 @@ type CvScanWorkerLike = WorkerCloseLike & WorkerOnLike;
 export class CvScanWorkerService implements OnModuleDestroy {
   private readonly logger = new Logger(CvScanWorkerService.name);
   private worker?: CvScanWorkerLike;
-  private readonly prisma: PrismaService;
 
-  constructor(prisma: PrismaService) {
-    this.prisma = prisma;
-  }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gateway: AiGatewayService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     if (!isCvScanEnabled()) {
@@ -100,8 +105,8 @@ export class CvScanWorkerService implements OnModuleDestroy {
   private async processJob(payload: CvScanJobPayload): Promise<void> {
     const { uploadMediaId } = payload;
 
-    // Overall timeout: fail the job if it takes longer than 30 seconds total
-    const JOB_TIMEOUT_MS = 30_000;
+    // Overall timeout: text extraction plus the AI time budget (60 s) with some headroom.
+    const JOB_TIMEOUT_MS = 90_000;
     const timeoutController = new AbortController();
     const jobTimeoutId = setTimeout(() => {
       this.logger.error(
@@ -155,7 +160,8 @@ export class CvScanWorkerService implements OnModuleDestroy {
     });
 
     try {
-      const extractedText = await this.extractCvTextFromMinio(objectKey);
+      const { text: extractedText, sha256 } =
+        await this.extractCvTextFromMinio(objectKey);
       abortSignal.throwIfAborted();
 
       // DOCX support is handled here.
@@ -165,7 +171,12 @@ export class CvScanWorkerService implements OnModuleDestroy {
         );
       }
 
-      const structured = await this.extractStructuredCvViaGemini(extractedText);
+      const structured = await this.extractStructuredCv(
+        payload.userId,
+        extractedText,
+        sha256,
+        abortSignal,
+      );
       // A timed-out job is marked FAILED instead of writing late results.
       abortSignal.throwIfAborted();
 
@@ -218,7 +229,9 @@ export class CvScanWorkerService implements OnModuleDestroy {
     return client;
   }
 
-  private async extractCvTextFromMinio(objectKey: string): Promise<string> {
+  private async extractCvTextFromMinio(
+    objectKey: string,
+  ): Promise<{ text: string; sha256: string }> {
     const minioBucket = env.minio.bucket;
     const minio = await this.getMinioClient();
 
@@ -227,6 +240,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
     const buffer = await streamToBuffer(
       objectStream as unknown as NodeJS.ReadableStream,
     );
+    const sha256 = createHash('sha256').update(buffer).digest('hex');
 
     const isDocx = objectKey.toLowerCase().endsWith('.docx');
 
@@ -236,7 +250,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
       const mammoth = (await import('mammoth')) as any;
 
       const result = await mammoth.extractRawText(buffer);
-      return result?.value?.trim() ? result.value : '';
+      return { text: result?.value?.trim() ? result.value : '', sha256 };
     }
 
     const pdfParseMod = await import('pdf-parse');
@@ -245,154 +259,15 @@ export class CvScanWorkerService implements OnModuleDestroy {
 
     const parsed = await pdfParse(buffer);
 
-    if (!parsed?.text) return '';
-    return parsed.text;
+    return { text: parsed?.text ?? '', sha256 };
   }
 
-  private async generateWithGemini(
-    systemInstruction: string,
-    userMessage: string,
+  private async extractStructuredCv(
+    userId: string,
+    cvText: string,
+    sha256: string,
+    signal: AbortSignal,
   ): Promise<string> {
-    // PRIMARY: Gemini via GEMINI_API_KEY
-    const provider = getAIProvider();
-    const url = provider.gemini?.generateContentUrlForModel(GEMINI_MODEL);
-
-    if (!url) {
-      throw new Error('GEMINI_API_KEY is not configured.');
-    }
-
-    // FALLBACK triggers (as requested):
-    // - HTTP 429
-    // - timeout > 15s
-    // - connection error (fetch throws)
-
-    const body = {
-      system_instruction: {
-        parts: [{ text: systemInstruction }],
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: userMessage }],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        topP: 0.9,
-        maxOutputTokens: 2048,
-      },
-    };
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12_000);
-
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-
-      if (res.ok) {
-        const data = (await res.json()) as unknown;
-
-        const dataAny = data as {
-          candidates?: Array<{
-            content?: { parts?: Array<{ text?: string }> };
-          }>;
-        };
-
-        return dataAny?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-      }
-
-      if (res.status === 429 || res.status === 403) {
-        this.logger.warn(
-          `Gemini returned ${res.status}, falling back to Ollama Cloud`,
-        );
-        return await this.generateWithOllamaCloud(
-          systemInstruction,
-          userMessage,
-        );
-      }
-
-      const errorBody = await res.text().catch(() => '');
-      throw new Error(
-        `Gemini request failed: ${res.status} ${errorBody}`.trim(),
-      );
-    } catch (err) {
-      const errAny = err as { name?: string } | undefined;
-      if (errAny?.name === 'AbortError') {
-        this.logger.warn('Gemini timed out, falling back to Ollama Cloud');
-        return await this.generateWithOllamaCloud(
-          systemInstruction,
-          userMessage,
-        );
-      }
-      // For any other fetch/network error, try fallback
-      this.logger.warn(
-        `Gemini fetch error, falling back to Ollama Cloud: ${(err as Error)?.message}`,
-      );
-      return await this.generateWithOllamaCloud(systemInstruction, userMessage);
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  private async generateWithOllamaCloud(
-    systemInstruction: string,
-    userMessage: string,
-  ): Promise<string> {
-    // FALLBACK: Ollama Cloud via OLLAMA_API_KEY
-    const provider = getAIProvider();
-    const ollamaApiKey = provider.ollama?.apiKey;
-    if (!ollamaApiKey) {
-      throw new Error('OLLAMA_API_KEY is not configured.');
-    }
-
-    const baseUrl = provider.ollama?.baseUrl ?? 'https://ollama.com/v1';
-    const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
-
-    const body = {
-      model: 'glm-4.6:cloud',
-      messages: [
-        { role: 'system', content: systemInstruction },
-        { role: 'user', content: userMessage },
-      ],
-      temperature: 0.2,
-      max_tokens: 2048,
-    };
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${ollamaApiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errorBody = await res.text().catch(() => '');
-      throw new Error(
-        `Ollama Cloud request failed: ${res.status} ${errorBody}`.trim(),
-      );
-    }
-
-    const data = (await res.json()) as unknown;
-
-    const dataAny = data as {
-      choices?: Array<{
-        message?: { content?: unknown };
-      }>;
-    };
-
-    return typeof dataAny?.choices?.[0]?.message?.content === 'string'
-      ? (dataAny.choices[0].message.content as string)
-      : '';
-  }
-
-  private async extractStructuredCvViaGemini(cvText: string): Promise<string> {
     const systemInstruction = `You are a CV parser.
 Return ONLY valid JSON. No markdown. No extra commentary.
 If you cannot find a field, set it to null (for nullable fields) or [] (for arrays).`;
@@ -429,13 +304,17 @@ Return ONLY valid JSON with this exact shape:
 
 CV TEXT:
 """
-${cvText}
+${redactPii(cvText)}
 """`.trim();
 
-    const responseText = await this.generateWithGemini(
-      systemInstruction,
-      userMessage,
-    );
+    const { text: responseText } = await this.gateway.generate({
+      task: 'cv-assist',
+      userId,
+      system: systemInstruction,
+      messages: [{ role: 'user', content: userMessage }],
+      signal,
+      cache: { key: sha256, ttlMs: CV_CACHE_MS },
+    });
 
     const fencedMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/i);
     const candidateText = fencedMatch?.[1] ? fencedMatch[1] : responseText;

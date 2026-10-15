@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ensureAccessToken } from '@/lib/auth';
+import AiUsageWidget from '@/components/ai/AiUsageWidget';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -62,6 +63,8 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
 
         {/* Right: actions */}
         <div className="flex items-center gap-3">
+          <AiUsageWidget />
+
           {/* Action Icons Wrapper */}
           <div className="hidden sm:flex items-center gap-2 pr-2">
             {/* Notification bell */}

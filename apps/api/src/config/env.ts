@@ -114,14 +114,72 @@ export const env = {
     get geminiApiKey(): string | undefined {
       return read('GEMINI_API_KEY');
     },
-    get ollamaBaseUrl(): string | undefined {
-      return read('OLLAMA_BASE_URL');
-    },
     get ollamaApiKey(): string | undefined {
       return read('OLLAMA_API_KEY');
     },
-    get geminiJobMatchEnabled(): boolean {
-      return flag('GEMINI_JOB_MATCH_ENABLED');
+    get anthropicApiKey(): string | undefined {
+      return read('ANTHROPIC_API_KEY');
+    },
+    get openrouterApiKey(): string | undefined {
+      return read('OPENROUTER_API_KEY');
+    },
+    get openaiApiKey(): string | undefined {
+      return read('OPENAI_API_KEY');
+    },
+    get jobMatchEnabled(): boolean {
+      return flag('AI_JOB_MATCH_ENABLED') || flag('GEMINI_JOB_MATCH_ENABLED');
+    },
+    /** Comma-separated `provider/model` chain for a task, e.g. AI_ROUTE_CHAT. */
+    route(task: string): string | undefined {
+      return read(`AI_ROUTE_${task.toUpperCase().replace(/-/g, '_')}`);
+    },
+    get chatTimeBudgetMs(): number {
+      return positiveInt('AI_CHAT_TIME_BUDGET_MS', 20_000);
+    },
+    /** Daily platform-AI calls per user and task, e.g. AI_USER_DAILY_LIMIT_CHAT. */
+    userDailyLimit(task: string, fallback: number): number {
+      return positiveInt(
+        `AI_USER_DAILY_LIMIT_${task.toUpperCase().replace(/-/g, '_')}`,
+        fallback,
+      );
+    },
+    /** `provider/model=N` pairs capping platform calls per model per day. */
+    get modelDailyLimits(): Map<string, number> {
+      const limits = new Map<string, number>();
+      for (const pair of (read('AI_MODEL_DAILY_LIMITS') ?? '').split(',')) {
+        const at = pair.lastIndexOf('=');
+        const limit = Number(pair.slice(at + 1));
+        if (at > 0 && Number.isInteger(limit) && limit > 0) {
+          limits.set(pair.slice(0, at).trim(), limit);
+        }
+      }
+      return limits;
+    },
+    /** Platform providers whose usage is free (tokens counted, cost $0). */
+    get platformFreeProviders(): string[] {
+      return (read('AI_PLATFORM_FREE_PROVIDERS') ?? 'gemini,openrouter')
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
+    },
+    get byokEnabled(): boolean {
+      return flag('AI_BYOK_ENABLED') && Boolean(read('AI_KEY_ENCRYPTION_KEY'));
+    },
+    get keyEncryptionKey(): string | undefined {
+      return read('AI_KEY_ENCRYPTION_KEY');
+    },
+    get keyEncryptionKeyPrevious(): string | undefined {
+      return read('AI_KEY_ENCRYPTION_KEY_PREVIOUS');
+    },
+    get keyEncryptionKeyVersion(): number {
+      return positiveInt('AI_KEY_ENCRYPTION_KEY_VERSION', 1);
+    },
+    /** Extra HTTPS hosts users may point OpenAI-compatible keys at. */
+    get byokAllowedHosts(): string[] {
+      return (read('AI_BYOK_ALLOWED_HOSTS') ?? '')
+        .split(',')
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean);
     },
   },
   cvScan: {
@@ -157,6 +215,8 @@ const BOOLEAN_KEYS = [
   'COOKIE_SECURE',
   'SWAGGER_ENABLED',
   'GEMINI_JOB_MATCH_ENABLED',
+  'AI_JOB_MATCH_ENABLED',
+  'AI_BYOK_ENABLED',
 ];
 
 const POSITIVE_INT_KEYS = [
@@ -165,15 +225,20 @@ const POSITIVE_INT_KEYS = [
   'RATE_LIMIT_MAX',
   'CV_SCAN_WORKER_CONCURRENCY',
   'NOTIFICATIONS_WORKER_CONCURRENCY',
+  'AI_CHAT_TIME_BUDGET_MS',
+  'AI_KEY_ENCRYPTION_KEY_VERSION',
 ];
 
 const URL_KEYS: Array<[key: string, protocols: string[]]> = [
   ['DATABASE_URL', ['postgres:', 'postgresql:']],
   ['REDIS_URL', ['redis:', 'rediss:']],
   ['MINIO_ENDPOINT', ['http:', 'https:']],
-  ['OLLAMA_BASE_URL', ['http:', 'https:']],
   ['OPENSEARCH_URL', ['http:', 'https:']],
 ];
+
+function isAes256Key(value: string | undefined): boolean {
+  return Boolean(value) && Buffer.from(value!, 'base64').length === 32;
+}
 
 /** Throws one error listing every problem, so a bad deploy fails at boot instead of on the first request. */
 export function validateEnv(): void {
@@ -238,6 +303,18 @@ export function validateEnv(): void {
     problems.push(
       'OTP_EMAIL_LOG_ONLY=true would write live OTPs to production logs',
     );
+  }
+
+  if (flag('AI_BYOK_ENABLED') && !isAes256Key(env.ai.keyEncryptionKey)) {
+    problems.push(
+      'AI_KEY_ENCRYPTION_KEY must be 32 random bytes in base64 when AI_BYOK_ENABLED=true (openssl rand -base64 32)',
+    );
+  }
+  if (
+    env.ai.keyEncryptionKeyPrevious &&
+    !isAes256Key(env.ai.keyEncryptionKeyPrevious)
+  ) {
+    problems.push('AI_KEY_ENCRYPTION_KEY_PREVIOUS must be 32 bytes in base64');
   }
 
   if (env.isProduction && !env.corsAllowedOrigins) {

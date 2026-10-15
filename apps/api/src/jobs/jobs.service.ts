@@ -1,4 +1,4 @@
-/* global fetch, Buffer, AbortController, setTimeout, clearTimeout */
+/* global fetch, Buffer */
 
 import {
   BadRequestException,
@@ -11,7 +11,7 @@ import { CvScanStatus, JobStatus, MediaType } from '@prisma/client';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { RerankJobsDto } from './dto/rerank-jobs.dto';
 import { seedJobScrapeCandidatesFromActiveJobs } from './job-scrape-seed.service';
-import { getAIProvider, GEMINI_MODEL } from '../lib/aiProvider';
+import { AiGatewayService } from '../ai/gateway/ai-gateway.service';
 
 export type BrowseJobsParams = {
   searchQuery?: string;
@@ -143,11 +143,10 @@ function skillMatches(candidateSkill: string, requestedSkill: string): boolean {
 
 @Injectable()
 export class JobsService {
-  private readonly prisma: PrismaService;
-
-  constructor(prisma: PrismaService) {
-    this.prisma = prisma;
-  }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gateway: AiGatewayService,
+  ) {}
 
   async browse(params: BrowseJobsParams): Promise<{
     items: Array<{
@@ -693,29 +692,8 @@ export class JobsService {
     const limit = 10;
     const ranked = rankedAll.slice(0, limit);
 
-    // Phase 3: optional Gemini-based matchReason upgrade.
-    // To avoid breaking tests/CI, this is gated behind GEMINI_JOB_MATCH_ENABLED=true.
-    // Provider setup (STANDARDIZED):
-    // PRIMARY: Gemini via GEMINI_API_KEY
-    // FALLBACK: Ollama Cloud via OLLAMA_API_KEY (model: glm-4.6:cloud)
-    let provider: ReturnType<typeof getAIProvider> | null = null;
-    try {
-      provider = env.ai.geminiJobMatchEnabled ? getAIProvider() : null;
-    } catch {
-      provider = null;
-    }
-
-    const geminiApiKey = provider?.gemini?.apiKey;
-    const ollamaApiKey = provider?.ollama?.apiKey;
-    const ollamaBaseUrl = provider?.ollama?.baseUrl ?? 'https://ollama.com/v1';
-
-    const geminiEnabled =
-      env.ai.geminiJobMatchEnabled &&
-      provider !== null &&
-      ((typeof geminiApiKey === 'string' && geminiApiKey.trim().length > 0) ||
-        (typeof ollamaApiKey === 'string' && ollamaApiKey.trim().length > 0));
-
-    if (geminiEnabled && ranked.length > 0) {
+    // Optional AI match reasons: one batched call for all jobs (AI_JOB_MATCH_ENABLED=true).
+    if (env.ai.jobMatchEnabled && ranked.length > 0) {
       const normalizeJsonObjectFromText = (
         text: string,
       ): Record<string, unknown> | null => {
@@ -732,162 +710,6 @@ export class JobsService {
         } catch {
           return null;
         }
-      };
-
-      const generateWithGeminiOnce = async (
-        systemInstruction: string,
-        userMessage: string,
-      ): Promise<string> => {
-        // PRIMARY: Gemini (with fallback triggers on 429, >15s timeout, or connection error)
-        try {
-          if (!geminiApiKey) {
-            throw new Error('Gemini unavailable');
-          }
-
-          const geminiUrl =
-            provider?.gemini?.generateContentUrlForModel(GEMINI_MODEL);
-          if (!geminiUrl) {
-            throw new Error('Gemini unavailable');
-          }
-
-          const body = {
-            system_instruction: { parts: [{ text: systemInstruction }] },
-            contents: [
-              {
-                role: 'user',
-                parts: [{ text: userMessage }],
-              },
-            ],
-            generationConfig: {
-              temperature: 0.4,
-              topP: 0.95,
-              maxOutputTokens: 512,
-            },
-          };
-
-          const maxRetries = 1;
-          const requestTimeoutMs = 15_000;
-
-          for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(
-              () => controller.abort(),
-              requestTimeoutMs,
-            );
-
-            try {
-              const res = await fetch(geminiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-                signal: controller.signal,
-              });
-
-              if (res.ok) {
-                const data = (await res.json()) as unknown;
-
-                const dataAny = data as {
-                  response?: unknown;
-                  candidates?: Array<{
-                    content?: { parts?: Array<{ text?: string }> };
-                  }>;
-                };
-
-                const textFromMock =
-                  typeof dataAny?.response === 'string'
-                    ? dataAny.response
-                    : null;
-
-                const textFromGemini =
-                  dataAny?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-
-                const text = textFromMock ?? textFromGemini ?? '';
-                if (text.trim().length > 0) return text;
-
-                // Empty response => treat as unavailable and fall back.
-                throw new Error('Gemini returned empty response');
-              }
-
-              // HTTP 429 => trigger fallback (after retries exhausted)
-              if (res.status === 429) {
-                if (attempt >= maxRetries)
-                  throw new Error('Gemini rate limited');
-              }
-
-              // Retry on rate-limit / service unavailable (429/503)
-              if (
-                (res.status === 429 || res.status === 503) &&
-                attempt < maxRetries
-              ) {
-                const retryAfterHeader = res.headers.get('retry-after');
-                const retryAfterSeconds = retryAfterHeader
-                  ? Number(retryAfterHeader)
-                  : NaN;
-
-                const retryAfterMs =
-                  Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0
-                    ? retryAfterSeconds * 1000
-                    : null;
-
-                const backoffMs = Math.min(500 * Math.pow(2, attempt), 8000);
-                const waitMs = retryAfterMs ?? backoffMs;
-
-                await new Promise((resolve) => setTimeout(resolve, waitMs));
-                continue;
-              }
-
-              // Any non-OK we don't explicitly handle => fall back
-              throw new Error(`Gemini request failed: ${res.status}`);
-            } finally {
-              clearTimeout(timeoutId);
-            }
-          }
-
-          // If loop exits without returning, fall back
-          throw new Error('Gemini unavailable');
-        } catch {
-          // Gemini unavailable -> fall back to Ollama Cloud
-        }
-
-        // FALLBACK: Ollama Cloud (https://ollama.com/v1) via OLLAMA_API_KEY
-        if (!ollamaApiKey || ollamaApiKey.trim().length === 0) return '';
-
-        const url = `${ollamaBaseUrl.replace(/\/+$/, '')}/chat/completions`;
-
-        const body = {
-          model: 'glm-4.6:cloud',
-          messages: [
-            { role: 'system', content: systemInstruction },
-            { role: 'user', content: userMessage },
-          ],
-          temperature: 0.4,
-          max_tokens: 512,
-        };
-
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${ollamaApiKey}`,
-          },
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) return '';
-
-        const data = (await res.json()) as unknown;
-        const dataAny = data as {
-          choices?: Array<{
-            message?: { content?: unknown };
-          }>;
-        };
-
-        const text =
-          typeof dataAny?.choices?.[0]?.message?.content === 'string'
-            ? (dataAny.choices[0].message.content as string)
-            : '';
-
-        return text;
       };
 
       const systemInstruction = `You are "Career Navigator AI", a job matching assistant.
@@ -916,10 +738,19 @@ Task:
         `{\n  "jobs": [\n    {\n      "jobId": string,\n      "matchReason": string\n    }\n  ]\n}\n`;
 
       try {
-        const responseTextRaw = await generateWithGeminiOnce(
-          systemInstruction,
-          userMessage,
-        );
+        const { text: responseTextRaw } = await this.gateway.generate({
+          task: 'job-rerank',
+          userId,
+          system: systemInstruction,
+          messages: [{ role: 'user', content: userMessage }],
+          cache: {
+            key: JSON.stringify({
+              skills: [...fallbackSkills].sort(),
+              jobs: ranked.map((r) => r.jobId).sort(),
+            }),
+            ttlMs: 24 * 3_600_000,
+          },
+        });
 
         const parsedObj = normalizeJsonObjectFromText(responseTextRaw);
         const jobsArr = parsedObj?.jobs;
@@ -937,14 +768,14 @@ Task:
             }
           }
 
-          // Apply Gemini reasons where available.
+          // Apply AI reasons where available.
           for (const r of ranked) {
             const nextReason = byJobId.get(r.jobId);
             if (nextReason) r.matchReason = nextReason;
           }
         }
       } catch {
-        // ignore Gemini failures; keep heuristic matchReason
+        // AI unavailable or out of allowance: keep the heuristic matchReason.
       }
     }
 

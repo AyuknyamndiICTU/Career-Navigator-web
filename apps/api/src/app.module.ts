@@ -22,12 +22,14 @@ import { AdminModule } from './admin/admin.module';
 import { AgoraModule } from './agora/agora.module';
 import { CoursesModule } from './courses/courses.module';
 import { HealthModule } from './health/health.module';
+import { AiGatewayModule } from './ai/gateway/ai-gateway.module';
 import { RequestContextMiddleware } from './logging/request-context.middleware';
 import { AllExceptionsFilter } from './logging/all-exceptions.filter';
 
 @Module({
   imports: [
     HealthModule,
+    AiGatewayModule,
     AuthModule,
     ProfileModule,
     UploadModule,

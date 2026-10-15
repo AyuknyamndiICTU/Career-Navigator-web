@@ -180,6 +180,54 @@ export function apiFetchFile(
   return authorizedFetch(path, { method: 'POST', body: formData }, options);
 }
 
+export type StreamHandler = (event: string, data: any) => void;
+
+/**
+ * POSTs JSON and reads a Server-Sent Events response, calling `onEvent` per event.
+ * Errors before the stream starts (401/429/503) throw like apiFetch; an `error` event mid-stream
+ * is passed to `onEvent`. Abort with `signal` to stop generation server-side too.
+ */
+export async function apiStream(
+  path: string,
+  body: unknown,
+  onEvent: StreamHandler,
+  signal?: AbortSignal,
+): Promise<void> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
+    body: JSON.stringify(body),
+    signal,
+  };
+
+  if (!accessToken || expiresSoon(accessToken)) await refreshSession();
+  let res = await send(path, init);
+  if (res.status === 401 && (await refreshSession())) res = await send(path, init);
+
+  if (!res.ok || !res.body || !res.headers.get('content-type')?.includes('text/event-stream')) {
+    await handleResponse(res, path);
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let boundary: number;
+    while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+      const block = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const event = /^event: (.*)$/m.exec(block)?.[1] ?? 'message';
+      const data = /^data: (.*)$/m.exec(block)?.[1];
+      if (data !== undefined) onEvent(event, JSON.parse(data));
+    }
+  }
+}
+
 async function handleResponse(
   res: Response,
   path: string,

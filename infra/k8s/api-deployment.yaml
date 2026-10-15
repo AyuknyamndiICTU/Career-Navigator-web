@@ -30,10 +30,13 @@ spec:
               value: "REPLACE_ME"
             - name: JWT_REFRESH_SECRET
               value: "REPLACE_ME"
-            - name: OLLAMA_BASE_URL
+            # Cloud AI only; providers without a key are skipped.
+            - name: GEMINI_API_KEY
               value: "REPLACE_ME"
-            - name: OLLAMA_MODEL
-              value: "qwen2.5-coder:7b"
+            - name: OLLAMA_API_KEY
+              value: ""
+            - name: AI_BYOK_ENABLED
+              value: "false"
             - name: AGORA_APP_ID
               value: "REPLACE_ME"
             - name: AGORA_APP_CERTIFICATE

@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { apiFetch } from '@/lib/auth';
 import DashboardLayout from '@/components/DashboardLayout';
 import ErrorAlert from '@/components/ErrorAlert';
+import AdminAiPanel from '@/components/admin/AdminAiPanel';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -183,6 +184,8 @@ export default function AdminAnalyticsPage() {
             )}
           </div>
         </motion.div>
+
+        <AdminAiPanel />
       </div>
     </DashboardLayout>
   );

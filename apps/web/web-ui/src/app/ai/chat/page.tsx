@@ -4,28 +4,18 @@
 
 import { Fragment, useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { apiFetch } from '@/lib/auth';
+import { apiStream } from '@/lib/auth';
 import DashboardLayout from '@/components/DashboardLayout';
 import ErrorAlert from '@/components/ErrorAlert';
+import AiUsageLine from '@/components/ai/AiUsageLine';
+import type { AiMeta } from '@/lib/ai-usage';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
-}
-
-function textFromAiPayload(payload: unknown): string {
-  if (typeof payload === 'string') return cleanAssistantText(payload);
-
-  if (!payload || typeof payload !== 'object') {
-    return 'I had trouble reading that response. Please try again.';
-  }
-
-  const record = payload as Record<string, unknown>;
-  const directText = record.reply ?? record.response ?? record.message;
-
-  if (typeof directText === 'string') return cleanAssistantText(directText);
-
-  return 'I received your request, but the response was not in a readable format. Please try asking again.';
+  meta?: AiMeta | null;
+  /** Set while the answer is still streaming. */
+  streamingTokens?: number;
 }
 
 function cleanAssistantText(text: string): string {
@@ -120,36 +110,88 @@ export default function AiChatPage() {
   const [error, setError] = useState('');
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, busy]);
 
+  // Stop generating when the user leaves the page.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  function updateLast(patch: (msg: ChatMessage) => ChatMessage) {
+    setHistory((prev) => {
+      const last = prev[prev.length - 1];
+      if (!last || last.role !== 'assistant') return prev;
+      return [...prev.slice(0, -1), patch(last)];
+    });
+  }
+
   async function send() {
     if (!message.trim() || busy) return;
 
     const userMsg = message.trim();
+    const previous = history
+      .filter((m) => m.content)
+      .map(({ role, content }) => ({ role, content }));
     setMessage('');
     setHistory((prev) => [...prev, { role: 'user', content: userMsg }]);
     setBusy(true);
     setError('');
 
-    try {
-      const res = await apiFetch('/ai/chat', {
-        method: 'POST',
-        body: { message: userMsg },
-      });
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-      const text = textFromAiPayload(res);
-      setHistory((prev) => [...prev, { role: 'assistant', content: text }]);
+    try {
+      await apiStream(
+        '/ai/chat/stream',
+        { message: userMsg, history: previous.slice(-20) },
+        (event, data) => {
+          if (event === 'start') {
+            setHistory((prev) => [
+              ...prev,
+              {
+                role: 'assistant',
+                content: '',
+                meta: { ...data, usage: null },
+                streamingTokens: 0,
+              },
+            ]);
+          } else if (event === 'delta') {
+            updateLast((m) => ({ ...m, content: m.content + data.text }));
+          } else if (event === 'usage') {
+            updateLast((m) => ({ ...m, streamingTokens: data.outputTokensEstimate }));
+          } else if (event === 'done') {
+            updateLast((m) => ({
+              ...m,
+              content: cleanAssistantText(data.response),
+              meta: data.ai,
+              streamingTokens: undefined,
+            }));
+          } else if (event === 'error') {
+            setError(data.message || 'The answer was interrupted.');
+            updateLast((m) => ({ ...m, streamingTokens: undefined }));
+          }
+        },
+        controller.signal,
+      );
     } catch (e) {
+      if (controller.signal.aborted) {
+        updateLast((m) => ({ ...m, streamingTokens: undefined }));
+        return;
+      }
       const msg = e instanceof Error ? e.message : 'AI chat failed';
       if (!msg) return;
       if (msg.toLowerCase().includes('401') || msg.toLowerCase().includes('unauthorized')) return;
       setError(msg);
     } finally {
+      abortRef.current = null;
       setBusy(false);
     }
+  }
+
+  function stop() {
+    abortRef.current?.abort();
   }
 
   function handleKeyDown(e: any) {
@@ -244,7 +286,10 @@ export default function AiChatPage() {
                   }`}
                 >
                   {msg.role === 'assistant' ? (
-                    <AssistantMessageContent content={msg.content} />
+                    <>
+                      <AssistantMessageContent content={msg.content || '…'} />
+                      <AiUsageLine meta={msg.meta} streamingTokens={msg.streamingTokens} />
+                    </>
                   ) : (
                     <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
                   )}
@@ -252,7 +297,7 @@ export default function AiChatPage() {
               </motion.div>
             ))}
 
-            {busy && (
+            {busy && history[history.length - 1]?.role !== 'assistant' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 mr-3 shadow-md animate-pulse">
                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -286,13 +331,18 @@ export default function AiChatPage() {
                 rows={1}
               />
               <button
-                onClick={send}
-                disabled={busy || !message.trim()}
+                onClick={busy ? stop : send}
+                disabled={!busy && !message.trim()}
+                aria-label={busy ? 'Stop generating' : 'Send message'}
                 className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-2xl flex items-center justify-center hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-md mb-0.5"
               >
-                <svg className="w-5 h-5 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
+                {busy ? (
+                  <span className="w-3.5 h-3.5 rounded-sm bg-white" />
+                ) : (
+                  <svg className="w-5 h-5 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                )}
               </button>
             </div>
           </div>

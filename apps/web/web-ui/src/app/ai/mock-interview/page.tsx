@@ -1,13 +1,22 @@
 // @ts-nocheck
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { apiFetch } from '@/lib/auth';
+import { apiStream } from '@/lib/auth';
 import DashboardLayout from '@/components/DashboardLayout';
 import ErrorAlert from '@/components/ErrorAlert';
+import AiUsageLine from '@/components/ai/AiUsageLine';
+import type { AiMeta } from '@/lib/ai-usage';
 
 type Difficulty = 'beginner' | 'intermediate' | 'advanced';
+
+type Turn = {
+  role: 'user' | 'assistant';
+  content: string;
+  meta?: AiMeta | null;
+  streamingTokens?: number;
+};
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -27,28 +36,51 @@ export default function MockInterviewPage() {
   const [difficulty, setDifficulty] = useState<Difficulty>('intermediate');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [response, setResponse] = useState('');
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [answer, setAnswer] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!role.trim() || busy) return;
+  useEffect(() => () => abortRef.current?.abort(), []);
 
+  function updateLast(patch: (t: Turn) => Turn) {
+    setTurns((prev) => {
+      const last = prev[prev.length - 1];
+      if (!last || last.role !== 'assistant') return prev;
+      return [...prev.slice(0, -1), patch(last)];
+    });
+  }
+
+  async function run(body: Record<string, unknown>) {
     setBusy(true);
     setError('');
-    setResponse('');
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
-      const res = await apiFetch('/ai/mock-interview', {
-        method: 'POST',
-        body: { role: role.trim(), difficulty },
-      });
-
-      const text =
-        typeof res === 'string'
-          ? res
-          : res?.response || JSON.stringify(res, null, 2);
-      setResponse(text);
+      await apiStream(
+        '/ai/mock-interview/stream',
+        body,
+        (event, data) => {
+          if (event === 'start') {
+            setTurns((prev) => [
+              ...prev,
+              { role: 'assistant', content: '', meta: { ...data, usage: null }, streamingTokens: 0 },
+            ]);
+          } else if (event === 'delta') {
+            updateLast((t) => ({ ...t, content: t.content + data.text }));
+          } else if (event === 'usage') {
+            updateLast((t) => ({ ...t, streamingTokens: data.outputTokensEstimate }));
+          } else if (event === 'done') {
+            updateLast((t) => ({ ...t, content: data.response, meta: data.ai, streamingTokens: undefined }));
+          } else if (event === 'error') {
+            setError(data.message || 'The interview was interrupted.');
+            updateLast((t) => ({ ...t, streamingTokens: undefined }));
+          }
+        },
+        controller.signal,
+      );
     } catch (e) {
+      if (controller.signal.aborted) return;
       const msg = e instanceof Error ? e.message : 'Mock interview failed';
       if (!msg) return;
       if (
@@ -58,8 +90,25 @@ export default function MockInterviewPage() {
         return;
       setError(msg);
     } finally {
+      abortRef.current = null;
       setBusy(false);
     }
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!role.trim() || busy) return;
+    setTurns([]);
+    await run({ role: role.trim(), difficulty });
+  }
+
+  async function sendAnswer() {
+    const text = answer.trim();
+    if (!text || busy) return;
+    const history = turns.filter((t) => t.content).map(({ role: r, content }) => ({ role: r, content }));
+    setAnswer('');
+    setTurns((prev) => [...prev, { role: 'user', content: text }]);
+    await run({ role: role.trim(), difficulty, message: text, history: history.slice(-20) });
   }
 
   return (
@@ -181,15 +230,15 @@ export default function MockInterviewPage() {
           </form>
         </motion.div>
 
-        {/* Response card */}
-        {response && (
+        {/* Interview transcript */}
+        {turns.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-card overflow-hidden border border-surface-border">
             <div className="px-6 py-4 border-b border-surface-border bg-slate-50/50 flex flex-wrap items-center justify-between gap-4">
               <div className="text-base font-semibold text-slate-800 flex items-center gap-2">
                 <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Interview Questions Ready
+                Interview in progress
               </div>
               <div className="flex gap-2">
                 <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
@@ -201,9 +250,40 @@ export default function MockInterviewPage() {
               </div>
             </div>
 
-            <div className="p-6 md:p-8">
-              <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
-                {response}
+            <div className="p-6 md:p-8 space-y-5">
+              {turns.map((turn, i) => (
+                <div
+                  key={i}
+                  className={
+                    turn.role === 'assistant'
+                      ? 'text-sm text-slate-700 leading-relaxed font-medium'
+                      : 'ml-auto max-w-[85%] rounded-2xl bg-orange-50 border border-orange-100 px-4 py-3 text-sm text-slate-800 font-medium'
+                  }
+                >
+                  <div className="whitespace-pre-wrap">{turn.content || '…'}</div>
+                  {turn.role === 'assistant' && (
+                    <AiUsageLine meta={turn.meta} streamingTokens={turn.streamingTokens} />
+                  )}
+                </div>
+              ))}
+
+              <div className="pt-2 flex items-end gap-3">
+                <textarea
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  rows={3}
+                  maxLength={5000}
+                  placeholder="Type your answer to get feedback and the next question…"
+                  className="flex-1 px-4 py-3 bg-slate-50 rounded-xl text-sm border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 font-medium text-slate-800 placeholder-slate-400 resize-none"
+                />
+                <button
+                  type="button"
+                  onClick={busy ? () => abortRef.current?.abort() : sendAnswer}
+                  disabled={!busy && !answer.trim()}
+                  className="px-5 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-sm font-bold disabled:opacity-50 shadow-md"
+                >
+                  {busy ? 'Stop' : 'Answer'}
+                </button>
               </div>
             </div>
           </motion.div>

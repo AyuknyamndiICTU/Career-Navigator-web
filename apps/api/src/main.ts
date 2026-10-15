@@ -5,7 +5,7 @@ import { AppModule } from './app.module';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { getAIProvider } from './lib/aiProvider';
+import { PROVIDERS } from './ai/gateway/providers';
 import { API_PREFIX } from './lib/api-prefix';
 import { env, validateEnv } from './config/env';
 import { corsOriginCallback } from './config/cors';
@@ -23,15 +23,15 @@ async function bootstrap() {
   // SIGTERM/SIGINT run onModuleDestroy: BullMQ workers, queues, Redis and Prisma close cleanly.
   app.enableShutdownHooks();
 
-  // Log active provider once at startup (Gemini vs Ollama Cloud).
-  // The utility itself prints: "[AI Provider] Active: Gemini|Ollama Cloud"
-  try {
-    getAIProvider();
-  } catch (err) {
-    new Logger('Bootstrap').warn(
-      `AI provider initialization warning: ${String(err)}`,
-    );
-  }
+  // Which platform AI providers have keys (the gateway skips the rest).
+  const aiProviders = Object.values(PROVIDERS)
+    .filter((p) => p.platformKey())
+    .map((p) => p.name);
+  new Logger('AiGateway').log(
+    aiProviders.length > 0
+      ? `Platform AI providers: ${aiProviders.join(', ')}`
+      : 'No platform AI keys configured; only users with their own keys can use AI.',
+  );
 
   // CORS: an explicit allow-list (required in production); dev without a list reflects the origin.
   app.enableCors({
@@ -65,6 +65,21 @@ async function bootstrap() {
       legacyHeaders: false,
       message: {
         message: 'Too many login attempts. Please try again in a minute.',
+      },
+    }),
+  );
+
+  // Adding, changing, testing and removing AI keys calls providers; keep it slow for abuse.
+  app.use(
+    `/${API_PREFIX}/ai/credentials`,
+    rateLimit({
+      windowMs: 10 * 60_000,
+      limit: 30,
+      standardHeaders: true,
+      legacyHeaders: false,
+      skip: (req) => req.method === 'GET',
+      message: {
+        message: 'Too many AI key changes. Please wait a few minutes.',
       },
     }),
   );

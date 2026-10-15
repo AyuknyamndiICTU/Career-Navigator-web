@@ -12,53 +12,90 @@ import {
 } from '@jest/globals';
 
 import { AppModule } from '../src/app.module';
-import { AuthService } from '../src/auth/auth.service';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { MessagingGateway } from '../src/realtime/messaging.gateway';
+import { AiUsageService } from '../src/ai/gateway/ai-usage.service';
 import { signAccessToken } from '../src/auth/jwt/jwt-utils';
+import {
+  anthropicSse,
+  failure,
+  geminiJson,
+  geminiSse,
+  hang,
+  json,
+  mockFetch,
+  openAiJson,
+  openAiSse,
+  parseSse,
+  rawText,
+  resetAiEnv,
+} from './ai-fixtures';
 
-describe('AI chat (Milestone 5.2) + career-path enforcement (5.1)', () => {
+const GEMINI = 'https://generativelanguage.googleapis.com/v1beta/models/';
+const OLLAMA = 'https://ollama.com/v1/chat/completions';
+
+describe('AI gateway: chat, fallback, quotas, streaming, metering (Phase 12)', () => {
   let app: INestApplication<App>;
-
   const userId = 'user-1';
 
-  const mockJobApplication: any = {
-    findMany: jest.fn(),
-  };
-
   const mockPrisma: any = {
-    jobApplication: mockJobApplication,
+    jobApplication: { findMany: jest.fn() },
+    user: { findUnique: jest.fn() },
+    aiUsageEvent: { createMany: jest.fn() },
+    aiModelPrice: { findMany: jest.fn() },
+    notification: { create: jest.fn() },
   };
 
-  const signTestToken = (): string => {
-    const secret = process.env.JWT_ACCESS_SECRET ?? 'test-secret';
-
-    return signAccessToken({
-      secret,
+  const token = () =>
+    signAccessToken({
+      secret: 'test-secret',
       expiresIn: '15m',
       userId,
       email: 'alice@example.com',
       isActive: true,
     });
-  };
+
+  const chat = (message = 'Help me plan my Node.js learning') =>
+    request(app.getHttpServer())
+      .post('/ai/chat')
+      .set('authorization', `Bearer ${token()}`)
+      .send({ message, allowedSkills: ['node', 'ts'] });
+
+  const chatStream = (message = 'Help me plan') =>
+    request(app.getHttpServer())
+      .post('/ai/chat/stream')
+      .set('authorization', `Bearer ${token()}`)
+      .send({ message })
+      .buffer(true)
+      .parse(rawText);
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    process.env.JWT_ACCESS_SECRET = 'test-secret';
-    process.env.OLLAMA_BASE_URL = 'http://localhost:11434';
-    process.env.OLLAMA_MODEL = 'llama3';
-    delete process.env.GEMINI_API_KEY;
-
-    (global as any).fetch = jest.fn();
-
-    mockJobApplication.findMany.mockResolvedValue([
+    resetAiEnv();
+    mockPrisma.jobApplication.findMany.mockResolvedValue([
       { job: { skills: ['node', 'ts'] } },
+    ]);
+    mockPrisma.user.findUnique.mockResolvedValue({
+      role: 'USER',
+      aiFallbackToPlatform: true,
+    });
+    mockPrisma.aiUsageEvent.createMany.mockResolvedValue({ count: 1 });
+    mockPrisma.notification.create.mockResolvedValue({});
+    mockPrisma.aiModelPrice.findMany.mockResolvedValue([
+      {
+        provider: 'OLLAMA_CLOUD',
+        model: 'gpt-oss:120b',
+        inputPerMTok: 0.15,
+        outputPerMTok: 0.6,
+        cachedInputPerMTok: null,
+        isFree: false,
+        effectiveFrom: new Date(0),
+      },
     ]);
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideProvider(AuthService)
-      .useValue({})
       .overrideProvider(PrismaService)
       .useValue(mockPrisma)
       .compile();
@@ -78,289 +115,331 @@ describe('AI chat (Milestone 5.2) + career-path enforcement (5.1)', () => {
       .expect(401);
   });
 
-  it('POST /ai/chat returns response when it mentions allowed skills', async () => {
-    (global as any).fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => '',
-      json: async () => ({
-        response: 'Sure—let’s talk about Node.js and TypeScript.',
-      }),
-    });
+  it('answers with Gemini, sends the key in a header and reports exact usage', async () => {
+    const calls = mockFetch(() =>
+      geminiJson('Start with Node.js streams and TypeScript types.'),
+    );
 
-    const token = signTestToken();
-    const res = await request(app.getHttpServer())
-      .post('/ai/chat')
-      .set('authorization', `Bearer ${token}`)
-      .send({
-        message: 'Help me with a project plan',
-        allowedSkills: ['node', 'ts'],
-      })
-      .expect(201);
+    const res = await chat().expect(201);
 
+    expect(res.body.response).toContain('Node.js');
     expect(res.body.allowedSkills).toEqual(['node', 'ts']);
-    expect(typeof res.body.response).toBe('string');
-    expect(res.body.response.toLowerCase()).toContain('node');
+    expect(res.body.ai).toMatchObject({
+      provider: 'gemini',
+      model: 'gemini-3.8-flash',
+      viaOwnKey: false,
+      usage: {
+        inputTokens: 120,
+        outputTokens: 30,
+        costUsd: 0,
+        costSource: 'FREE',
+      },
+    });
+    expect(calls[0].url).toBe(`${GEMINI}gemini-3.8-flash:generateContent`);
+    expect(calls[0].url).not.toContain('key=');
+    expect(calls[0].headers.get('x-goog-api-key')).toBe('test-gemini-key');
+    expect(calls[0].body.generationConfig.maxOutputTokens).toBe(800);
   });
 
-  it('POST /ai/chat refuses when model response mentions no allowed skills', async () => {
-    (global as any).fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => '',
-      json: async () => ({ response: 'I can help with cooking recipes.' }),
-    });
+  it('keeps answers on the career-path skills', async () => {
+    mockFetch(() => geminiJson('I can help with cooking recipes.'));
+    const res = await chat('Help me with something').expect(201);
+    expect(res.body.response.toLowerCase()).toContain('career-path skills');
+  });
 
-    const token = signTestToken();
-    const res = await request(app.getHttpServer())
+  it('sends only the last 6 turns and condenses older ones', async () => {
+    const calls = mockFetch(() => geminiJson('Node.js it is.'));
+    const history = Array.from({ length: 10 }, (_, i) => ({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `turn ${i}`,
+    }));
+    await request(app.getHttpServer())
       .post('/ai/chat')
-      .set('authorization', `Bearer ${token}`)
-      .send({
-        message: 'Help me with something',
-        allowedSkills: ['node'],
-      })
+      .set('authorization', `Bearer ${token()}`)
+      .send({ message: 'next step?', history })
       .expect(201);
 
-    expect(res.body.allowedSkills).toEqual(['node']);
-    expect(res.body.response.toLowerCase()).toContain('career-path skills');
+    const contents = calls[0].body.contents as Array<{
+      parts: Array<{ text: string }>;
+    }>;
+    expect(contents).toHaveLength(7);
+    expect(contents[6].parts[0].text).toContain(
+      'Earlier in this chat the user asked about: turn 0 | turn 2',
+    );
   });
 
-  it('POST /ai/mock-interview returns interview response mentioning allowed skills', async () => {
-    (global as any).fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => '',
-      json: async () => ({
-        response: 'Question about Node.js and TypeScript.',
-      }),
-    });
+  it('cools a rate-limited model down and moves to the next one', async () => {
+    const calls = mockFetch(({ url }) =>
+      url.includes('gemini-3.8-flash')
+        ? failure(429, 'quota', { 'retry-after': '30' })
+        : geminiJson('Gemini 3.6 says Node.js.'),
+    );
 
-    const token = signTestToken();
+    const first = await chat().expect(201);
+    expect(first.body.ai.model).toBe('gemini-3.6-flash');
+
+    // The cooling model is skipped entirely on the next request.
+    await chat().expect(201);
+    expect(calls.map((c) => c.url.split('/models/')[1])).toEqual([
+      'gemini-3.8-flash:generateContent',
+      'gemini-3.6-flash:generateContent',
+      'gemini-3.6-flash:generateContent',
+    ]);
+  });
+
+  it('falls back to Ollama Cloud when Gemini is exhausted and prices it from the price table', async () => {
+    mockFetch(({ url }) =>
+      url.startsWith(GEMINI)
+        ? failure(
+            429,
+            '{"error":{"message":"Quota exceeded: GenerateRequestsPerDay"}}',
+          )
+        : openAiJson('Ollama says Node.js.', {
+            prompt_tokens: 100,
+            completion_tokens: 20,
+          }),
+    );
+
+    const res = await chat().expect(201);
+    expect(res.body.ai).toMatchObject({
+      provider: 'ollama',
+      model: 'gpt-oss:120b',
+      usage: { inputTokens: 100, outputTokens: 20, costSource: 'PRICE_TABLE' },
+    });
+    // (100 x 0.15 + 20 x 0.60) / 1M
+    expect(res.body.ai.usage.costUsd).toBeCloseTo(0.000027, 9);
+  });
+
+  it('serves chat through the next provider when the Gemini key is revoked', async () => {
+    delete process.env.GEMINI_API_KEY;
+    const calls = mockFetch(() => openAiJson('Ollama: Node.js plan.'));
+
+    const res = await chat().expect(201);
+    expect(res.body.ai.provider).toBe('ollama');
+    expect(calls.every((c) => c.url === OLLAMA)).toBe(true);
+    expect(calls[0].headers.get('authorization')).toBe(
+      'Bearer test-ollama-key',
+    );
+  });
+
+  it('retries a 503 once on the same model', async () => {
+    let n = 0;
+    const calls = mockFetch(() =>
+      n++ === 0 ? failure(503, 'busy') : geminiJson('Retried: Node.js.'),
+    );
+
+    const res = await chat().expect(201);
+    expect(res.body.ai.model).toBe('gemini-3.8-flash');
+    expect(calls).toHaveLength(2);
+  });
+
+  it('gives up within the total time budget when providers hang', async () => {
+    process.env.AI_CHAT_TIME_BUDGET_MS = '1200';
+    mockFetch(({ init }) => hang(init));
+
+    const started = Date.now();
+    const res = await chat().expect(503);
+    expect(Date.now() - started).toBeLessThan(4_000);
+    expect(res.body.message).toMatch(/busy/i);
+    expect(res.body.requestId).toBeDefined();
+  });
+
+  it('enforces the daily free allowance per user, exempting admins', async () => {
+    process.env.AI_USER_DAILY_LIMIT_CHAT = '1';
+    mockFetch(() => geminiJson('Node.js.'));
+
+    await chat().expect(201);
+    const limited = await chat().expect(429);
+    expect(limited.body.message).toMatch(/free AI requests/);
+    expect(limited.body.resetAt).toBeDefined();
+
+    mockPrisma.user.findUnique.mockResolvedValue({
+      role: 'ADMIN',
+      aiFallbackToPlatform: true,
+    });
+    await app.close();
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue(mockPrisma)
+      .compile();
+    app = moduleFixture.createNestApplication();
+    await app.init();
+    await chat().expect(201);
+    await chat().expect(201);
+  });
+
+  it('streams chat as Server-Sent Events with exact final usage and a live ai:usage event', async () => {
+    const emit = jest.spyOn(app.get(MessagingGateway), 'emitToUser');
+    mockFetch(() => geminiSse(['Learn ', 'Node.js ', 'streams.']));
+
+    const res = await chatStream().expect(200);
+    expect(res.headers['content-type']).toContain('text/event-stream');
+
+    const events = parseSse(res.body as unknown as string);
+    expect(events.map((e) => e.event)).toEqual([
+      'context',
+      'start',
+      'delta',
+      'delta',
+      'delta',
+      'done',
+    ]);
+    expect(events[1].data).toEqual({
+      provider: 'gemini',
+      model: 'gemini-3.8-flash',
+      viaOwnKey: false,
+    });
+    const done = events[5].data;
+    expect(done.response).toBe('Learn Node.js streams.');
+    expect(done.ai.usage).toMatchObject({ inputTokens: 120, outputTokens: 12 });
+
+    expect(emit).toHaveBeenCalledWith(
+      userId,
+      'ai:usage',
+      expect.objectContaining({
+        task: 'chat',
+        usage: expect.objectContaining({ outputTokens: 12 }),
+        today: expect.objectContaining({ calls: 1, outputTokens: 12 }),
+      }),
+    );
+  });
+
+  it('falls back before the first token when a streamed model fails', async () => {
+    mockFetch(({ url }) =>
+      url.startsWith(GEMINI)
+        ? failure(429, 'slow down')
+        : openAiSse(['Ollama ', 'answer.']),
+    );
+
+    const events = parseSse(
+      (await chatStream().expect(200)).body as unknown as string,
+    );
+    expect(events.find((e) => e.event === 'start')?.data.provider).toBe(
+      'ollama',
+    );
+    expect(events.at(-1)?.data.response).toBe('Ollama answer.');
+    expect(events.at(-1)?.data.ai.usage).toMatchObject({
+      inputTokens: 90,
+      outputTokens: 15,
+    });
+  });
+
+  it('reads Claude streaming usage including prompt-cache reads', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
+    process.env.AI_ROUTE_CHAT = 'anthropic/claude-haiku-5-5';
+    const calls = mockFetch(() => anthropicSse(['Claude ', 'on Node.js.']));
+
+    const events = parseSse(
+      (await chatStream().expect(200)).body as unknown as string,
+    );
+    expect(events.at(-1)?.data.ai.usage).toMatchObject({
+      inputTokens: 240,
+      cachedTokens: 200,
+      outputTokens: 18,
+    });
+    expect(calls[0].headers.get('x-api-key')).toBe('test-anthropic-key');
+    expect(calls[0].body.system[0].cache_control).toEqual({
+      type: 'ephemeral',
+    });
+  });
+
+  it('returns a normal JSON 429 (not a stream) when the allowance is used up', async () => {
+    process.env.AI_USER_DAILY_LIMIT_CHAT = '1';
+    mockFetch(() => geminiSse(['Node.js']));
+    await chatStream().expect(200);
+
+    const res = await request(app.getHttpServer())
+      .post('/ai/chat/stream')
+      .set('authorization', `Bearer ${token()}`)
+      .send({ message: 'again' })
+      .expect(429);
+    expect(res.headers['content-type']).toContain('application/json');
+  });
+
+  it('writes durable usage events with provider-reported tokens', async () => {
+    mockFetch(() => geminiJson('Node.js.'));
+    await chat().expect(201);
+    await app.get(AiUsageService).flush();
+
+    expect(mockPrisma.aiUsageEvent.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          userId,
+          credentialId: null,
+          provider: 'GEMINI',
+          model: 'gemini-3.8-flash',
+          task: 'chat',
+          inputTokens: 120,
+          outputTokens: 30,
+          costSource: 'FREE',
+          status: 'ok',
+        }),
+      ],
+    });
+  });
+
+  it('POST /ai/mock-interview uses the mock-interview route', async () => {
+    const calls = mockFetch(() => geminiJson('Question 1 about Node.js.'));
     const res = await request(app.getHttpServer())
       .post('/ai/mock-interview')
-      .set('authorization', `Bearer ${token}`)
-      .send({ role: 'Frontend Engineer', allowedSkills: ['node'] })
+      .set('authorization', `Bearer ${token()}`)
+      .send({ role: 'Backend Engineer', allowedSkills: ['node'] })
       .expect(201);
 
-    expect(res.body.allowedSkills).toEqual(['node']);
-    expect(res.body.role).toBe('Frontend Engineer');
-    expect(res.body.response.toLowerCase()).toContain('node');
+    expect(res.body.role).toBe('Backend Engineer');
+    expect(res.body.response).toContain('Node.js');
+    expect(calls[0].body.systemInstruction.parts[0].text).toContain(
+      'Role: Backend Engineer',
+    );
+    expect(calls[0].body.generationConfig.maxOutputTokens).toBe(600);
   });
 
-  it('POST /ai/mock-interview refuses when response mentions no allowed skills', async () => {
-    (global as any).fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => '',
-      json: async () => ({ response: 'I will ask about cooking recipes.' }),
-    });
+  it('caches course recommendations so the same request never calls a model twice', async () => {
+    const courses = {
+      courses: [
+        {
+          platform: 'Coursera',
+          courseName: 'Node.js Basics',
+          difficulty: 'Beginner',
+          description: 'Intro',
+          externalUrl: 'https://example.com/node',
+          whyRecommended: 'Builds node skills',
+        },
+      ],
+    };
+    const calls = mockFetch(() => geminiJson(JSON.stringify(courses)));
+    const send = () =>
+      request(app.getHttpServer())
+        .post('/ai/course-recommendations')
+        .set('authorization', `Bearer ${token()}`)
+        .send({ allowedSkills: ['node'], studentGoal: 'Get job-ready skills' })
+        .expect(201);
 
-    const token = signTestToken();
-    const res = await request(app.getHttpServer())
-      .post('/ai/mock-interview')
-      .set('authorization', `Bearer ${token}`)
-      .send({ role: 'Frontend Engineer', allowedSkills: ['node'] })
-      .expect(201);
+    const first = await send();
+    expect(first.body.courses[0].courseName).toBe('Node.js Basics');
+    expect(calls[0].url).toContain('gemini-3.1-flash-lite');
+    expect(calls[0].body.generationConfig.responseMimeType).toBe(
+      'application/json',
+    );
 
-    expect(res.body.allowedSkills).toEqual(['node']);
-    expect(res.body.response.toLowerCase()).toContain('career-path skills');
+    const second = await send();
+    expect(second.body.ai.cached).toBe(true);
+    expect(calls).toHaveLength(1);
   });
 
-  it('POST /ai/course-recommendations returns course recommendations', async () => {
-    (global as any).fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => '',
-      json: async () => ({
-        response:
-          '- Coursera: Node.js Basics\n- Udemy: TypeScript for Developers',
-      }),
-    });
+  it('still recommends curated courses when no AI is available', async () => {
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.OLLAMA_API_KEY;
+    mockFetch(() => json({}));
 
-    const token = signTestToken();
     const res = await request(app.getHttpServer())
       .post('/ai/course-recommendations')
-      .set('authorization', `Bearer ${token}`)
-      .send({ allowedSkills: ['node'], studentGoal: 'Get job-ready skills' })
+      .set('authorization', `Bearer ${token()}`)
+      .send({ allowedSkills: ['node'] })
       .expect(201);
-
-    expect(res.body.allowedSkills).toEqual(['node']);
-    expect(typeof res.body.response).toBe('string');
-  });
-
-  it('POST /ai/chat retries on 429 then succeeds', async () => {
-    const token = signTestToken();
-
-    (global as any).fetch
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 429,
-        text: async () => 'rate limited',
-        headers: { get: () => '0' },
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        text: async () => '',
-        json: async () => ({
-          response: 'Node.js is a great start for your project plan.',
-        }),
-      });
-
-    const res = await request(app.getHttpServer())
-      .post('/ai/chat')
-      .set('authorization', `Bearer ${token}`)
-      .send({
-        message: 'Help me with something',
-        allowedSkills: ['node'],
-      })
-      .expect(201);
-
-    expect(res.body.allowedSkills).toEqual(['node']);
-    expect(res.body.response.toLowerCase()).toContain('node');
-  });
-
-  it('POST /ai/chat retries on 503 then succeeds', async () => {
-    const token = signTestToken();
-
-    (global as any).fetch
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 503,
-        text: async () => 'service unavailable',
-        headers: { get: () => '0' },
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        text: async () => '',
-        json: async () => ({
-          response: 'For TypeScript + Node.js, focus on project structure.',
-        }),
-      });
-
-    const res = await request(app.getHttpServer())
-      .post('/ai/chat')
-      .set('authorization', `Bearer ${token}`)
-      .send({
-        message: 'Help me with something',
-        allowedSkills: ['node'],
-      })
-      .expect(201);
-
-    expect(res.body.allowedSkills).toEqual(['node']);
-    expect(res.body.response.toLowerCase()).toContain('node');
-  });
-
-  it('Provider audit step 1: POST /ai/chat responds using Gemini when GEMINI_API_KEY is set', async () => {
-    process.env.GEMINI_API_KEY = 'test-gemini-key';
-
-    const token = signTestToken();
-
-    (global as any).fetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => '',
-      json: async () => ({
-        response: 'Gemini reply mentioning Node.js and TypeScript.',
-      }),
-    });
-
-    const res = await request(app.getHttpServer())
-      .post('/ai/chat')
-      .set('authorization', `Bearer ${token}`)
-      .send({
-        message: 'I need help planning',
-        allowedSkills: ['node', 'ts'],
-      })
-      .expect(201);
-
-    expect(res.body.allowedSkills).toEqual(['node', 'ts']);
-    expect(res.body.response).toContain('Gemini reply');
-  });
-
-  it('Provider audit step 2-4: Gemini 429 -> Ollama model fallback + [Provider Switch], then Gemini restored after 30s', async () => {
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
-    const token = signTestToken();
-    const baseTime = 1700000000000;
-
-    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => baseTime);
-
-    // Step 2: simulate Gemini 429 (Gemini key exists but is "invalid" for realism).
-    process.env.GEMINI_API_KEY = 'invalid-key';
-
-    let capturedOllamaModel: string | null = null;
-
-    (global as any).fetch
-      // Gemini call -> 429
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 429,
-        text: async () => 'rate limited',
-      })
-      // Ollama Cloud call
-      .mockImplementationOnce(async (_url: any, opts: any) => {
-        const body =
-          typeof opts?.body === 'string' ? JSON.parse(opts.body) : null;
-        capturedOllamaModel = body?.model ?? null;
-
-        return {
-          ok: true,
-          status: 200,
-          text: async () => '',
-          json: async () => ({
-            response: 'Ollama fallback reply mentioning Node.js.',
-          }),
-        };
-      });
-
-    // Code-related task => should choose qwen3-coder:480b-cloud
-    const res1 = await request(app.getHttpServer())
-      .post('/ai/chat')
-      .set('authorization', `Bearer ${token}`)
-      .send({
-        message: 'Write TypeScript code plan for a Node.js backend',
-        allowedSkills: ['node', 'ts'],
-      })
-      .expect(201);
-
-    expect(capturedOllamaModel).toBe('qwen3-coder:480b-cloud');
-    expect(res1.body.response).toContain('Ollama fallback reply');
-
-    // Step 3: provider switch notification appears
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[Provider Switch] → Now using: qwen3-coder:480b-cloud (reason: Gemini returned HTTP 429)',
-    );
-
-    // Step 4: advance time beyond 30s, restore correct Gemini key and confirm restored notification + Gemini usage.
-    (nowSpy as jest.Mock).mockImplementation(() => baseTime + 30001);
-    process.env.GEMINI_API_KEY = 'test-gemini-key';
-
-    (global as any).fetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => '',
-      json: async () => ({
-        response: 'Gemini restored reply mentioning Node.js.',
-      }),
-    });
-
-    const res2 = await request(app.getHttpServer())
-      .post('/ai/chat')
-      .set('authorization', `Bearer ${token}`)
-      .send({
-        message: 'Plan my next steps',
-        allowedSkills: ['node', 'ts'],
-      })
-      .expect(201);
-
-    expect(res2.body.response).toContain('Gemini restored reply');
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[Provider Restored] → Back to Gemini',
-    );
-
-    nowSpy.mockRestore();
-    consoleSpy.mockRestore();
+    expect(res.body.courses.length).toBeGreaterThan(0);
+    expect(res.body.ai).toBeNull();
   });
 });

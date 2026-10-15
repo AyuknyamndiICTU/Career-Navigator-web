@@ -108,6 +108,11 @@ export class MessagingGateway
     return `user:${userId}`;
   }
 
+  /** Pushes an event to every open tab/device of a user. */
+  emitToUser(userId: string, event: string, payload: unknown): void {
+    this.server?.to(this.userRoom(userId)).emit(event, payload);
+  }
+
   private conversationRoom(conversationId: string): string {
     return `conversation:${conversationId}`;
   }

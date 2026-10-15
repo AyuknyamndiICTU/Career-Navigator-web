@@ -1,11 +1,23 @@
+import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
+
+export class ChatHistoryItemDto {
+  @IsIn(['user', 'assistant'])
+  role!: 'user' | 'assistant';
+
+  @IsString()
+  @MaxLength(8000)
+  content!: string;
+}
 
 export class ChatRequestDto {
   @IsString()
@@ -20,4 +32,12 @@ export class ChatRequestDto {
   @ArrayMaxSize(20)
   @IsString({ each: true })
   allowedSkills?: string[];
+
+  /** Earlier turns, oldest first; only the last 6 are sent verbatim. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(40)
+  @ValidateNested({ each: true })
+  @Type(() => ChatHistoryItemDto)
+  history?: ChatHistoryItemDto[];
 }

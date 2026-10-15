@@ -494,6 +494,9 @@ export class AuthService {
         where: { userId, revokedAt: null },
         data: { revokedAt: now },
       });
+
+      // Users' own AI keys are deleted immediately, not kept with the dormant account.
+      await tx.userAiCredential.deleteMany({ where: { userId } });
     });
 
     return { message: 'Account deactivated' };

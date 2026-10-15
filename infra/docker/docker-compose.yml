@@ -36,21 +36,6 @@ services:
     mem_limit: 256m
     restart: unless-stopped
 
-  # Local Ollama is OPTIONAL and will NOT run unless the profile is enabled:
-  #   docker compose --profile local-ollama up -d
-  # By default the API uses Ollama Cloud (ollama.com/v1) via OLLAMA_API_KEY.
-  ollama:
-    profiles: ["local-ollama"]
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - cn-ollama:/root/.ollama
-    # Container command left default; first run will need model pulls on-demand.
-    cpus: 2
-    mem_limit: 5g
-    restart: unless-stopped
-
   # Applies pending Prisma migrations once, then exits; the API starts only after it succeeds.
   migrate:
     image: career-navigator-api:local
@@ -107,14 +92,16 @@ services:
       BREVO_API_KEY: "dev"
       BREVO_SENDER_EMAIL: "no-reply@example.com"
 
-      # AI Provider keys (passed from host env)
+      # Cloud AI only (nothing runs locally). Keys come from infra/docker/.env; providers without a key are skipped.
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       OLLAMA_API_KEY: "${OLLAMA_API_KEY:-}"
-
-      # Ollama Cloud (default). To use local Ollama instead, change to:
-      #   OLLAMA_BASE_URL: "http://ollama:11434/v1"
-      # and start with: docker compose --profile local-ollama up -d
-      OLLAMA_BASE_URL: "https://ollama.com/v1"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      AI_JOB_MATCH_ENABLED: "${AI_JOB_MATCH_ENABLED:-false}"
+      # Users' own keys (Settings → AI providers); needs a 32-byte base64 key: openssl rand -base64 32
+      AI_BYOK_ENABLED: "${AI_BYOK_ENABLED:-false}"
+      AI_KEY_ENCRYPTION_KEY: "${AI_KEY_ENCRYPTION_KEY:-}"
 
       # BullMQ CV scan worker defaults
       CV_SCAN_ENABLED: "true"
@@ -126,9 +113,6 @@ services:
 
       # CORS for browser
       CORS_ALLOWED_ORIGINS: "http://localhost:${WEB_HOST_PORT:-3000}"
-
-      # AI debug: include underlying error message for /ai/* failures
-      AI_DEBUG_ERRORS: "true"
     ports:
       - "${API_HOST_PORT:-3001}:3000"
     depends_on:
@@ -214,6 +198,5 @@ services:
 volumes:
   cn-postgres:
   cn-redis:
-  cn-ollama:
   cn-minio:
   cn-opensearch:
