@@ -1,4 +1,4 @@
-# Host ports can be changed in infra/docker/.env (e.g. POSTGRES_HOST_PORT=5434) when they clash with other projects.
+# Host ports can be changed in infra/docker/.env (e.g. POSTGRES_HOST_PORT=5435) when they clash with other projects.
 name: career-navigator
 
 services:
