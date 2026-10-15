@@ -36,12 +36,23 @@ pipeline {
         }
 
         stage('Lint & Test') {
+            environment {
+                // The e2e suites mock Postgres/Redis/storage; keep background workers off.
+                CV_SCAN_ENABLED = 'false'
+                NOTIFICATIONS_WORKER_ENABLED = 'false'
+            }
             steps {
                 echo "Running code linters..."
                 sh 'npm run lint'
-                
-                // echo "Running automated tests..."
-                // sh 'npm run test' // Uncomment when tests are set up
+
+                echo "Type-checking..."
+                sh 'npm exec -w api -- prisma generate'
+                sh 'npm exec -w api -- tsc -p tsconfig.json --noEmit'
+                sh 'npm run typecheck -w web-ui'
+
+                echo "Running automated tests..."
+                sh 'npm test'
+                sh 'npm run test:e2e -w api -- --runInBand'
             }
         }
 
