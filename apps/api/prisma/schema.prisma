@@ -284,9 +284,14 @@ model Job {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Generated column (title, skills, company, description) maintained by Postgres; see migration 20261020000000_job_search.
+  searchVector Unsupported("tsvector")? @default(dbgenerated())
+
   // Browse lists ACTIVE jobs newest first; `skills has` filters use the GIN index.
   @@index([status, createdAt])
   @@index([skills], type: Gin)
+  @@index([searchVector], type: Gin)
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_title_trgm_idx")
   @@index([title])
   @@index([company])
   @@index([location])
