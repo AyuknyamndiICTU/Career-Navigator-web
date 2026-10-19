@@ -42,7 +42,10 @@ function parseJsonObject(text: string): Record<string, unknown> | null {
   const end = stripped.lastIndexOf('}');
   if (start === -1 || end === -1 || end <= start) return null;
   try {
-    return JSON.parse(stripped.slice(start, end + 1)) as Record<string, unknown>;
+    return JSON.parse(stripped.slice(start, end + 1)) as Record<
+      string,
+      unknown
+    >;
   } catch {
     return null;
   }
@@ -150,7 +153,9 @@ export class JobMatchService {
       select: { job: { select: { skills: true } } },
     });
     return Array.from(
-      new Set(jobApplications.flatMap((a) => a.job.skills).map((s) => s.trim())),
+      new Set(
+        jobApplications.flatMap((a) => a.job.skills).map((s) => s.trim()),
+      ),
     )
       .filter(Boolean)
       .slice(0, 50);
@@ -158,7 +163,8 @@ export class JobMatchService {
 
   async matchedJobs(userId: string): Promise<unknown> {
     const allowedSkills = await this.careerSkills(userId);
-    const fallbackSkills = allowedSkills.length > 0 ? allowedSkills : DEFAULT_SKILLS;
+    const fallbackSkills =
+      allowedSkills.length > 0 ? allowedSkills : DEFAULT_SKILLS;
     const studentGoal = null;
     const prismaAny = this.prisma as any;
 
@@ -363,7 +369,10 @@ export class JobMatchService {
 
       const byJobId = new Map<string, string>();
       for (const row of jobsArr as Array<Record<string, unknown>>) {
-        if (typeof row?.jobId === 'string' && typeof row.matchReason === 'string') {
+        if (
+          typeof row?.jobId === 'string' &&
+          typeof row.matchReason === 'string'
+        ) {
           byJobId.set(row.jobId, row.matchReason);
         }
       }
