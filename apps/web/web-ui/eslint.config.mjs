@@ -6,13 +6,13 @@ const config = [
   ...nextVitals,
   ...nextTypescript,
   {
-    ignores: ['.next/**', 'node_modules/**', 'out/**', 'next-env.d.ts', '*.js'],
+    ignores: ['.next/**', 'node_modules/**', 'out/**', 'next-env.d.ts', '*.js', 'src/lib/api/schema.d.ts'],
   },
   {
-    // Existing debt (30 `@ts-nocheck` files, loose `any`s) is reported but doesn't fail CI
-    // until the pages are typed; new code should not add more.
     rules: {
-      '@typescript-eslint/ban-ts-comment': 'warn',
+      // Type checking stays on everywhere; CI fails on any new @ts-nocheck / @ts-ignore.
+      '@typescript-eslint/ban-ts-comment': 'error',
+      // Existing loose `any`s are reported but don't fail CI until those pages are typed.
       '@typescript-eslint/no-explicit-any': 'warn',
       // React Compiler advisories that flag the existing load-data-in-useEffect pages.
       'react-hooks/set-state-in-effect': 'warn',
