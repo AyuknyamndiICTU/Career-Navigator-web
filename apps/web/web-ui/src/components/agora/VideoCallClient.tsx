@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { endAgoraSession, startAgoraSession } from '@/lib/api/agora';
+import { getPublicConfig } from '@/lib/public-config';
 
 type AgoraRole = 'publisher' | 'subscriber';
 
@@ -16,7 +17,6 @@ type Props = {
 };
 
 export function VideoCallClient({ channelName, uid, role }: Props) {
-  const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || '';
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const agoraRef = useRef<typeof import('agora-rtc-sdk-ng').default | null>(null);
 
@@ -138,8 +138,15 @@ export function VideoCallClient({ channelName, uid, role }: Props) {
     setError(null);
     setCallState('joining');
 
+    let appId: string | null = null;
+    try {
+      appId = (await getPublicConfig()).agoraAppId;
+    } catch (e) {
+      console.warn('Could not load the video settings:', e);
+    }
+    if (isStale()) return;
     if (!appId) {
-      setError('Missing NEXT_PUBLIC_AGORA_APP_ID configuration. Please check your environment variables.');
+      setError('Video calls are not configured on this server.');
       setCallState('error');
       return;
     }
