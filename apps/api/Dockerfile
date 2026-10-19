@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Manifests only, so dependency layers stay cached until a package.json or the lockfile changes.
-FROM node:20-alpine AS manifests
+FROM node:24-alpine AS manifests
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
@@ -25,7 +25,7 @@ WORKDIR /app/apps/api
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma generate \
     && npx prisma version >/dev/null
 
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 ENV NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false
 COPY --from=prod-deps /app /app
