@@ -294,12 +294,11 @@ export class ResumeService {
 
   private buildMinioUrl(objectKey: string): string | null {
     if (!objectKey) return null;
-    // Build a full URL through the API's file-serving proxy endpoint.
-    // The browser will fetch <apiBase>/upload/file/<objectKey> which the API
-    // proxies from MinIO, avoiding CORS and port-accessibility issues.
-    const apiBase = (
-      env.publicApiBaseUrl ?? `http://localhost:${env.port}/${API_PREFIX}`
-    ).replace(/\/+$/, '');
+    // Same-origin by default (`/api/upload/file/...`); API_BASE_URL overrides it when the API lives elsewhere.
+    const apiBase = (env.publicApiBaseUrl ?? `/${API_PREFIX}`).replace(
+      /\/+$/,
+      '',
+    );
     return `${apiBase}/upload/file/${objectKey}`;
   }
 
