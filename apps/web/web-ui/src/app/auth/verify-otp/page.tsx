@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { Suspense, useState } from 'react';
@@ -6,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { apiFetch } from '@/lib/auth';
+import { apiRequest } from '@/lib/api/client';
 import ErrorAlert from '@/components/ErrorAlert';
 
 function VerifyOtpForm() {
@@ -24,8 +23,7 @@ function VerifyOtpForm() {
     setIsLoading(true);
 
     try {
-      await apiFetch('/auth/verify-otp', {
-        method: 'POST',
+      await apiRequest('post', '/auth/verify-otp', {
         body: { email, code },
       });
       router.push('/auth/login');

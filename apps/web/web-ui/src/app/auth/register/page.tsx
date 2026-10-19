@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useState } from 'react';
@@ -6,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { apiFetch } from '@/lib/auth';
+import { apiRequest } from '@/lib/api/client';
 import ErrorAlert from '@/components/ErrorAlert';
 
 export default function RegisterPage() {
@@ -22,8 +21,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      await apiFetch('/auth/register', {
-        method: 'POST',
+      await apiRequest('post', '/auth/register', {
         body: { email, password },
       });
       router.push('/auth/verify-otp?email=' + encodeURIComponent(email));

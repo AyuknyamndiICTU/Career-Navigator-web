@@ -1,11 +1,10 @@
-// @ts-nocheck
 'use client';
 
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { apiFetch } from '@/lib/auth';
+import { apiRequest } from '@/lib/api/client';
 import ErrorAlert from '@/components/ErrorAlert';
 
 function PasswordResetConfirmForm() {
@@ -26,8 +25,7 @@ function PasswordResetConfirmForm() {
     setIsLoading(true);
 
     try {
-      await apiFetch('/auth/password-reset/confirm', {
-        method: 'POST',
+      await apiRequest('post', '/auth/password-reset/confirm', {
         body: { email, code, newPassword },
       });
       setMessage('Password updated. You can log in now.');

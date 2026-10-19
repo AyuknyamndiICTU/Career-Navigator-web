@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useState } from 'react';
@@ -6,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { apiFetch } from '@/lib/auth';
+import { apiRequest } from '@/lib/api/client';
 import ErrorAlert from '@/components/ErrorAlert';
 
 export default function PasswordResetRequestPage() {
@@ -23,10 +22,9 @@ export default function PasswordResetRequestPage() {
     setIsLoading(true);
 
     try {
-      const res = await apiFetch('/auth/password-reset/request', {
-        method: 'POST',
+      const res = (await apiRequest('post', '/auth/password-reset/request', {
         body: { email },
-      });
+      })) as { message?: string } | undefined;
       setMessage(res?.message || 'Request sent.');
       router.push('/auth/password-reset/confirm?email=' + encodeURIComponent(email));
     } catch (err) {
