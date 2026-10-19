@@ -1,10 +1,9 @@
 // @ts-nocheck
 'use client';
 
-import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/DashboardLayout';
-import { apiFetch } from '@/lib/auth';
+import { useApi } from '@/lib/useApi';
 import ErrorAlert from '@/components/ErrorAlert';
 
 const containerVariants = {
@@ -21,26 +20,11 @@ const itemVariants = {
 };
 
 export default function MessagesPage() {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [conversations, setConversations] = useState<Array<any>>([]);
-
-  async function load() {
-    setBusy(true);
-    setError('');
-    try {
-      const res = await apiFetch('/conversations');
-      setConversations(res?.items ?? []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load messages');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, []);
+  const { data, error, loading } = useApi<{ items?: Array<any> }>('/conversations', {
+    errorMessage: 'Failed to load messages',
+  });
+  const conversations = data?.items ?? [];
+  const busy = loading && data === undefined;
 
   return (
     <DashboardLayout>

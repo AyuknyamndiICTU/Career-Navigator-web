@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiFetch, ensureAccessToken, getSocketUrl } from '@/lib/auth';
+import { useApi } from '@/lib/useApi';
 import ErrorAlert from '@/components/ErrorAlert';
 
 type Message = {
@@ -15,6 +16,12 @@ type Message = {
   createdAt: string;
 };
 
+/** Concatenates (older first) and drops duplicates, e.g. a socket message also returned by history. */
+function mergeMessages(first: Message[], second: Message[]): Message[] {
+  const seen = new Set<string>();
+  return [...first, ...second].filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
+}
+
 export default function ConversationPage() {
   const { id } = useParams() as { id: string };
   const router = useRouter();
@@ -23,7 +30,12 @@ export default function ConversationPage() {
   const [error, setError] = useState<string | null>(null);
   
   const [messages, setMessages] = useState<Message[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [nextBefore, setNextBefore] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const { data: profile } = useApi<{ userId?: string; id?: string }>('/profile', {
+    revalidateOnFocus: false,
+  });
+  const currentUserId = profile?.userId || profile?.id || '';
   
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isPeerOnline, setIsPeerOnline] = useState(false);
@@ -35,29 +47,44 @@ export default function ConversationPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load user profile to know who "I" am
+  // Load the latest page of history
   useEffect(() => {
-    apiFetch('/profile')
-      .then((res: any) => setCurrentUserId(res.userId || res.id))
-      .catch(() => {});
-  }, []);
-
-  // Load history
-  useEffect(() => {
+    const controller = new AbortController();
     async function loadHistory() {
       setBusy(true);
       try {
-        const res = await apiFetch(`/conversations/${id}/messages`);
-        setMessages(res?.items || []);
+        const res = await apiFetch(`/conversations/${id}/messages`, {
+          signal: controller.signal,
+        });
+        setMessages((prev) => mergeMessages(res?.items || [], prev));
+        setNextBefore(res?.nextBefore ?? null);
         scrollToBottom();
       } catch (err) {
+        if (controller.signal.aborted) return;
         setError(err instanceof Error ? err.message : 'Failed to load history');
       } finally {
-        setBusy(false);
+        if (!controller.signal.aborted) setBusy(false);
       }
     }
     void loadHistory();
+    return () => controller.abort();
   }, [id]);
+
+  async function loadOlder() {
+    if (!nextBefore || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const res = await apiFetch(
+        `/conversations/${id}/messages?before=${encodeURIComponent(nextBefore)}`,
+      );
+      setMessages((prev) => mergeMessages(res?.items || [], prev));
+      setNextBefore(res?.nextBefore ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load older messages');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
 
   // Connect WebSocket
   useEffect(() => {
@@ -75,7 +102,7 @@ export default function ConversationPage() {
 
     newSocket.on('message:new', (payload: { conversationId: string; message: Message }) => {
       if (payload.conversationId === id) {
-        setMessages((prev) => [...prev, payload.message]);
+        setMessages((prev) => mergeMessages(prev, [payload.message]));
         scrollToBottom();
       }
     });
@@ -179,7 +206,20 @@ export default function ConversationPage() {
                 No messages yet. Start the conversation!
               </div>
             ) : (
-              messages.map((m) => {
+              <>
+              {nextBefore && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => void loadOlder()}
+                    disabled={loadingOlder}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-primary-600 hover:bg-surface disabled:opacity-50"
+                  >
+                    {loadingOlder ? 'Loading…' : 'Load older messages'}
+                  </button>
+                </div>
+              )}
+              {messages.map((m) => {
                 const isMe = m.senderId === currentUserId;
                 return (
                   <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
@@ -197,7 +237,8 @@ export default function ConversationPage() {
                     </div>
                   </div>
                 );
-              })
+              })}
+              </>
             )}
             
             {isPeerTyping && (
