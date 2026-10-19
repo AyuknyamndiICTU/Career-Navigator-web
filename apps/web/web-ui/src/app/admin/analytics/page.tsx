@@ -1,6 +1,5 @@
 'use client';
 
-// @ts-nocheck
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { apiFetch } from '@/lib/auth';

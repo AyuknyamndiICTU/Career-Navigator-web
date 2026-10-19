@@ -1,5 +1,4 @@
 /* eslint-disable no-undef */
-// @ts-nocheck
 'use client';
 
 import { Fragment, useState, useRef, useEffect } from 'react';

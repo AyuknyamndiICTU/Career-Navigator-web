@@ -1,12 +1,12 @@
-// @ts-nocheck
 'use client';
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { apiFetch, setAccessToken } from '@/lib/auth';
+import { setAccessToken } from '@/lib/auth';
+import { apiRequest } from '@/lib/api/client';
 import ErrorAlert from '@/components/ErrorAlert';
 
 export default function LoginPage() {
@@ -16,16 +16,15 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  async function onSubmit(e) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
     try {
-      const res = await apiFetch('/auth/login', {
-        method: 'POST',
+      const res = (await apiRequest('post', '/auth/login', {
         body: { email, password },
-      });
+      })) as { accessToken: string };
 
       setAccessToken(res.accessToken);
       // Only same-site paths, so `?next=` can't redirect to another origin.
