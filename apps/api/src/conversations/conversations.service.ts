@@ -90,6 +90,7 @@ export class ConversationsService {
   async getMessageHistory(
     userId: string,
     conversationId: string,
+    page: { limit: number; before?: Date } = { limit: 50 },
   ): Promise<{
     items: Array<{
       id: string;
@@ -98,12 +99,18 @@ export class ConversationsService {
       createdAt: Date;
       updatedAt: Date;
     }>;
+    nextBefore: string | null;
   }> {
     await this.assertParticipant(userId, conversationId);
 
-    const items = await this.prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'asc' },
+    // Newest page first via the (conversationId, createdAt) index, then shown oldest-first.
+    const newestFirst = await this.prisma.message.findMany({
+      where: {
+        conversationId,
+        ...(page.before ? { createdAt: { lt: page.before } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: page.limit + 1,
       select: {
         id: true,
         senderId: true,
@@ -113,7 +120,12 @@ export class ConversationsService {
       },
     });
 
-    return { items };
+    const hasMore = newestFirst.length > page.limit;
+    const items = newestFirst.slice(0, page.limit).reverse();
+    return {
+      items,
+      nextBefore: hasMore ? items[0].createdAt.toISOString() : null,
+    };
   }
 
   async sendMessage(
