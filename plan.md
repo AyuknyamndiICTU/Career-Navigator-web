@@ -243,15 +243,38 @@ Resolution order for each AI request:
 
 ## Phase 13 — P2: Performance
 
-- [ ] **13.1 Standalone Next build** — `output: 'standalone'` in [next.config.mjs](apps/web/web-ui/next.config.mjs); the runner image copies `.next/standalone`, `.next/static` and `public`, then runs `node apps/web/web-ui/server.js`.
-- [ ] **13.2 Docker layer caching** — copy `package.json` + `package-lock.json` (root and workspace manifests) first, `npm ci` with `--mount=type=cache,target=/root/.npm`, then copy sources; expand the root `.dockerignore` (`**/.next`, `**/node_modules`, `**/dist`, `apps/api/tmp`, `logo`, `*.md`, `**/test`, `.git`).
-- [ ] **13.3 Lean API runtime image** — `bcryptjs` is pure JS, so drop `python3 make g++` entirely; `npm ci --omit=dev --workspace=apps/api`; `USER node`; `CMD ["node","dist/src/main.js"]` (no `npx`).
-- [ ] **13.4 Fit the 8 GB VPS** (see [swap-safety-commands.md](swap-safety-commands.md)) — `mem_limit`/`cpus` per service in prod Compose; `NODE_OPTIONS=--max-old-space-size=384` (API) / `256` (web); `CV_SCAN_WORKER_CONCURRENCY=1`; Redis `maxmemory` with `noeviction` (BullMQ requirement) and TTLs on every cache key; Postgres `shared_buffers=256MB`. Swap stays as a safety net only.
-- [ ] **13.5 Resume query** — replace the 5 sequential queries in [resume.service.ts](apps/api/src/resume/resume.service.ts) with one `findUnique({ include })` (or `Promise.all`).
-- [ ] **13.6 Uploads without local disk** — `memoryStorage()` (limits already 5/10 MB) and stream the buffer to object storage (Phase 18); remove `diskStorage('./tmp')` from [upload.controller.ts](apps/api/src/upload/upload.controller.ts). Works on read-only and ephemeral filesystems.
-- [ ] **13.7 Split oversized services** — `ai.service.ts` (1,047 lines) → gateway + `ChatService` / `InterviewService` / `CourseRecsService`; `jobs.service.ts` (936) → browse / apply / match; `cv-scan-worker.service.ts` (518) → extract / parse / populate.
-- [ ] **13.8 Query tuning** — composite index `Message(conversationId, createdAt)` for paginated history; conversation lists `select` without message bodies; `EXPLAIN ANALYZE` the filtered job browse query.
-- [ ] **13.9 Frontend data fetching** — shared `useApi` hook (dedupe in-flight requests, abort on unmount, revalidate on focus) or SWR if preferred; lazy-load resume templates with `next/dynamic` (the video client already is).
+- [x] **13.1 Standalone Next build** — `output: 'standalone'` in [next.config.mjs](apps/web/web-ui/next.config.mjs); the runner image copies `.next/standalone`, `.next/static` and `public`, then runs `node apps/web/web-ui/server.js`.
+- [x] **13.2 Docker layer caching** — copy `package.json` + `package-lock.json` (root and workspace manifests) first, `npm ci` with `--mount=type=cache,target=/root/.npm`, then copy sources; expand the root `.dockerignore` (`**/.next`, `**/node_modules`, `**/dist`, `apps/api/tmp`, `logo`, `*.md`, `**/test`, `.git`).
+- [x] **13.3 Lean API runtime image** — `bcryptjs` is pure JS, so drop `python3 make g++` entirely; `npm ci --omit=dev --workspace=apps/api`; `USER node`; `CMD ["node","dist/src/main.js"]` (no `npx`).
+- [x] **13.4 Fit the 8 GB VPS** (see [swap-safety-commands.md](swap-safety-commands.md)) — `mem_limit`/`cpus` per service in prod Compose; `NODE_OPTIONS=--max-old-space-size=384` (API) / `256` (web); `CV_SCAN_WORKER_CONCURRENCY=1`; Redis `maxmemory` with `noeviction` (BullMQ requirement) and TTLs on every cache key; Postgres `shared_buffers=256MB`. Swap stays as a safety net only.
+- [x] **13.5 Resume query** — replace the 5 sequential queries in [resume.service.ts](apps/api/src/resume/resume.service.ts) with one `findUnique({ include })` (or `Promise.all`).
+- [x] **13.6 Uploads without local disk** — `memoryStorage()` (limits already 5/10 MB) and stream the buffer to object storage (Phase 18); remove `diskStorage('./tmp')` from [upload.controller.ts](apps/api/src/upload/upload.controller.ts). Works on read-only and ephemeral filesystems.
+- [x] **13.7 Split oversized services** — `ai.service.ts` (1,047 lines) → gateway + `ChatService` / `InterviewService` / `CourseRecsService`; `jobs.service.ts` (936) → browse / apply / match; `cv-scan-worker.service.ts` (518) → extract / parse / populate.
+- [x] **13.8 Query tuning** — composite index `Message(conversationId, createdAt)` for paginated history; conversation lists `select` without message bodies; `EXPLAIN ANALYZE` the filtered job browse query.
+- [x] **13.9 Frontend data fetching** — shared `useApi` hook (dedupe in-flight requests, abort on unmount, revalidate on focus) or SWR if preferred; lazy-load resume templates with `next/dynamic` (the video client already is).
+- Status (2026-10-19):
+  - **Images:** API 998 MB → 742 MB, web 1.51 GB → 284 MB. Both run as `node` and have a `HEALTHCHECK`. The migrate service runs `npx prisma migrate deploy --schema prisma/schema.prisma` from the runtime image. Idle memory on the local stack: API ≈55 MiB, web ≈31 MiB. Still on Node 20; the Node 24 pin is 14.4. Builds use only the root `.dockerignore`, so the per-app ones are unused.
+  - **13.4 prod Compose limits:**
+    - Postgres: 768m / 1 CPU, `shared_buffers=256MB`, `max_connections=50`.
+    - Redis: `maxmemory 192mb noeviction`.
+    - API: 640m, heap 384.
+    - Web: 384m, heap 256.
+    - MinIO: 512m.
+  - **13.4 Redis key lifetimes:** every app Redis key is written with a TTL (`AiStateStore`). BullMQ jobs use `removeOnComplete`.
+  - 13.6 was already done in Phase 11.
+  - **13.7 split:**
+    - AI: [career-skills.service.ts](apps/api/src/ai/career-skills.service.ts), chat (94 lines), interview (71), course-recs (260).
+    - Jobs: [job-catalog.ts](apps/api/src/jobs/job-catalog.ts), browse (209), applications (78), match (386).
+    - CV worker: text extractor (42), AI parser (89), profile populator (99, one transaction with `createMany`), orchestrator (203).
+  - **13.8:** migration `20261019000000_query_indexes` adds `Message(conversationId, createdAt)`, `Job(status, createdAt)` and a GIN index on `Job.skills`.
+    - `GET /conversations/:id/messages` now takes `limit` (default 50) and `before`, and returns `{ items, nextBefore }`.
+    - `EXPLAIN ANALYZE` on 50k synthetic jobs: the default browse (`status=ACTIVE ORDER BY createdAt DESC LIMIT 10`) uses an index scan on `Job_status_createdAt_idx` and takes 0.12 ms. The skill filter takes 0.9 ms.
+    - Still sequential: the pagination `count(*)` (7.8 ms) and the `ILIKE` search (76 ms). Full-text search is 14.9.
+  - **13.9:** the request dedupe and abort logic lives in [inflight.ts](apps/web/web-ui/src/lib/inflight.ts) and is used by [useApi.ts](apps/web/web-ui/src/lib/useApi.ts).
+    - Adopted by: messages, notifications, level-up and the conversation's profile lookup.
+    - The conversation page gets "Load older messages" via `nextBefore` and drops duplicate messages by id.
+    - The six resume templates load through `next/dynamic`.
+    - Tests: `test/inflight.test.mjs` (3) and 3 conversation pagination e2e tests.
 
 ---
 

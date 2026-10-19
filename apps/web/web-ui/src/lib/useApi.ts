@@ -65,10 +65,7 @@ export function useApi<T = unknown>(
   }, [path, errorMessage]);
 
   useEffect(() => {
-    if (path === null) {
-      setLoading(false);
-      return;
-    }
+    if (path === null) return;
     void run();
     return () => {
       const release = releaseRef.current;
@@ -100,5 +97,5 @@ export function useApi<T = unknown>(
     );
   }, []);
 
-  return { data, error, loading, reload: run, mutate };
+  return { data, error, loading: path !== null && loading, reload: run, mutate };
 }

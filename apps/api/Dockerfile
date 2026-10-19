@@ -26,7 +26,8 @@ RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma gene
     && npx prisma version >/dev/null
 
 FROM node:20-alpine AS runner
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
 COPY --from=prod-deps /app /app
 COPY --from=build /app/apps/api/dist /app/apps/api/dist
 WORKDIR /app/apps/api

@@ -47,6 +47,12 @@ export default function ConversationPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  function scrollToBottom() {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  }
+
   // Load the latest page of history
   useEffect(() => {
     const controller = new AbortController();
@@ -125,12 +131,6 @@ export default function ConversationPage() {
       newSocket.disconnect();
     };
   }, [id, currentUserId]);
-
-  function scrollToBottom() {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  }
 
   function handleTyping(e: React.ChangeEvent<HTMLInputElement>) {
     setDraft(e.target.value);
