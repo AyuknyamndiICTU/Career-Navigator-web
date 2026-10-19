@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { existsSync } from 'node:fs';
 import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
@@ -12,6 +13,8 @@ import { RedactingLogger } from './logging/redacting-logger';
 import { setupSwagger, SWAGGER_PATH } from './swagger';
 
 async function bootstrap() {
+  // Local runs read apps/api/.env; containers get real environment variables (existing values win).
+  if (existsSync('.env')) process.loadEnvFile('.env');
   validateEnv();
 
   const app = await NestFactory.create(AppModule, {

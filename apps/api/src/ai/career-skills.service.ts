@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CvScanStatus, MediaType } from '@prisma/client';
+import { CvScanStatus, MediaType } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AiResult, AiStreamEvent } from './gateway/ai-gateway.service';
 import type { ChatTurn } from './gateway/types';

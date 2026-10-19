@@ -1,7 +1,13 @@
-import { PrismaClient } from '@prisma/client';
+import { existsSync } from 'node:fs';
+import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcryptjs';
+import { PrismaClient } from './src/generated/prisma/client';
 
-const prisma = new PrismaClient();
+if (existsSync('.env')) process.loadEnvFile('.env');
+if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL before running the seed.');
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+});
 
 async function main() {
   const email = process.env.ADMIN_EMAIL;

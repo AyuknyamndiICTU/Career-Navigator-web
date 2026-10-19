@@ -1,4 +1,4 @@
-import type { JobStatus } from '@prisma/client';
+import type { JobStatus } from '../prisma/client';
 
 export type JobCatalogItem = {
   id: string;

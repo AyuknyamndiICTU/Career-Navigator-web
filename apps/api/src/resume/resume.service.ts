@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { env } from '../config/env';
 import { API_PREFIX } from '../lib/api-prefix';

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertProfileDto } from './dto/profile.dto';
 import { CreateEducationDto, UpdateEducationDto } from './dto/education.dto';

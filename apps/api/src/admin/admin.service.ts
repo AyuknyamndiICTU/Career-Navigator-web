@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { FeedbackStatus, UserRole } from '@prisma/client';
+import { FeedbackStatus, UserRole } from '../prisma/client';
 
 @Injectable()
 export class AdminService {

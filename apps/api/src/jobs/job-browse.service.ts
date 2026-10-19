@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Job, JobStatus, Prisma } from '@prisma/client';
+import { Job, JobStatus, Prisma } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   normalizeText,

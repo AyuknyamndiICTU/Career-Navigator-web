@@ -34,9 +34,10 @@ export class CvTextExtractor {
       return { text: result?.value?.trim() ? result.value : '', sha256 };
     }
 
-    const pdfParseMod = await import('pdf-parse');
-    const pdfParse = (pdfParseMod as any).default ?? pdfParseMod;
-    const parsed = await pdfParse(buffer);
-    return { text: parsed?.text ?? '', sha256 };
+    // unpdf is ESM-only and pdf.js is large, so load it on first use.
+    const { extractText, getDocumentProxy } = await import('unpdf');
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { text } = await extractText(pdf, { mergePages: true });
+    return { text: text ?? '', sha256 };
   }
 }

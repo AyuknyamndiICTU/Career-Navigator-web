@@ -13,7 +13,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
-import { FeedbackStatus, UserRole } from '@prisma/client';
+import { FeedbackStatus, UserRole } from '../prisma/client';
 import { Roles } from '../rbac/roles.decorator';
 import { RolesGuard } from '../rbac/roles.guard';
 

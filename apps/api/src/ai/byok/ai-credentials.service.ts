@@ -5,8 +5,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import type { UserAiCredential } from '@prisma/client';
+import { Prisma } from '../../prisma/client';
+import type { UserAiCredential } from '../../prisma/client';
 import { env } from '../../config/env';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiKeyCrypto } from '../gateway/ai-key-crypto';

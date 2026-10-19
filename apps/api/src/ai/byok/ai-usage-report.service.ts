@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../prisma/client';
 import { env } from '../../config/env';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiQuotaService } from '../gateway/ai-quota.service';

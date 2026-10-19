@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { UserRole } from '@prisma/client';
+import type { UserRole } from '../prisma/client';
 
 import { ROLES_KEY } from './roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';

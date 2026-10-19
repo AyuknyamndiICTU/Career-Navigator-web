@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MessagingGateway } from '../../realtime/messaging.gateway';
 import { AiStateStore } from './ai-state.store';

@@ -12,18 +12,19 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci --workspace=apps/api --ignore-scripts --no-audit --no-fund
 COPY apps/api apps/api
 WORKDIR /app/apps/api
-# generate only reads the schema; the URL is never contacted.
-RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma generate \
-    && npm run build
+# generate writes the Rust-free client into src/generated, which the build compiles with the app.
+RUN npx prisma generate && npm run build
 
-# Production dependencies plus the Prisma client and engines for linux-musl (bcryptjs is pure JS, no compiler needed).
+# Production dependencies. The migrate service runs the Prisma CLI from this image, so it also needs the
+# schema, migrations and prisma.config.ts (which holds the database URL in Prisma 7).
 FROM manifests AS prod-deps
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --workspace=apps/api --omit=dev --ignore-scripts --no-audit --no-fund
 COPY apps/api/prisma apps/api/prisma
+COPY apps/api/prisma.config.ts apps/api/prisma.config.ts
 WORKDIR /app/apps/api
-RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma generate \
-    && npx prisma version >/dev/null
+# Fetch the migration engine now (install scripts were skipped) so containers never download at runtime.
+RUN npx prisma version >/dev/null
 
 FROM node:24-alpine AS runner
 ENV NODE_ENV=production \
