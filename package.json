@@ -5,10 +5,18 @@
     "apps/*",
     "apps/web/*"
   ],
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "npm -ws run dev",
     "build": "npm -ws run build",
     "lint": "npm -ws run lint",
-    "test": "npm -ws run test"
+    "test": "npm -ws run test",
+    "typecheck": "npm -ws --if-present run typecheck",
+    "clean": "node scripts/clean.mjs",
+    "db:migrate": "npm exec -w api -- prisma migrate deploy",
+    "db:seed": "npm run build -w api && npm exec -w api -- node dist/seed-admin.js",
+    "api:openapi": "node scripts/openapi.mjs"
   }
 }
