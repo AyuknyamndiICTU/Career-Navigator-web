@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -159,7 +158,7 @@ export default function GetMatchedPage() {
 
                     {Array.isArray(job.matchedSkills) && job.matchedSkills.length > 0 && (
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {job.matchedSkills.map((s) => (
+                        {job.matchedSkills.map((s: string) => (
                           <span
                             key={s}
                             className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5"

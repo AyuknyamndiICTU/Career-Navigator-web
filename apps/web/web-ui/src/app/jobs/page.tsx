@@ -1,10 +1,10 @@
-// @ts-nocheck
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiFetch } from '@/lib/auth';
+import { apiRequest } from '@/lib/api/client';
 import ErrorAlert from '@/components/ErrorAlert';
 
 const containerVariants = {
@@ -91,8 +91,8 @@ export default function JobsPage() {
     setError('');
 
     try {
-      await apiFetch(`/jobs/${applyJobId}/apply`, {
-        method: 'POST',
+      await apiRequest('post', '/jobs/{jobId}/apply', {
+        params: { jobId: applyJobId },
         body: { coverLetter },
       });
 
@@ -293,7 +293,7 @@ export default function JobsPage() {
 
                   {Array.isArray(job.skills) && job.skills.length > 0 ? (
                     <div className="mt-4 flex flex-wrap gap-2 pt-4 border-t border-surface-border">
-                      {job.skills.slice(0, 10).map((s) => (
+                      {job.skills.slice(0, 10).map((s: string) => (
                         <span
                           key={s}
                           className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 flex items-center gap-1.5"
