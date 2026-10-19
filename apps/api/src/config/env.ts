@@ -33,7 +33,7 @@ export const env = {
     return read('REDIS_URL');
   },
   get publicApiBaseUrl(): string | undefined {
-    return read('API_BASE_URL') ?? read('NEXT_PUBLIC_API_BASE_URL');
+    return read('API_BASE_URL');
   },
   /** undefined = no allow-list configured (reflect the request origin; dev only). */
   get corsAllowedOrigins(): string[] | undefined {
@@ -48,9 +48,21 @@ export const env = {
     const override = read('COOKIE_SECURE');
     return override ? override === 'true' : this.isProduction;
   },
+  /** Reverse-proxy hops in front of the API (Caddy/ingress = 1); 0 = use the socket address. */
+  get trustProxyHops(): number {
+    const value = Number(read('TRUST_PROXY') ?? 0);
+    return Number.isInteger(value) && value > 0 ? value : 0;
+  },
   get swaggerEnabled(): boolean {
     const override = read('SWAGGER_ENABLED');
     return override ? override === 'true' : !this.isProduction;
+  },
+  /** When both are set, /api/docs requires HTTP basic auth. */
+  get swaggerUser(): string | undefined {
+    return read('SWAGGER_USER');
+  },
+  get swaggerPassword(): string | undefined {
+    return read('SWAGGER_PASSWORD');
   },
   get rateLimitWindowMs(): number {
     return positiveInt('RATE_LIMIT_WINDOW_MS', 60_000);
@@ -97,17 +109,6 @@ export const env = {
     },
     get bucket(): string {
       return read('MINIO_BUCKET') ?? 'resumes';
-    },
-  },
-  opensearch: {
-    get url(): string | undefined {
-      return read('OPENSEARCH_URL');
-    },
-    get username(): string | undefined {
-      return read('OPENSEARCH_USERNAME');
-    },
-    get password(): string | undefined {
-      return read('OPENSEARCH_PASSWORD');
     },
   },
   ai: {
@@ -233,7 +234,6 @@ const URL_KEYS: Array<[key: string, protocols: string[]]> = [
   ['DATABASE_URL', ['postgres:', 'postgresql:']],
   ['REDIS_URL', ['redis:', 'rediss:']],
   ['MINIO_ENDPOINT', ['http:', 'https:']],
-  ['OPENSEARCH_URL', ['http:', 'https:']],
 ];
 
 function isAes256Key(value: string | undefined): boolean {
@@ -274,6 +274,16 @@ export function validateEnv(): void {
     if (value && !(Number.isInteger(Number(value)) && Number(value) > 0)) {
       problems.push(`${key} must be a positive integer (got "${value}")`);
     }
+  }
+
+  const trustProxy = read('TRUST_PROXY');
+  if (
+    trustProxy &&
+    !(Number.isInteger(Number(trustProxy)) && Number(trustProxy) >= 0)
+  ) {
+    problems.push(
+      `TRUST_PROXY must be the number of proxy hops, e.g. 1 (got "${trustProxy}")`,
+    );
   }
 
   for (const [key, protocols] of URL_KEYS) {
