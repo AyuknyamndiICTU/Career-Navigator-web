@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Manifests only, so dependency layers stay cached until a package.json or the lockfile changes.
-FROM node:20-alpine AS manifests
+FROM node:24-alpine AS manifests
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
@@ -15,21 +15,12 @@ RUN --mount=type=cache,target=/root/.npm \
 ENV NEXT_FONT_GOOGLE_MOCK=1
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# NEXT_PUBLIC_* values are compiled into the client bundle at build time.
-ARG NEXT_PUBLIC_API_BASE_URL
-ARG NEXT_PUBLIC_BACKEND_URL
-ARG NEXT_PUBLIC_SOCKET_URL
-ARG NEXT_PUBLIC_AGORA_APP_ID
-ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
-ENV NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
-ENV NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL}
-ENV NEXT_PUBLIC_AGORA_APP_ID=${NEXT_PUBLIC_AGORA_APP_ID}
-
+# No API address is baked in: the browser calls /api on its own origin, so one image fits every environment.
 COPY apps/web/web-ui apps/web/web-ui
 RUN npm run build --workspace=web-ui
 
 # Standalone output: server.js plus only the node_modules files the app actually uses.
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
