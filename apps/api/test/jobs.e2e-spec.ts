@@ -36,6 +36,7 @@ describe('Jobs browse + apply (Milestone 3.2)', () => {
   const mockPrisma: Record<string, unknown> = {
     job: mockJob,
     jobApplication: mockJobApplication,
+    $queryRaw: jest.fn(),
   };
 
   const signTestToken = (): string => {
@@ -101,12 +102,11 @@ describe('Jobs browse + apply (Milestone 3.2)', () => {
     expect(mockJob.count).toHaveBeenCalledTimes(1);
   });
 
-  it('GET /jobs filters by status, location, skill, and q', async () => {
+  it('GET /jobs filters by status, location and skill', async () => {
     mockJob.findMany.mockResolvedValue([]);
     mockJob.count.mockResolvedValue(0);
 
-    const url =
-      '/jobs?q=engineer&status=ACTIVE&location=Lagos&skill=node&page=2&limit=5';
+    const url = '/jobs?status=ACTIVE&location=Lagos&skill=node&page=2&limit=5';
 
     await request(app.getHttpServer()).get(url).expect(200);
 
@@ -118,9 +118,47 @@ describe('Jobs browse + apply (Milestone 3.2)', () => {
     expect(findManyArgs.where.status).toBe('ACTIVE');
     expect(findManyArgs.where.location.contains).toBe('Lagos');
     expect(findManyArgs.where.skills.has).toBe('node');
+    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+  });
 
-    expect(Array.isArray(findManyArgs.where.OR)).toBe(true);
-    expect(findManyArgs.where.OR).toHaveLength(3);
+  it('GET /jobs?q= runs the ranked full-text query with every filter', async () => {
+    const jobs = ['job-b', 'job-a'].map((id) => ({
+      id,
+      title: 'Engineer',
+      company: 'Acme',
+      status: 'ACTIVE',
+      skills: ['node'],
+    }));
+    (mockPrisma.$queryRaw as jest.Mock<any>)
+      .mockResolvedValueOnce([{ id: 'job-b' }, { id: 'job-a' }])
+      .mockResolvedValueOnce([{ total: 7 }]);
+    // Rows come back unordered; the response must keep the ranking order.
+    mockJob.findMany.mockResolvedValue([jobs[1], jobs[0]]);
+
+    const res = await request(app.getHttpServer())
+      .get(
+        '/jobs?q=enginer&status=ACTIVE&location=La_os&skill=node&page=2&limit=5',
+      )
+      .expect(200);
+
+    expect(res.body.items.map((j: { id: string }) => j.id)).toEqual([
+      'job-b',
+      'job-a',
+    ]);
+    expect(res.body.total).toBe(7);
+    expect(mockJob.count).not.toHaveBeenCalled();
+
+    const [ranked] = (mockPrisma.$queryRaw as jest.Mock<any>).mock.calls[0] as [
+      { sql: string; values: unknown[] },
+    ];
+    expect(ranked.sql).toContain('websearch_to_tsquery');
+    expect(ranked.sql).toContain('<% "title"');
+    expect(ranked.values).toEqual(
+      expect.arrayContaining(['enginer', 'ACTIVE', '%La\\_os%', 'node', 5]),
+    );
+    expect(mockJob.findMany.mock.calls[0][0]).toEqual({
+      where: { id: { in: ['job-b', 'job-a'] } },
+    });
   });
 
   it('GET /jobs rejects invalid status filter', async () => {
