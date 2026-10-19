@@ -1,14 +1,13 @@
-# Run once per release, before rolling out cn-api:
-#   kubectl delete job cn-api-migrate --ignore-not-found && kubectl apply -f api-migrate-job.yaml
-#   kubectl wait --for=condition=complete job/cn-api-migrate --timeout=300s
+# Applies pending Prisma migrations; run once per release before the new cn-api pods roll out
+# (Job specs are immutable, so delete the previous one first; see ../README.md).
 # Databases created earlier with `prisma db push` need a one-time baseline first:
-#   prisma migrate resolve --applied 0_init
+#   prisma migrate resolve --applied 0_init --schema prisma/schema.prisma
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: cn-api-migrate
   labels:
-    app: cn-api
+    app: cn-api-migrate
 spec:
   backoffLimit: 2
   ttlSecondsAfterFinished: 3600
@@ -18,11 +17,30 @@ spec:
         app: cn-api-migrate
     spec:
       restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: migrate
-          image: cn-api:latest # same image as cn-api
-          imagePullPolicy: IfNotPresent
+          image: cn-api # same image and tag as cn-api
           command: ["npx", "prisma", "migrate", "deploy", "--schema", "prisma/schema.prisma"]
           env:
             - name: DATABASE_URL
-              value: "REPLACE_ME"
+              valueFrom:
+                secretKeyRef:
+                  name: cn-api-secrets
+                  key: DATABASE_URL
+            - name: NPM_CONFIG_CACHE
+              value: /tmp/.npm
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
