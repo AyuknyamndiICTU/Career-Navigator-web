@@ -1,6 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
 import helmet from 'helmet';
@@ -10,6 +9,7 @@ import { API_PREFIX } from './lib/api-prefix';
 import { env, validateEnv } from './config/env';
 import { corsOriginCallback } from './config/cors';
 import { RedactingLogger } from './logging/redacting-logger';
+import { setupSwagger, SWAGGER_PATH } from './swagger';
 
 async function bootstrap() {
   validateEnv();
@@ -20,6 +20,10 @@ async function bootstrap() {
     logger: new RedactingLogger({ json: env.isProduction }),
   });
   app.setGlobalPrefix(API_PREFIX);
+  if (env.trustProxyHops > 0) {
+    // Client IPs (rate limits, logs) come from X-Forwarded-For set by the proxy.
+    app.getHttpAdapter().getInstance().set('trust proxy', env.trustProxyHops);
+  }
   // SIGTERM/SIGINT run onModuleDestroy: BullMQ workers, queues, Redis and Prisma close cleanly.
   app.enableShutdownHooks();
 
@@ -91,7 +95,7 @@ async function bootstrap() {
       standardHeaders: true,
       legacyHeaders: false,
       skip: (req) =>
-        req.path.startsWith('/api-docs') ||
+        req.path.startsWith(`/${SWAGGER_PATH}`) ||
         req.path.startsWith(`/${API_PREFIX}/health`),
     }),
   );
@@ -101,55 +105,6 @@ async function bootstrap() {
   }
 
   await app.listen(env.port);
-}
-
-function setupSwagger(app: Awaited<ReturnType<typeof NestFactory.create>>) {
-  // Swagger / OpenAPI documentation
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Career Navigator API')
-    .setDescription(
-      'REST API for the Career Navigator platform — AI-powered career guidance, resume building, job matching, mentor discovery, and more.',
-    )
-    .setVersion('1.0')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'Authorization',
-        description: 'Enter JWT access token',
-        in: 'header',
-      },
-      'access-token',
-    )
-    .addServer('http://localhost:3001', 'Local Development')
-    .addTag('auth', 'Authentication & account management')
-    .addTag('profile', 'User profile, education & work experience')
-    .addTag('upload', 'File uploads (CV, profile picture)')
-    .addTag('resume', 'Resume builder & templates')
-    .addTag('jobs', 'Job listings, applications & matching')
-    .addTag('mentors', 'Mentor discovery & profiles')
-    .addTag('ai', 'AI chat, mock interviews & course recommendations')
-    .addTag('agora', 'Video calling sessions')
-    .addTag('conversations', 'Real-time messaging')
-    .addTag('notifications', 'User notifications')
-    .addTag('admin', 'Admin dashboard & user management')
-    .addTag('courses', 'Course catalog & scraping')
-    .build();
-
-  const document = SwaggerModule.createDocument(app, swaggerConfig, {
-    include: [AppModule],
-    deepScanRoutes: true,
-  });
-  SwaggerModule.setup('api-docs', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true,
-      docExpansion: 'list',
-      filter: true,
-      tryItOutEnabled: true,
-    },
-    customSiteTitle: 'Career Navigator API Docs',
-  });
 }
 
 void bootstrap();

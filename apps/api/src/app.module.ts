@@ -25,6 +25,7 @@ import { HealthModule } from './health/health.module';
 import { AiGatewayModule } from './ai/gateway/ai-gateway.module';
 import { RequestContextMiddleware } from './logging/request-context.middleware';
 import { AllExceptionsFilter } from './logging/all-exceptions.filter';
+import { PublicConfigController } from './config/public-config.controller';
 
 @Module({
   imports: [
@@ -44,7 +45,7 @@ import { AllExceptionsFilter } from './logging/all-exceptions.filter';
     AgoraModule,
     CoursesModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, PublicConfigController],
   providers: [
     AppService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
