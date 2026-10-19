@@ -1,43 +1,46 @@
 # syntax=docker/dockerfile:1
 
-FROM node:20-alpine AS deps
+# Manifests only, so dependency layers stay cached until a package.json or the lockfile changes.
+FROM node:20-alpine AS manifests
 WORKDIR /app
-COPY . .
-RUN npm install --no-audit --ignore-scripts
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/web-ui/package.json apps/web/web-ui/package.json
 
-FROM node:20-alpine AS builder
-WORKDIR /app
+FROM manifests AS build
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --workspace=web-ui --ignore-scripts --no-audit --no-fund
 
 # Prevent next/font/google from fetching fonts over the network during docker builds.
 ENV NEXT_FONT_GOOGLE_MOCK=1
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Inject NEXT_PUBLIC_* values at build time so the compiled client uses the right API URLs.
+# NEXT_PUBLIC_* values are compiled into the client bundle at build time.
 ARG NEXT_PUBLIC_API_BASE_URL
 ARG NEXT_PUBLIC_BACKEND_URL
 ARG NEXT_PUBLIC_SOCKET_URL
 ARG NEXT_PUBLIC_AGORA_APP_ID
-
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 ENV NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
 ENV NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL}
 ENV NEXT_PUBLIC_AGORA_APP_ID=${NEXT_PUBLIC_AGORA_APP_ID}
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY apps/web/web-ui apps/web/web-ui
 RUN npm run build --workspace=web-ui
 
+# Standalone output: server.js plus only the node_modules files the app actually uses.
 FROM node:20-alpine AS runner
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
 WORKDIR /app
-ENV NODE_ENV=production
-
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/apps/web/web-ui/package.json ./apps/web/web-ui/package.json
-COPY --from=builder /app/apps/web/web-ui/.next ./apps/web/web-ui/.next
-COPY --from=builder /app/apps/web/web-ui/public ./apps/web/web-ui/public
-
-# Next.js needs package.json for runtime; we’ll install production deps only.
-COPY --from=builder /app/package-lock.json ./package-lock.json
-RUN npm ci --ignore-scripts --omit=dev
+COPY --from=build /app/apps/web/web-ui/.next/standalone ./
+COPY --from=build /app/apps/web/web-ui/.next/static ./apps/web/web-ui/.next/static
+COPY --from=build /app/apps/web/web-ui/public ./apps/web/web-ui/public
+USER node
 
 EXPOSE 3000
-CMD ["npm", "run", "start", "--workspace=apps/web/web-ui"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/auth/login').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+CMD ["node", "apps/web/web-ui/server.js"]

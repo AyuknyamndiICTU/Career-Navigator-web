@@ -75,7 +75,12 @@ export class NotificationsService implements OnModuleDestroy {
 
     // Milestone 4.4: enqueue async worker update when enabled.
     // Keep this guarded so tests/configs without Redis won't break.
-    await this.getQueue()?.add('process', { notificationId: created.id });
+    // Redis runs with noeviction, so finished jobs must not pile up.
+    await this.getQueue()?.add(
+      'process',
+      { notificationId: created.id },
+      { removeOnComplete: true, removeOnFail: 1000 },
+    );
 
     return created;
   }

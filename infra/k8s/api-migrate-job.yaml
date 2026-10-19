@@ -22,7 +22,7 @@ spec:
         - name: migrate
           image: cn-api:latest # same image as cn-api
           imagePullPolicy: IfNotPresent
-          command: ["sh", "-c", "cd apps/api && npx prisma migrate deploy --schema prisma/schema.prisma"]
+          command: ["npx", "prisma", "migrate", "deploy", "--schema", "prisma/schema.prisma"]
           env:
             - name: DATABASE_URL
               value: "REPLACE_ME"

@@ -5,7 +5,9 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { JobsService } from './jobs.service';
+import { JobBrowseService } from './job-browse.service';
+import { JobApplicationsService } from './job-applications.service';
+import { JobMatchService } from './job-match.service';
 import { ApplyJobDto } from './dto/apply-job.dto';
 import { RerankJobsDto } from './dto/rerank-jobs.dto';
 import { parsePagination } from '../lib/pagination';
@@ -13,7 +15,11 @@ import { parsePagination } from '../lib/pagination';
 @ApiTags('jobs')
 @Controller('jobs')
 export class JobsController {
-  constructor(private readonly jobsService: JobsService) {}
+  constructor(
+    private readonly browseService: JobBrowseService,
+    private readonly applications: JobApplicationsService,
+    private readonly matching: JobMatchService,
+  ) {}
 
   @Get()
   @Public()
@@ -30,7 +36,7 @@ export class JobsController {
     const searchQuery = q ?? search;
     const { page, limit } = parsePagination(pageRaw, limitRaw);
 
-    return this.jobsService.browse({
+    return this.browseService.browse({
       searchQuery,
       status,
       location,
@@ -48,7 +54,7 @@ export class JobsController {
     @Body() dto: ApplyJobDto,
     @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.jobsService.apply(userId, jobId, dto);
+    return this.applications.apply(userId, jobId, dto);
   }
 
   @Post('index')
@@ -57,7 +63,7 @@ export class JobsController {
   })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async indexJobs(): Promise<unknown> {
-    return this.jobsService.ingestJobDemand();
+    return this.browseService.ingestJobDemand();
   }
 
   @Post('rerank')
@@ -71,7 +77,7 @@ export class JobsController {
     @Body() dto: RerankJobsDto,
     @CurrentUser('sub') userId: string,
   ): Promise<unknown> {
-    return this.jobsService.rerankJobs(userId, dto);
+    return this.matching.rerankJobs(userId, dto);
   }
 
   @Post('matched')
@@ -83,7 +89,7 @@ export class JobsController {
     description: 'Missing or invalid bearer token.',
   })
   async matchedJobs(@CurrentUser('sub') userId: string): Promise<unknown> {
-    return this.jobsService.matchedJobs(userId);
+    return this.matching.matchedJobs(userId);
   }
 
   @Get('my-applications')
@@ -92,6 +98,6 @@ export class JobsController {
   })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   async myApplications(@CurrentUser('sub') userId: string): Promise<unknown> {
-    return this.jobsService.myApplications(userId);
+    return this.applications.myApplications(userId);
   }
 }

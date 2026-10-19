@@ -1,54 +1,38 @@
 # syntax=docker/dockerfile:1
 
-FROM node:20-alpine AS deps
+# Manifests only, so dependency layers stay cached until a package.json or the lockfile changes.
+FROM node:20-alpine AS manifests
 WORKDIR /app
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/web-ui/package.json apps/web/web-ui/package.json
 
-# Native build tools needed for bcrypt and other compiled deps on Alpine
-RUN apk add --no-cache python3 make g++
+FROM manifests AS build
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --workspace=apps/api --ignore-scripts --no-audit --no-fund
+COPY apps/api apps/api
+WORKDIR /app/apps/api
+# generate only reads the schema; the URL is never contacted.
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma generate \
+    && npm run build
 
-COPY . .
-RUN npm install --no-audit --ignore-scripts
-
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app ./
-
-# Remove any Windows-generated Prisma engine so generate creates the correct one
-RUN rm -rf apps/api/node_modules/.prisma/client/query_engine-windows.dll.node 2>/dev/null || true
-
-# Ensure Prisma Client is generated inside the Linux-musl container,
-# matching the `binaryTargets` from `apps/api/prisma/schema.prisma`.
-# Prisma reads `DATABASE_URL` from the schema via env(), so provide a dummy value.
-ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/career_navigator?schema=public"
-RUN cd apps/api && npx prisma generate --schema prisma/schema.prisma
-
-RUN npm run build --workspace=apps/api
+# Production dependencies plus the Prisma client and engines for linux-musl (bcryptjs is pure JS, no compiler needed).
+FROM manifests AS prod-deps
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --workspace=apps/api --omit=dev --ignore-scripts --no-audit --no-fund
+COPY apps/api/prisma apps/api/prisma
+WORKDIR /app/apps/api
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma generate \
+    && npx prisma version >/dev/null
 
 FROM node:20-alpine AS runner
-WORKDIR /app
-
 ENV NODE_ENV=production
-
-# Install production deps in the runner so the Prisma CLI binary exists at node_modules/.bin/prisma
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/package-lock.json ./package-lock.json
-COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
-
-RUN apk add --no-cache python3 make g++ && \
-    npm ci --ignore-scripts --omit=dev && \
-    apk del python3 make g++
-
-# Copy Prisma schema + the client generated for linux-musl next to the workspace's own node_modules
-COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /app/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
-
-# Prisma CLI for the one-shot migration step (`prisma migrate deploy`), run separately from the API
-COPY --from=builder /app/apps/api/node_modules/prisma ./apps/api/node_modules/prisma
-
-# Run from the workspace folder so Node resolves packages npm installed under apps/api/node_modules
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=prod-deps /app /app
+COPY --from=build /app/apps/api/dist /app/apps/api/dist
+WORKDIR /app/apps/api
+USER node
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health/live').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
-CMD ["node", "apps/api/dist/src/main.js"]
+CMD ["node", "dist/src/main.js"]

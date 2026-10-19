@@ -42,7 +42,7 @@ services:
     build:
       context: ../../
       dockerfile: apps/api/Dockerfile
-    command: ["sh", "-c", "cd apps/api && npx prisma migrate deploy --schema prisma/schema.prisma"]
+    command: ["npx", "prisma", "migrate", "deploy", "--schema", "prisma/schema.prisma"]
     environment:
       DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/career_navigator?schema=public"
     depends_on:

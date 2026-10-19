@@ -8,7 +8,10 @@ import {
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { AiService, ChatStreamEvent } from './ai.service';
+import { ChatStreamEvent } from './career-skills.service';
+import { ChatService } from './chat.service';
+import { InterviewService } from './interview.service';
+import { CourseRecsService } from './course-recs.service';
 import { sendSse } from './sse';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import { MockInterviewRequestDto } from './dto/mock-interview-request.dto';
@@ -28,12 +31,16 @@ function streamEvent(event: ChatStreamEvent) {
 })
 @Controller('ai')
 export class AiController {
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly interviews: InterviewService,
+    private readonly courses: CourseRecsService,
+  ) {}
 
   @Post('chat')
   @ApiOkResponse({ description: 'Career-path-only AI chat response.' })
   chat(@Body() dto: ChatRequestDto, @CurrentUser('sub') userId: string) {
-    return this.aiService.chat(userId, dto);
+    return this.chatService.chat(userId, dto);
   }
 
   @Post('chat/stream')
@@ -50,7 +57,7 @@ export class AiController {
   ): Promise<void> {
     return sendSse(
       res,
-      (signal) => this.aiService.chatStream(userId, dto, signal),
+      (signal) => this.chatService.chatStream(userId, dto, signal),
       (e) => streamEvent(e as ChatStreamEvent),
     );
   }
@@ -61,7 +68,7 @@ export class AiController {
     @Body() dto: MockInterviewRequestDto,
     @CurrentUser('sub') userId: string,
   ) {
-    return this.aiService.mockInterview(userId, dto);
+    return this.interviews.mockInterview(userId, dto);
   }
 
   @Post('mock-interview/stream')
@@ -78,7 +85,7 @@ export class AiController {
   ): Promise<void> {
     return sendSse(
       res,
-      (signal) => this.aiService.mockInterviewStream(userId, dto, signal),
+      (signal) => this.interviews.mockInterviewStream(userId, dto, signal),
       (e) => streamEvent(e as ChatStreamEvent),
     );
   }
@@ -91,6 +98,6 @@ export class AiController {
     @Body() dto: CourseRecommendationsRequestDto,
     @CurrentUser('sub') userId: string,
   ) {
-    return this.aiService.recommendCourses(userId, dto);
+    return this.courses.recommendCourses(userId, dto);
   }
 }

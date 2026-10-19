@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AiController } from './ai.controller';
-import { AiService } from './ai.service';
+import { CareerSkillsService } from './career-skills.service';
+import { ChatService } from './chat.service';
+import { InterviewService } from './interview.service';
+import { CourseRecsService } from './course-recs.service';
 import { AiSettingsController } from './byok/ai-settings.controller';
 import {
   AdminAiController,
@@ -15,6 +18,12 @@ import { AiUsageReportService } from './byok/ai-usage-report.service';
     AdminAiController,
     AiHealthController,
   ],
-  providers: [AiService, AiUsageReportService],
+  providers: [
+    CareerSkillsService,
+    ChatService,
+    InterviewService,
+    CourseRecsService,
+    AiUsageReportService,
+  ],
 })
 export class AiModule {}

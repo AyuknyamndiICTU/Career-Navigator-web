@@ -16,85 +16,81 @@ export class ResumeService {
   async buildResume(userId: string, dto: BuildResumeDto): Promise<unknown> {
     const template: ResumeTemplateId = dto.template ?? DEFAULT_TEMPLATE;
 
-    const profile = await this.prisma.profile.findUnique({
-      where: { userId },
-      select: {
-        firstName: true,
-        lastName: true,
-        headline: true,
-        phone: true,
-        location: true,
-        summary: true,
-        cvWizardData: true,
-      },
-    });
-
-    const education = await this.prisma.education.findMany({
-      where: { userId },
-      orderBy: { startYear: 'desc' },
-      select: {
-        degree: true,
-        fieldOfStudy: true,
-        institution: true,
-        startYear: true,
-        endYear: true,
-        grade: true,
-        description: true,
-        isCurrent: true,
-      },
-    });
-
-    const workExperience = await this.prisma.workExperience.findMany({
-      where: { userId },
-      orderBy: { startYear: 'desc' },
-      select: {
-        jobTitle: true,
-        company: true,
-        location: true,
-        startYear: true,
-        endYear: true,
-        description: true,
-        isCurrent: true,
-      },
-    });
-
-    // Phase 4: Projects + References (best-effort so existing e2e mocks don't break)
+    // Projects + references are best-effort so existing e2e mocks without them don't break.
     const prismaAny = this.prisma as any;
 
-    const projects: Array<{
-      id?: string;
-      title: string;
-      description: string | null;
-      externalUrl: string | null;
-      skills: string[];
-      isCurrent: boolean;
-      createdAt?: Date;
-      updatedAt?: Date;
-    }> =
-      (await prismaAny.project
-        ?.findMany?.({
+    // Independent reads run in parallel: one round-trip of latency instead of five.
+    const [profile, education, workExperience, projects, references] =
+      await Promise.all([
+        this.prisma.profile.findUnique({
           where: { userId },
-          orderBy: { createdAt: 'desc' },
-        })
-        .catch(() => [])) ?? [];
-
-    const references: Array<{
-      id?: string;
-      name: string;
-      relationship: string | null;
-      company: string | null;
-      email: string | null;
-      phone: string | null;
-      notes: string | null;
-      createdAt?: Date;
-      updatedAt?: Date;
-    }> =
-      (await prismaAny.reference
-        ?.findMany?.({
+          select: {
+            firstName: true,
+            lastName: true,
+            headline: true,
+            phone: true,
+            location: true,
+            summary: true,
+            cvWizardData: true,
+          },
+        }),
+        this.prisma.education.findMany({
           where: { userId },
-          orderBy: { createdAt: 'desc' },
-        })
-        .catch(() => [])) ?? [];
+          orderBy: { startYear: 'desc' },
+          select: {
+            degree: true,
+            fieldOfStudy: true,
+            institution: true,
+            startYear: true,
+            endYear: true,
+            grade: true,
+            description: true,
+            isCurrent: true,
+          },
+        }),
+        this.prisma.workExperience.findMany({
+          where: { userId },
+          orderBy: { startYear: 'desc' },
+          select: {
+            jobTitle: true,
+            company: true,
+            location: true,
+            startYear: true,
+            endYear: true,
+            description: true,
+            isCurrent: true,
+          },
+        }),
+        (prismaAny.project
+          ?.findMany?.({ where: { userId }, orderBy: { createdAt: 'desc' } })
+          .catch(() => []) ?? Promise.resolve([])) as Promise<
+          Array<{
+            id?: string;
+            title: string;
+            description: string | null;
+            externalUrl: string | null;
+            skills: string[];
+            isCurrent: boolean;
+            createdAt?: Date;
+            updatedAt?: Date;
+          }>
+        >,
+        (prismaAny.reference
+          ?.findMany?.({ where: { userId }, orderBy: { createdAt: 'desc' } })
+          .catch(() => []) ?? Promise.resolve([])) as Promise<
+          Array<{
+            id?: string;
+            name: string;
+            relationship: string | null;
+            company: string | null;
+            email: string | null;
+            phone: string | null;
+            notes: string | null;
+            createdAt?: Date;
+            updatedAt?: Date;
+          }>
+        >,
+      ]);
 
     if (
       !profile &&
