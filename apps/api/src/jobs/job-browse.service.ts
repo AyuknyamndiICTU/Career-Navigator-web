@@ -1,11 +1,5 @@
-/* global fetch, Buffer */
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { JobStatus, Prisma } from '@prisma/client';
-import { env } from '../config/env';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { Job, JobStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   normalizeText,
@@ -22,7 +16,7 @@ export type BrowseJobsParams = {
   limit: number;
 };
 
-/** Public job board: filtered browsing and the optional OpenSearch export. */
+/** Public job board: filtered browsing with Postgres full-text search. */
 @Injectable()
 export class JobBrowseService {
   constructor(private readonly prisma: PrismaService) {}
@@ -45,7 +39,8 @@ export class JobBrowseService {
     limit: number;
     total: number;
   }> {
-    const { searchQuery, status, location, skill, page, limit } = params;
+    const { status, location, skill, page, limit } = params;
+    const searchQuery = params.searchQuery?.trim().slice(0, 200) || undefined;
 
     let parsedStatus: JobStatus | undefined;
     if (status) {
@@ -56,34 +51,27 @@ export class JobBrowseService {
       parsedStatus = normalized as JobStatus;
     }
 
-    const where: Prisma.JobWhereInput = {
-      ...(parsedStatus ? { status: parsedStatus } : {}),
-      ...(location
-        ? { location: { contains: location, mode: 'insensitive' } }
-        : {}),
-      ...(skill ? { skills: { has: skill } } : {}),
-      ...(searchQuery
-        ? {
-            OR: [
-              { title: { contains: searchQuery, mode: 'insensitive' } },
-              { company: { contains: searchQuery, mode: 'insensitive' } },
-              { description: { contains: searchQuery, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    };
-
     const skip = (page - 1) * limit;
 
-    const [items, total] = await Promise.all([
-      this.prisma.job.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.job.count({ where }),
-    ]);
+    const [items, total] = searchQuery
+      ? await this.search(searchQuery, {
+          status: parsedStatus,
+          location,
+          skill,
+          skip,
+          take: limit,
+        })
+      : await this.list(
+          {
+            ...(parsedStatus ? { status: parsedStatus } : {}),
+            ...(location
+              ? { location: { contains: location, mode: 'insensitive' } }
+              : {}),
+            ...(skill ? { skills: { has: skill } } : {}),
+          },
+          skip,
+          limit,
+        );
 
     if (items.length === 0 && total === 0) {
       const fallbackItems = recentJobFallbackCatalog().filter((job) => {
@@ -136,74 +124,67 @@ export class JobBrowseService {
     return { items, page, limit, total };
   }
 
-  async ingestJobDemand(): Promise<{
-    indexed: number;
-    index: string;
-  }> {
-    const opensearchUrl = env.opensearch.url;
-    const username = env.opensearch.username;
-    const password = env.opensearch.password;
-
-    if (!opensearchUrl || !username || !password) {
-      throw new UnauthorizedException('OpenSearch is not configured');
-    }
-
-    const indexName = 'jobs';
-
-    const activeJobs = await this.prisma.job.findMany({
-      where: { status: 'ACTIVE' },
-      select: {
-        id: true,
-        title: true,
-        company: true,
-        location: true,
-        description: true,
-        skills: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    const base = opensearchUrl.replace(/\/+$/, '');
-    const authHeader = `Basic ${Buffer.from(`${username}:${password}`).toString(
-      'base64',
-    )}`;
-
-    let indexed = 0;
-
-    await Promise.all(
-      activeJobs.map(async (job) => {
-        const url = `${base}/${indexName}/_doc/${job.id}`;
-
-        const res = await fetch(url, {
-          method: 'PUT',
-          headers: {
-            Authorization: authHeader,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: job.id,
-            title: job.title,
-            company: job.company,
-            location: job.location,
-            description: job.description,
-            skills: job.skills,
-            status: job.status,
-            createdAt: job.createdAt,
-            updatedAt: job.updatedAt,
-          }),
-        });
-
-        if (!res.ok) {
-          const bodyText = await res.text().catch(() => '');
-          throw new Error(`OpenSearch index failed: ${res.status} ${bodyText}`);
-        }
-
-        indexed += 1;
+  private list(
+    where: Prisma.JobWhereInput,
+    skip: number,
+    take: number,
+  ): Promise<[Job[], number]> {
+    return Promise.all([
+      this.prisma.job.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
       }),
-    );
+      this.prisma.job.count({ where }),
+    ]);
+  }
 
-    return { indexed, index: indexName };
+  /** Ranked full-text search (stemmed words) plus typo-tolerant title matching. */
+  private async search(
+    q: string,
+    filters: {
+      status?: JobStatus;
+      location?: string;
+      skill?: string;
+      skip: number;
+      take: number;
+    },
+  ): Promise<[Job[], number]> {
+    const tsQuery = Prisma.sql`websearch_to_tsquery('english', ${q})`;
+    const conditions = [
+      Prisma.sql`("searchVector" @@ ${tsQuery} OR ${q} <% "title")`,
+    ];
+    if (filters.status) {
+      conditions.push(Prisma.sql`"status" = ${filters.status}::"JobStatus"`);
+    }
+    if (filters.location) {
+      const pattern = `%${filters.location.replace(/[\\%_]/g, '\\$&')}%`;
+      conditions.push(Prisma.sql`"location" ILIKE ${pattern}`);
+    }
+    if (filters.skill) {
+      conditions.push(Prisma.sql`"skills" @> ARRAY[${filters.skill}]::text[]`);
+    }
+    const where = Prisma.join(conditions, ' AND ');
+
+    const [ranked, counted] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT "id" FROM "Job" WHERE ${where}
+        ORDER BY ts_rank("searchVector", ${tsQuery}) + word_similarity(${q}, "title") DESC,
+                 "createdAt" DESC
+        OFFSET ${filters.skip} LIMIT ${filters.take}`),
+      this.prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+        SELECT count(*)::int AS total FROM "Job" WHERE ${where}`),
+    ]);
+
+    const ids = ranked.map((row) => row.id);
+    const rows = ids.length
+      ? await this.prisma.job.findMany({ where: { id: { in: ids } } })
+      : [];
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const items = ids
+      .map((id) => byId.get(id))
+      .filter((job): job is Job => job !== undefined);
+    return [items, counted[0]?.total ?? 0];
   }
 }

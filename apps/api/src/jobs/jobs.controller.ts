@@ -57,15 +57,6 @@ export class JobsController {
     return this.applications.apply(userId, jobId, dto);
   }
 
-  @Post('index')
-  @ApiOkResponse({
-    description: 'Ingest ACTIVE job demand into OpenSearch index.',
-  })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
-  async indexJobs(): Promise<unknown> {
-    return this.browseService.ingestJobDemand();
-  }
-
   @Post('rerank')
   @ApiOkResponse({
     description: 'AI rerank jobs with explanations and notify user.',
