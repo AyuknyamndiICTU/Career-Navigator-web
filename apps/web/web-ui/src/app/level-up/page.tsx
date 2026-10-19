@@ -1,47 +1,28 @@
 // @ts-nocheck
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { apiFetch } from '@/lib/auth';
+import { useApi } from '@/lib/useApi';
 import ErrorAlert from '@/components/ErrorAlert';
 
 export default function LevelUpPage() {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [items, setItems] = useState<Array<any>>([]);
-  const [careerSkills, setCareerSkills] = useState<Array<string>>([]);
+  const { data, error, loading } = useApi<{ items?: Array<any>; careerSkills?: Array<string> }>(
+    '/jobs/my-applications',
+    { errorMessage: 'Failed to load progress' },
+  );
+  const items = useMemo(() => (Array.isArray(data?.items) ? data.items : []), [data]);
+  const careerSkills = useMemo(
+    () => (Array.isArray(data?.careerSkills) ? data.careerSkills : []),
+    [data],
+  );
+  const busy = loading && data === undefined;
 
   const summary = useMemo(() => {
     const applications = Array.isArray(items) ? items.length : 0;
     const skills = Array.isArray(careerSkills) ? careerSkills.length : 0;
     return { applications, skills };
   }, [items, careerSkills]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function load() {
-      setBusy(true);
-      setError('');
-      try {
-        const res = (await apiFetch('/jobs/my-applications', { method: 'GET' })) as any;
-        if (!mounted) return;
-        setItems(Array.isArray(res?.items) ? res.items : []);
-        setCareerSkills(Array.isArray(res?.careerSkills) ? res.careerSkills : []);
-      } catch (e) {
-        if (!mounted) return;
-        setError(e instanceof Error ? e.message : 'Failed to load progress');
-      } finally {
-        if (mounted) setBusy(false);
-      }
-    }
-
-    void load();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   return (
     <DashboardLayout>

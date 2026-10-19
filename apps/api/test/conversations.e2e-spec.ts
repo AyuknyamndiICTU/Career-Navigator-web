@@ -172,4 +172,71 @@ describe('Conversations CRUD (Milestone: Phase 4 + 6.3)', () => {
   it('GET /conversations without auth returns 401', async () => {
     await request(app.getHttpServer()).get('/conversations').expect(401);
   });
+
+  // ─── Message history pagination ─────────────────────────────
+
+  it('GET /conversations/:id/messages pages backwards with nextBefore', async () => {
+    mockParticipant.findFirst.mockResolvedValue({ id: 'p-1' });
+    const at = (m: number) => new Date(Date.UTC(2026, 0, 1, 0, m));
+    // Prisma returns newest first; limit=2 asks for take=3.
+    mockMessage.findMany.mockResolvedValue([
+      {
+        id: 'm3',
+        senderId: userId,
+        content: 'c',
+        createdAt: at(3),
+        updatedAt: at(3),
+      },
+      {
+        id: 'm2',
+        senderId: userId,
+        content: 'b',
+        createdAt: at(2),
+        updatedAt: at(2),
+      },
+      {
+        id: 'm1',
+        senderId: userId,
+        content: 'a',
+        createdAt: at(1),
+        updatedAt: at(1),
+      },
+    ]);
+
+    const before = at(4).toISOString();
+    const res = await request(app.getHttpServer())
+      .get(`/conversations/conv-1/messages?limit=2&before=${before}`)
+      .set('authorization', `Bearer ${signTestToken()}`)
+      .expect(200);
+
+    expect(res.body.items.map((m: { id: string }) => m.id)).toEqual([
+      'm2',
+      'm3',
+    ]);
+    expect(res.body.nextBefore).toBe(at(2).toISOString());
+    const args = mockMessage.findMany.mock.calls[0][0] as Record<string, any>;
+    expect(args.take).toBe(3);
+    expect(args.orderBy).toEqual({ createdAt: 'desc' });
+    expect(args.where.createdAt.lt.toISOString()).toBe(before);
+  });
+
+  it('GET /conversations/:id/messages returns nextBefore=null on the last page', async () => {
+    mockParticipant.findFirst.mockResolvedValue({ id: 'p-1' });
+    mockMessage.findMany.mockResolvedValue([]);
+
+    const res = await request(app.getHttpServer())
+      .get('/conversations/conv-1/messages')
+      .set('authorization', `Bearer ${signTestToken()}`)
+      .expect(200);
+
+    expect(res.body).toEqual({ items: [], nextBefore: null });
+  });
+
+  it('GET /conversations/:id/messages rejects an invalid before', async () => {
+    mockParticipant.findFirst.mockResolvedValue({ id: 'p-1' });
+    await request(app.getHttpServer())
+      .get('/conversations/conv-1/messages?before=not-a-date')
+      .set('authorization', `Bearer ${signTestToken()}`)
+      .expect(400);
+  });
 });
