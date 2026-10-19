@@ -1,0 +1,19 @@
+# Only the API (and its migration Job) may reach Postgres and Redis. Needs a CNI that enforces NetworkPolicy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cn-data-from-api-only
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["cn-postgres", "cn-redis"]
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: ["cn-api", "cn-api-migrate"]

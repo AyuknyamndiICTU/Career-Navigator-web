@@ -1,0 +1,44 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: career-navigator
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+# Release: kustomize edit set image cn-api=<registry>/career-navigator-api:<git-sha> cn-web=<registry>/career-navigator-web:<git-sha>
+images:
+  - name: cn-api
+    newName: docker.io/your-namespace/career-navigator-api
+    newTag: replace-with-git-sha
+  - name: cn-web
+    newName: docker.io/your-namespace/career-navigator-web
+    newTag: replace-with-git-sha
+
+configMapGenerator:
+  - name: cn-api-config
+    behavior: merge
+    literals:
+      - CORS_ALLOWED_ORIGINS=https://app.example.com
+
+# Real values live in these git-ignored files (templates: *.env.example next to them).
+secretGenerator:
+  - name: cn-api-secrets
+    envs:
+      - api-secrets.env
+  - name: cn-postgres
+    envs:
+      - postgres.env
+
+patches:
+  - target:
+      kind: Ingress
+      name: cn-ingress
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: app.example.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: app.example.com

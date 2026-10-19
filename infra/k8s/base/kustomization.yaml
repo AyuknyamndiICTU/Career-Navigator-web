@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: career-navigator
+
+resources:
+  - postgres.yaml
+  - redis-statefulset.yaml
+  - redis-service.yaml
+  - api-migrate-job.yaml
+  - api-deployment.yaml
+  - api-service.yaml
+  - api-hpa.yaml
+  - web-deployment.yaml
+  - web-service.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+
+# Non-secret API settings; secrets (DATABASE_URL, JWT, keys...) come from each overlay's secretGenerator.
+configMapGenerator:
+  - name: cn-api-config
+    literals:
+      - NODE_ENV=production
+      - PORT=3000
+      - NODE_OPTIONS=--max-old-space-size=384
+      - TRUST_PROXY=1
+      - REDIS_URL=redis://cn-redis:6379
+      - CV_SCAN_ENABLED=true
+      - CV_SCAN_WORKER_CONCURRENCY=1
+      - NOTIFICATIONS_WORKER_ENABLED=false
+      - OTP_EMAIL_LOG_ONLY=false
+      - AI_BYOK_ENABLED=false
+      - AI_JOB_MATCH_ENABLED=false
+      - SWAGGER_ENABLED=false
+      - MINIO_BUCKET=resumes
+
+# Images are the placeholders `cn-api` / `cn-web`; each overlay pins a registry and a git-SHA tag (never :latest).

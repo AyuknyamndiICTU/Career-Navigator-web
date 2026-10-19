@@ -1,0 +1,98 @@
+# In-cluster Postgres for small clusters. For a managed database put its URL in DATABASE_URL (api-secrets.env)
+# and remove postgres-statefulset.yaml / postgres-service.yaml from the base kustomization.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cn-postgres
+  labels:
+    app: cn-postgres
+spec:
+  serviceName: cn-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cn-postgres
+  template:
+    metadata:
+      labels:
+        app: cn-postgres
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70 # `postgres` in the alpine image
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          args:
+            - -c
+            - shared_buffers=256MB
+            - -c
+            - effective_cache_size=768MB
+            - -c
+            - max_connections=50
+          env:
+            - name: POSTGRES_DB
+              value: career_navigator
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          envFrom:
+            - secretRef:
+                name: cn-postgres # POSTGRES_USER, POSTGRES_PASSWORD
+          ports:
+            - name: postgres
+              containerPort: 5432
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: shm
+              mountPath: /dev/shm
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d career_navigator"]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d career_navigator"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cn-postgres
+  labels:
+    app: cn-postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: cn-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

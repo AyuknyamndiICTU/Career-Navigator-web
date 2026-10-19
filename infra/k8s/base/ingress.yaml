@@ -4,13 +4,22 @@ metadata:
   name: cn-ingress
   labels:
     app: cn
+  annotations:
+    # cert-manager issues and renews the TLS certificate (ClusterIssuer name per cluster; see ../README.md).
+    cert-manager.io/cluster-issuer: letsencrypt
+    # ingress-nginx: long-lived Socket.IO websockets and AI SSE streams, 10 MB CV uploads.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-body-size: "12m"
 spec:
+  ingressClassName: nginx
   tls:
     - hosts:
-        - REPLACE_ME_DOMAIN
+        - app.example.com # set per overlay
       secretName: cn-tls
   rules:
-    - host: REPLACE_ME_DOMAIN
+    - host: app.example.com # set per overlay
       http:
         paths:
           - path: /api
