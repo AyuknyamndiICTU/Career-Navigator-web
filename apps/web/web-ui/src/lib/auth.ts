@@ -21,22 +21,15 @@ if (typeof window !== 'undefined') {
   window.localStorage.removeItem('refreshToken');
 }
 
-export function getApiBaseUrl(): string {
-  const value =
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_BACKEND_URL ||
-    'http://localhost:3001/api';
+// Same origin: the reverse proxy/ingress (or Next rewrites in dev) routes /api and /socket.io to the API.
+const API_BASE_PATH = '/api';
 
-  return value.replace(/\/+$/, '');
+export function getApiBaseUrl(): string {
+  return API_BASE_PATH;
 }
 
 export function getSocketUrl(): string {
-  const explicit = process.env.NEXT_PUBLIC_SOCKET_URL;
-  if (explicit) return explicit.replace(/\/+$/, '');
-
-  const origin =
-    typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
-  return new URL(getApiBaseUrl(), origin).origin;
+  return typeof window !== 'undefined' ? window.location.origin : '';
 }
 
 export function getAccessToken(): string | null {
