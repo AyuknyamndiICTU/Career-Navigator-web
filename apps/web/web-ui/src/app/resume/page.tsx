@@ -3,17 +3,35 @@
 
 import './print.css';
 import { useEffect, useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiFetch } from '@/lib/auth';
 import ErrorAlert from '@/components/ErrorAlert';
-import TemplateClassic from '@/components/resume/TemplateClassic';
-import TemplateModern from '@/components/resume/TemplateModern';
-import TemplateMinimal from '@/components/resume/TemplateMinimal';
-import TemplateCreative from '@/components/resume/TemplateCreative';
-import TemplateProfessional from '@/components/resume/TemplateProfessional';
-import TemplateExecutive from '@/components/resume/TemplateExecutive';
 import type { ResumeData } from '@/components/resume/types';
+
+// Only the selected template's chunk is downloaded.
+const templateLoading = () => (
+  <div className="py-12 text-center text-sm text-slate-500">Loading template…</div>
+);
+const TemplateClassic = dynamic(() => import('@/components/resume/TemplateClassic'), {
+  loading: templateLoading,
+});
+const TemplateModern = dynamic(() => import('@/components/resume/TemplateModern'), {
+  loading: templateLoading,
+});
+const TemplateMinimal = dynamic(() => import('@/components/resume/TemplateMinimal'), {
+  loading: templateLoading,
+});
+const TemplateCreative = dynamic(() => import('@/components/resume/TemplateCreative'), {
+  loading: templateLoading,
+});
+const TemplateProfessional = dynamic(() => import('@/components/resume/TemplateProfessional'), {
+  loading: templateLoading,
+});
+const TemplateExecutive = dynamic(() => import('@/components/resume/TemplateExecutive'), {
+  loading: templateLoading,
+});
 
 type TemplateId =
   | 'CLASSIC'

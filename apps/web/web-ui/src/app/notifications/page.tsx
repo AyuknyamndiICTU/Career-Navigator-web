@@ -1,10 +1,11 @@
 // @ts-nocheck
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiFetch } from '@/lib/auth';
+import { useApi } from '@/lib/useApi';
 import ErrorAlert from '@/components/ErrorAlert';
 
 const containerVariants = {
@@ -21,39 +22,28 @@ const itemVariants = {
 };
 
 export default function NotificationsPage() {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [items, setItems] = useState<Array<any>>([]);
-
-  async function load() {
-    setBusy(true);
-    setError('');
-    try {
-      const res = await apiFetch('/notifications');
-      setItems(Array.isArray(res) ? res : []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load notifications');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, []);
+  const { data, error: loadError, loading, reload, mutate } = useApi<Array<any>>(
+    '/notifications',
+    { errorMessage: 'Failed to load notifications' },
+  );
+  const [actionError, setActionError] = useState('');
+  const items = Array.isArray(data) ? data : [];
+  const busy = loading && data === undefined;
+  const error = actionError || loadError;
 
   async function markRead(id: string) {
     // Optimistic UI update
-    setItems((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+    setActionError('');
+    mutate((prev) =>
+      (Array.isArray(prev) ? prev : []).map((n) => (n.id === id ? { ...n, isRead: true } : n))
     );
 
     try {
       await apiFetch(`/notifications/${id}/read`, { method: 'POST' });
     } catch (e) {
       // Revert on error
-      setError(e instanceof Error ? e.message : 'Failed to mark as read');
-      void load();
+      setActionError(e instanceof Error ? e.message : 'Failed to mark as read');
+      void reload();
     }
   }
 
