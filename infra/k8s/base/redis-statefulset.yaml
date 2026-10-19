@@ -1,10 +1,13 @@
+# In-cluster Redis with a persistent volume (BullMQ queues survive restarts). A managed Redis works too:
+# set REDIS_URL in the API secret and drop this file and redis-service.yaml from the kustomization.
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: cn-redis
   labels:
     app: cn-redis
 spec:
+  serviceName: cn-redis
   replicas: 1
   selector:
     matchLabels:
@@ -14,19 +17,47 @@ spec:
       labels:
         app: cn-redis
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999 # `redis` in the image
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: cn-redis
           image: redis:7-alpine
-          imagePullPolicy: IfNotPresent
+          # BullMQ requires noeviction; every other key the API writes has a TTL.
+          args: ["--appendonly", "yes", "--maxmemory", "192mb", "--maxmemory-policy", "noeviction"]
           ports:
-            - containerPort: 6379
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
           readinessProbe:
-            tcpSocket:
-              port: 6379
-            initialDelaySeconds: 5
+            exec:
+              command: ["redis-cli", "ping"]
             periodSeconds: 10
           livenessProbe:
             tcpSocket:
-              port: 6379
+              port: redis
             initialDelaySeconds: 15
             periodSeconds: 20
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi

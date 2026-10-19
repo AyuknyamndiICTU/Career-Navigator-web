@@ -1,0 +1,64 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: career-navigator-dev
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+images:
+  - name: cn-api
+    newName: docker.io/your-namespace/career-navigator-api
+    newTag: replace-with-git-sha
+  - name: cn-web
+    newName: docker.io/your-namespace/career-navigator-web
+    newTag: replace-with-git-sha
+
+configMapGenerator:
+  - name: cn-api-config
+    behavior: merge
+    literals:
+      - CORS_ALLOWED_ORIGINS=https://dev.app.example.com
+      - SWAGGER_ENABLED=true
+
+# Same file names as prod; templates in ../prod/*.env.example.
+secretGenerator:
+  - name: cn-api-secrets
+    envs:
+      - api-secrets.env
+  - name: cn-postgres
+    envs:
+      - postgres.env
+
+patches:
+  # One replica of everything; staging certificates (no Let's Encrypt rate limits).
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: cn-api
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+  - target:
+      kind: Ingress
+      name: cn-ingress
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: dev.app.example.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: dev.app.example.com
+      - op: replace
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: letsencrypt-staging

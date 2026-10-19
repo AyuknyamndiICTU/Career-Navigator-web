@@ -9,33 +9,50 @@ spec:
   selector:
     matchLabels:
       app: cn-web
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   template:
     metadata:
       labels:
         app: cn-web
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: cn-web
-          image: cn-web-ui:latest # <-- build/push this image first
-          imagePullPolicy: IfNotPresent
+          # The image has no API address baked in: the ingress serves /api and /socket.io from cn-api on the same host.
+          image: cn-web
           ports:
-            - containerPort: 3000
+            - name: http
+              containerPort: 3000
           env:
             - name: NODE_ENV
               value: "production"
-            # Browser calls go to the same host; the ingress routes /api and /socket.io to cn-api.
-            # NEXT_PUBLIC_* values are baked in at build time, so pass the same value as a build arg.
-            - name: NEXT_PUBLIC_API_BASE_URL
-              value: "/api"
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=256"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             httpGet:
-              path: /
-              port: 3000
-            initialDelaySeconds: 5
+              path: /auth/login
+              port: http
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /
-              port: 3000
+              path: /auth/login
+              port: http
             initialDelaySeconds: 15
             periodSeconds: 20

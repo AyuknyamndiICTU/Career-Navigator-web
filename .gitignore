@@ -3,4 +3,6 @@ node_modules
 .env.*
 !.env.example
 !.env.*.example
+# Kubernetes overlay secrets (templates: *.env.example)
+infra/k8s/overlays/*/*.env
 tmp/

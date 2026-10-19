@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 
 import { apiFetch, ensureAccessToken, setAccessToken } from '../src/lib/auth.ts';
 
-const API = 'http://localhost:3001/api';
+const API = '/api';
 
 function fakeJwt(expiresInSeconds) {
   const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');

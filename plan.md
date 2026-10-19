@@ -280,20 +280,67 @@ Resolution order for each AI request:
 
 ## Phase 14 — P3: Portability & flexibility
 
-- [ ] **14.1 Same-origin API — build once, deploy anywhere**
+- [x] **14.1 Same-origin API — build once, deploy anywhere**
   - Browser calls relative `/api/...`. Production: ingress (k8s) or a small reverse proxy such as Caddy (Compose, automatic TLS) routes `/api` and `/socket.io` to the API. Development: Next `rewrites` send `/api/:path*` to `API_INTERNAL_URL` (default `http://localhost:3001`).
   - Remove the `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_BACKEND_URL` / `NEXT_PUBLIC_SOCKET_URL` build args; serve public runtime settings (e.g. the LiveKit URL) from `GET /api/config/public`; delete the `replace('/api/v1', '')` workaround in [messages/[id]/page.tsx](apps/web/web-ui/src/app/messages/%5Bid%5D/page.tsx).
   - Done when: the same web image runs unchanged in dev, staging and production.
-- [ ] **14.2 Typed API client & strict TypeScript** — generate `src/lib/api/schema.d.ts` with `openapi-typescript` from the Swagger JSON; typed `apiFetch`; remove `// @ts-nocheck` from all 30 files (start with [auth.ts](apps/web/web-ui/src/lib/auth.ts), then pages and resume templates); CI fails on new `@ts-nocheck`.
-- [ ] **14.3 Web tooling** — replace `next lint` (removed in Next 16) with ESLint 9 flat config + `eslint .`; same ESLint major in both workspaces; delete one-off codemods [replace-errors.js](apps/web/web-ui/replace-errors.js) (hard-coded Windows path) and [inject-erroralert-import.js](apps/web/web-ui/inject-erroralert-import.js); drop the stale `./src/pages/**` glob from [tailwind.config.ts](apps/web/web-ui/tailwind.config.ts).
-- [ ] **14.4 Pin Node** — `.nvmrc` = `24`, `"engines": { "node": ">=24 <25" }` in the root [package.json](package.json), `node:24-alpine` in both Dockerfiles and the Jenkins agent.
-- [ ] **14.5 Environment templates** — update [apps/api/.env.example](apps/api/.env.example) and [apps/web/.env.example](apps/web/.env.example), add `infra/docker/.env.prod.example`; document every variable (required / optional / default); remove obsolete ones (local `OLLAMA_BASE_URL`, `OPENSEARCH_*`, `NEXT_PUBLIC_*_URL`, `AGORA_*`, `MINIO_*`).
-- [ ] **14.6 Kubernetes** — kustomize `base/` + `overlays/{dev,prod}`; Secrets/ConfigMaps instead of inline `REPLACE_ME`; requests/limits on every container; image tags = git SHA (no `:latest`); probes on `/api/health/*`; Redis with a PVC (or managed); Postgres as a StatefulSet or managed service; object storage on R2 (Phase 18); migration `Job` (10.2); cert-manager annotations; HPA for the API (CPU 70 %); no `OLLAMA_*` variables.
-- [ ] **14.7 Jenkins pipeline** — lint → typecheck → unit + e2e tests → build images (BuildKit cache) → push `:<git-sha>` → deploy → post-deploy health check → automatic rollback to the previous tag on failure. Host, user and registry from credentials; no `root` SSH.
-- [ ] **14.8 Swagger** — serve at `/api/docs`; `SWAGGER_ENABLED` (off in production by default, or behind basic auth); relative server URL instead of the hard-coded `http://localhost:3001`.
-- [ ] **14.9 Replace OpenSearch with PostgreSQL search** — generated `tsvector` column on `Job` (title, company, description, skills) + GIN index, `pg_trgm` for fuzzy titles; remove the `OPENSEARCH_*` path in [jobs.service.ts](apps/api/src/jobs/jobs.service.ts) and the `opensearch` Compose profile (OpenSearch alone needs 1–2 GB RAM).
-- [ ] **14.10 Cross-platform scripts** — root scripts `clean`, `db:migrate`, `db:seed`, `typecheck`, `api:openapi` written in Node (no bash/PowerShell-only commands); fix the `start:prod` path mismatch (`dist/main` vs `dist/src/main.js`).
+- [x] **14.2 Typed API client & strict TypeScript** — generate `src/lib/api/schema.d.ts` with `openapi-typescript` from the Swagger JSON; typed `apiFetch`; remove `// @ts-nocheck` from all 30 files (start with [auth.ts](apps/web/web-ui/src/lib/auth.ts), then pages and resume templates); CI fails on new `@ts-nocheck`.
+- [x] **14.3 Web tooling** — replace `next lint` (removed in Next 16) with ESLint 9 flat config + `eslint .`; same ESLint major in both workspaces; delete one-off codemods [replace-errors.js](apps/web/web-ui/replace-errors.js) (hard-coded Windows path) and [inject-erroralert-import.js](apps/web/web-ui/inject-erroralert-import.js); drop the stale `./src/pages/**` glob from [tailwind.config.ts](apps/web/web-ui/tailwind.config.ts).
+- [x] **14.4 Pin Node** — `.nvmrc` = `24`, `"engines": { "node": ">=24 <25" }` in the root [package.json](package.json), `node:24-alpine` in both Dockerfiles and the Jenkins agent.
+- [x] **14.5 Environment templates** — update [apps/api/.env.example](apps/api/.env.example) and [apps/web/.env.example](apps/web/.env.example), add `infra/docker/.env.prod.example`; document every variable (required / optional / default); remove obsolete ones (local `OLLAMA_BASE_URL`, `OPENSEARCH_*`, `NEXT_PUBLIC_*_URL`, `AGORA_*`, `MINIO_*`).
+- [x] **14.6 Kubernetes** — kustomize `base/` + `overlays/{dev,prod}`; Secrets/ConfigMaps instead of inline `REPLACE_ME`; requests/limits on every container; image tags = git SHA (no `:latest`); probes on `/api/health/*`; Redis with a PVC (or managed); Postgres as a StatefulSet or managed service; object storage on R2 (Phase 18); migration `Job` (10.2); cert-manager annotations; HPA for the API (CPU 70 %); no `OLLAMA_*` variables.
+- [x] **14.7 Jenkins pipeline** — lint → typecheck → unit + e2e tests → build images (BuildKit cache) → push `:<git-sha>` → deploy → post-deploy health check → automatic rollback to the previous tag on failure. Host, user and registry from credentials; no `root` SSH.
+- [x] **14.8 Swagger** — serve at `/api/docs`; `SWAGGER_ENABLED` (off in production by default, or behind basic auth); relative server URL instead of the hard-coded `http://localhost:3001`.
+- [x] **14.9 Replace OpenSearch with PostgreSQL search** — generated `tsvector` column on `Job` (title, company, description, skills) + GIN index, `pg_trgm` for fuzzy titles; remove the `OPENSEARCH_*` path in [jobs.service.ts](apps/api/src/jobs/jobs.service.ts) and the `opensearch` Compose profile (OpenSearch alone needs 1–2 GB RAM).
+- [x] **14.10 Cross-platform scripts** — root scripts `clean`, `db:migrate`, `db:seed`, `typecheck`, `api:openapi` written in Node (no bash/PowerShell-only commands); fix the `start:prod` path mismatch (`dist/main` vs `dist/src/main.js`).
 - [ ] **14.11 One repository** — `apps/api` contains its own `.git` with a separate remote; fold it into the monorepo after confirming nothing is unpushed (team decision).
+- Status (2026-10-20):
+  - **14.1 Same origin:**
+    - The browser uses `/api` and `window.location.origin` for Socket.IO.
+    - Local Compose and the production VPS get a Caddy `proxy` service ([Caddyfile](infra/docker/Caddyfile)).
+      - Production: automatic HTTPS for `SITE_ADDRESS`; only ports 80/443 are public, and the API listens on 127.0.0.1 only.
+      - Locally the proxy publishes `WEB_HOST_PORT`.
+    - `next dev` rewrites `/api` and `/socket.io` to `API_INTERNAL_URL`; WebSocket and polling were both verified through it.
+    - `GET /api/config/public` returns `agoraAppId` and `aiByokEnabled`; the LiveKit URL joins it in Phase 17.
+    - New `TRUST_PROXY` setting (hops) keeps per-IP rate limits correct behind the proxy.
+    - Resume photo URLs are now relative (`/api/upload/file/...`).
+    - The `/api/v1` workaround was already gone.
+  - **14.2 Typed client:**
+    - `npm run api:openapi` builds the API and exports OpenAPI in Nest preview mode (no database needed), then generates [schema.d.ts](apps/web/web-ui/src/lib/api/schema.d.ts).
+    - The `@nestjs/swagger` CLI plugin fills in DTO properties.
+    - [client.ts](apps/web/web-ui/src/lib/api/client.ts) provides `apiRequest(method, route, { params, query, body })`, with typed bodies and path params. It is used by the auth pages and job apply.
+    - Responses stay `unknown` until controllers declare response DTOs.
+    - All 29 `@ts-nocheck` files are clean; removing them surfaced 4 real errors, now fixed.
+    - ESLint `ban-ts-comment` is now an error. Jenkins fails if the committed schema drifts from the API.
+  - **14.3:** both workspaces were already on ESLint 9 flat config.
+  - **14.4:** Jenkins checks the agent's Node major against `.nvmrc`. A local Node 25 install only gets npm engine warnings.
+    - Both containers run Node v24.22.0.
+    - Images grew with the Node 24 base: API 742 → 792 MB, web 284 → 334 MB.
+  - **Verification:**
+    - API: lint, typecheck, unit tests, and 126/126 e2e tests (16 suites) pass.
+    - Web: typecheck passes; lint has 0 errors (58 warnings, down from 87); 6 tests pass.
+    - Local stack is healthy, including the proxy.
+      - Through `localhost:3010`: `/api/health/ready`, `/api/config/public`, Socket.IO polling and WebSocket, and web pages all work.
+      - Auth smoke test 24/24 and the live AI stream pass.
+  - **14.5:** `MINIO_*` and `AGORA_*` stay until Phases 18 and 17 replace those services. Every API variable is documented as required or optional, with its default.
+  - **14.6:** the old flat manifests moved to [infra/k8s/base](infra/k8s/base) (git history kept). Base and overlays:
+    - Base adds: Postgres StatefulSet with a PVC, Redis StatefulSet with a PVC, HPA (2–5 replicas at 70 % CPU), a NetworkPolicy, a config map generator, and non-root security contexts.
+    - Overlays add: per-environment namespace, domain and image tags, plus Secrets generated from git-ignored `*.env` files. Templates live in `overlays/prod`.
+    - Both overlays render with `kubectl kustomize`; release steps are in [infra/k8s/README.md](infra/k8s/README.md).
+  - **14.7:** the server-side [deploy.sh](infra/docker/deploy.sh) waits for `/api/health/ready` and rolls back to the previous tag (kept in `.deployed-tag`) if the release never becomes ready.
+    - The production Compose file requires an explicit `TAG`.
+    - SSH uses `accept-new` instead of disabling host-key checks.
+    - CI lint runs without `--fix`.
+    - BuildKit layer and npm caches persist on the agent.
+  - **14.8:** Swagger moved from `/api-docs` to `/api/docs` (JSON at `/api/docs-json`). Optional basic auth via `SWAGGER_USER` and `SWAGGER_PASSWORD` also covers the JSON. The server URL is now `/`.
+  - **14.9 Postgres search:**
+    - Migration `20261020000000_job_search` adds `pg_trgm`, a generated `searchVector` column, a GIN index on it, and a trigram index on `title`.
+    - Weighting: title A, skills and company B, description C.
+    - Search uses `websearch_to_tsquery` (quoted phrases and `-exclusions`) plus `query <% title` for typos. Results are ranked by `ts_rank` plus word similarity.
+    - Verified on sample rows: stemming, typos, skills, phrases and company names all match.
+    - `POST /jobs/index`, which any signed-in user could call, was removed, along with the OpenSearch config and Compose service.
+  - **14.10:** [scripts/clean.mjs](scripts/clean.mjs) and [scripts/openapi.mjs](scripts/openapi.mjs) run CLIs through `node` without a shell, so paths with spaces work. The web `typecheck` script runs `next typegen` first, which fixes the stale `.next/dev/types` problem.
+  - **14.11 (open):** `apps/api/.git` points at `github.com/AyuknyamndiICTU/api` (`master`). It has no unpushed commits; its working-tree changes are older copies of files the monorepo already tracks. Folding it in means deleting `apps/api/.git` and archiving the old remote — waiting for the team's go-ahead.
 
 ---
 

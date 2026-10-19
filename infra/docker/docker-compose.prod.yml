@@ -1,6 +1,7 @@
 # Secrets come from a `.env` file next to this compose file on the server (never committed).
 # Template: infra/docker/.env.prod.example. Missing required values abort `docker compose up`.
-# Memory: limits below add up to ~2.6 GB on the 8 GB VPS; idle use is well under 1.5 GB. Swap is only a safety net.
+# Memory: limits below add up to ~2.7 GB on the 8 GB VPS; idle use is well under 1.5 GB. Swap is only a safety net.
+# Point the DNS record for SITE_ADDRESS at the server; Caddy needs ports 80 and 443 free (no host nginx in front).
 services:
   postgres:
     image: postgres:16-alpine
@@ -65,7 +66,7 @@ services:
   # First deploy on a database created by the old `prisma db push`: run once
   #   docker compose run --rm migrate npx prisma migrate resolve --applied 0_init --schema prisma/schema.prisma
   migrate:
-    image: ${DOCKERHUB_USER:-your_dockerhub_username}/career-navigator-api:${TAG:-latest}
+    image: ${DOCKERHUB_USER:?set DOCKERHUB_USER}/career-navigator-api:${TAG:?set TAG to the image tag (git SHA)}
     command: ["npx", "prisma", "migrate", "deploy", "--schema", "prisma/schema.prisma"]
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-career_navigator}?schema=public"
@@ -75,7 +76,7 @@ services:
     restart: "no"
 
   api:
-    image: ${DOCKERHUB_USER:-your_dockerhub_username}/career-navigator-api:${TAG:-latest}
+    image: ${DOCKERHUB_USER:?set DOCKERHUB_USER}/career-navigator-api:${TAG:?set TAG to the image tag (git SHA)}
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -110,9 +111,16 @@ services:
 
       CV_SCAN_ENABLED: "true"
       CV_SCAN_WORKER_CONCURRENCY: "1"
-      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:?set CORS_ALLOWED_ORIGINS in .env}"
+      AGORA_APP_ID: "${AGORA_APP_ID:-}"
+      AGORA_APP_CERTIFICATE: "${AGORA_APP_CERTIFICATE:-}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-https://${SITE_ADDRESS}}"
+      TRUST_PROXY: "1"
+      SWAGGER_ENABLED: "${SWAGGER_ENABLED:-false}"
+      SWAGGER_USER: "${SWAGGER_USER:-}"
+      SWAGGER_PASSWORD: "${SWAGGER_PASSWORD:-}"
     ports:
-      - "3001:3000"
+      # Server-local only (health checks, debugging); the public entry point is the proxy.
+      - "127.0.0.1:3001:3000"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -127,17 +135,35 @@ services:
     restart: unless-stopped
 
   web:
-    image: ${DOCKERHUB_USER:-your_dockerhub_username}/career-navigator-web:${TAG:-latest}
+    image: ${DOCKERHUB_USER:?set DOCKERHUB_USER}/career-navigator-web:${TAG:?set TAG to the image tag (git SHA)}
     environment:
       NODE_ENV: production
       NODE_OPTIONS: "--max-old-space-size=256"
-    ports:
-      - "3000:3000"
     depends_on:
       api:
         condition: service_healthy
     cpus: 0.5
     mem_limit: 384m
+    restart: unless-stopped
+
+  # The only public service: HTTPS for SITE_ADDRESS (certificates from Let's Encrypt), /api + /socket.io -> api.
+  proxy:
+    image: caddy:2-alpine
+    environment:
+      SITE_ADDRESS: "${SITE_ADDRESS:?set SITE_ADDRESS (your domain) in .env}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - cn-caddy-data:/data
+      - cn-caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    cpus: 0.25
+    mem_limit: 128m
     restart: unless-stopped
 
   minio:
@@ -164,3 +190,5 @@ volumes:
   cn-postgres:
   cn-redis:
   cn-minio:
+  cn-caddy-data:
+  cn-caddy-config:
