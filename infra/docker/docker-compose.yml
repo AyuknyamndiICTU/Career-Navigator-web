@@ -38,11 +38,11 @@ services:
 
   # Applies pending Prisma migrations once, then exits; the API starts only after it succeeds.
   migrate:
-    image: career-navigator-api:local
+    image: career-navigator-migrate:local
     build:
       context: ../../
       dockerfile: apps/api/Dockerfile
-    command: ["npx", "prisma", "migrate", "deploy", "--schema", "prisma/schema.prisma"]
+      target: migrate
     environment:
       DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/career_navigator?schema=public"
     depends_on:

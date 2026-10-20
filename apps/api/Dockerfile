@@ -15,16 +15,30 @@ WORKDIR /app/apps/api
 # generate writes the Rust-free client into src/generated, which the build compiles with the app.
 RUN npx prisma generate && npm run build
 
-# Production dependencies. The migrate service runs the Prisma CLI from this image, so it also needs the
-# schema, migrations and prisma.config.ts (which holds the database URL in Prisma 7).
+# Production dependencies only: the Rust-free client needs no engine binaries and no Prisma CLI.
+# --omit=optional too: the CLI, TypeScript and Studio are "devOptional" (also optional peers of @prisma/client),
+# so --omit=dev alone keeps them; the only other loss is msgpackr's native add-on, which has a JS fallback.
 FROM manifests AS prod-deps
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --workspace=apps/api --omit=dev --ignore-scripts --no-audit --no-fund
-COPY apps/api/prisma apps/api/prisma
-COPY apps/api/prisma.config.ts apps/api/prisma.config.ts
-WORKDIR /app/apps/api
-# Fetch the migration engine now (install scripts were skipped) so containers never download at runtime.
-RUN npx prisma version >/dev/null
+    npm ci --workspace=apps/api --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund
+# The generated client loads only the "fast" PostgreSQL query compiler; drop the other dialects and source maps (~45 MB).
+RUN cd node_modules/@prisma/client/runtime \
+    && find . -type f \( -name '*.map' -o -name 'query_compiler_small_*' -o -name 'wasm-compiler-edge*' \
+       -o \( -name 'query_compiler_fast_*' ! -name '*postgresql*' \) \) -delete
+
+# One-shot migration image (`docker build --target migrate`): the Prisma CLI, schema engine and migrations.
+FROM node:24-alpine AS migrate
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
+WORKDIR /migrate
+COPY package-lock.json /tmp/package-lock.json
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --no-audit --no-fund --no-save \
+      "prisma@$(node -p "require('/tmp/package-lock.json').packages['node_modules/prisma'].version")" \
+    && rm /tmp/package-lock.json
+COPY apps/api/prisma ./prisma
+COPY apps/api/prisma.config.ts ./prisma.config.ts
+USER node
+CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM node:24-alpine AS runner
 ENV NODE_ENV=production \

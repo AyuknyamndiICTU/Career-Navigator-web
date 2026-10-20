@@ -1,8 +1,10 @@
 // Rust-free Prisma 7 client, generated as TypeScript into src/ and compiled with the app (git-ignored).
 generator client {
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  moduleFormat = "cjs"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  // Extensionless relative imports so Jest (ts-jest) resolves the generated .ts files.
+  importFileExtension = ""
 }
 
 // The connection URL lives in prisma.config.ts (CLI) and src/prisma/prisma.service.ts (runtime adapter).

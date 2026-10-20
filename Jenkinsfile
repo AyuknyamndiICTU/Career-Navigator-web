@@ -27,6 +27,7 @@ pipeline {
                 script {
                     env.TAG = sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
                     env.API_IMAGE = "${env.DOCKER_CREDS_USR}/career-navigator-api"
+                    env.MIGRATE_IMAGE = "${env.DOCKER_CREDS_USR}/career-navigator-migrate"
                     env.WEB_IMAGE = "${env.DOCKER_CREDS_USR}/career-navigator-web"
                 }
                 sh '''
@@ -79,6 +80,7 @@ pipeline {
             steps {
                 // BuildKit keeps layer and npm caches on this agent between builds.
                 sh 'docker build -t "$API_IMAGE:$TAG" -f apps/api/Dockerfile .'
+                sh 'docker build -t "$MIGRATE_IMAGE:$TAG" --target migrate -f apps/api/Dockerfile .'
                 sh 'docker build -t "$WEB_IMAGE:$TAG" -f apps/web/web-ui/Dockerfile .'
             }
         }
@@ -87,6 +89,7 @@ pipeline {
             steps {
                 sh 'echo "$DOCKER_CREDS_PSW" | docker login -u "$DOCKER_CREDS_USR" --password-stdin'
                 sh 'docker push "$API_IMAGE:$TAG"'
+                sh 'docker push "$MIGRATE_IMAGE:$TAG"'
                 sh 'docker push "$WEB_IMAGE:$TAG"'
             }
         }

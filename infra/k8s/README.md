@@ -24,13 +24,13 @@ cp postgres.env.example postgres.env         # password must match DATABASE_URL
 ```
 
 Databases created earlier with `prisma db push` need a one-time baseline:
-`kubectl -n career-navigator run baseline --rm -it --restart=Never --image=<api-image:tag> --env=DATABASE_URL=... -- npx prisma migrate resolve --applied 0_init --schema prisma/schema.prisma`
+`kubectl -n career-navigator run baseline --rm -it --restart=Never --image=<migrate-image:tag> --env=DATABASE_URL=... -- npx prisma migrate resolve --applied 0_init`
 
 ## Release (image tag = git SHA)
 
 ```sh
 cd infra/k8s/overlays/prod
-kustomize edit set image cn-api=docker.io/<ns>/career-navigator-api:$SHA cn-web=docker.io/<ns>/career-navigator-web:$SHA
+kustomize edit set image cn-api=docker.io/<ns>/career-navigator-api:$SHA cn-migrate=docker.io/<ns>/career-navigator-migrate:$SHA cn-web=docker.io/<ns>/career-navigator-web:$SHA
 kubectl -n career-navigator delete job cn-api-migrate --ignore-not-found   # Job specs are immutable
 kubectl apply -k .
 kubectl -n career-navigator wait --for=condition=complete job/cn-api-migrate --timeout=300s

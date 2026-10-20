@@ -4,7 +4,8 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaClient } from './src/generated/prisma/client';
 
 if (existsSync('.env')) process.loadEnvFile('.env');
-if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL before running the seed.');
+if (!process.env.DATABASE_URL)
+  throw new Error('Set DATABASE_URL before running the seed.');
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
@@ -40,8 +41,8 @@ async function main() {
           firstName: 'System',
           lastName: 'Admin',
           headline: 'Administrator',
-        }
-      }
+        },
+      },
     },
   });
 

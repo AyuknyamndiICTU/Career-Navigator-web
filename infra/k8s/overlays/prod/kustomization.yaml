@@ -7,10 +7,13 @@ resources:
   - namespace.yaml
   - ../../base
 
-# Release: kustomize edit set image cn-api=<registry>/career-navigator-api:<git-sha> cn-web=<registry>/career-navigator-web:<git-sha>
+# Release: kustomize edit set image cn-api=<registry>/career-navigator-api:<git-sha> cn-migrate=<registry>/career-navigator-migrate:<git-sha> cn-web=<registry>/career-navigator-web:<git-sha>
 images:
   - name: cn-api
     newName: docker.io/your-namespace/career-navigator-api
+    newTag: replace-with-git-sha
+  - name: cn-migrate
+    newName: docker.io/your-namespace/career-navigator-migrate
     newTag: replace-with-git-sha
   - name: cn-web
     newName: docker.io/your-namespace/career-navigator-web

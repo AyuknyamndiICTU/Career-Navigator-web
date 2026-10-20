@@ -370,15 +370,67 @@ Overall targets:
 - VPS RAM at idle (api + web + postgres + redis; storage, video and AI in the cloud): **≤ 1.5 GB**
 
 Steps:
-- [ ] **15.1** Add a cross-platform `clean` script; delete `.next`, `dist` and caches; extend the root [.gitignore](.gitignore) (today only `node_modules` and `.env*`) with `.next/`, `dist/`, `tmp/`, `coverage/`, `*.log`.
-- [ ] **15.2** One lockfile: delete `apps/api/package-lock.json`, `apps/web/web-ui/package-lock.json` and their `node_modules`; `npm install` at the root; `npm dedupe`; commit only the root lockfile.
-- [ ] **15.3** Remove `prisma` from [apps/web/web-ui/package.json](apps/web/web-ui/package.json).
-- [ ] **15.4** Upgrade to Prisma 7 (Rust-free): `@prisma/client`, `prisma`, `@prisma/adapter-pg` on the same 7.x; follow the Prisma 7 upgrade guide for the generator; remove `binaryTargets` and the Windows-engine cleanup line from the Dockerfile; regenerate and run e2e.
-- [ ] **15.5** Replace `pdf-parse` with `unpdf`; keep `mammoth` for DOCX, lazy-imported inside the worker.
-- [ ] **15.6** Optimize logo assets and serve them with `next/image`; delete `logo/TEST.*`.
-- [ ] **15.7** Run `npx depcheck` in both workspaces and remove unused packages; move `@types/*` from `dependencies` to `devDependencies` in the API.
+- [x] **15.1** Add a cross-platform `clean` script; delete `.next`, `dist` and caches; extend the root [.gitignore](.gitignore) (today only `node_modules` and `.env*`) with `.next/`, `dist/`, `tmp/`, `coverage/`, `*.log`.
+- [x] **15.2** One lockfile: delete `apps/api/package-lock.json`, `apps/web/web-ui/package-lock.json` and their `node_modules`; `npm install` at the root; `npm dedupe`; commit only the root lockfile.
+- [x] **15.3** Remove `prisma` from [apps/web/web-ui/package.json](apps/web/web-ui/package.json).
+- [x] **15.4** Upgrade to Prisma 7 (Rust-free): `@prisma/client`, `prisma`, `@prisma/adapter-pg` on the same 7.x; follow the Prisma 7 upgrade guide for the generator; remove `binaryTargets` and the Windows-engine cleanup line from the Dockerfile; regenerate and run e2e.
+- [x] **15.5** Replace `pdf-parse` with `unpdf`; keep `mammoth` for DOCX, lazy-imported inside the worker.
+- [x] **15.6** Optimize logo assets and serve them with `next/image`; delete `logo/TEST.*`.
+- [x] **15.7** Run `npx depcheck` in both workspaces and remove unused packages; move `@types/*` from `dependencies` to `devDependencies` in the API.
 - [ ] **15.8** Optional: switch to pnpm (content-addressable store, hard-linked `node_modules`) for further disk savings — only if the team agrees to change package manager.
-- [ ] **15.9** Record before/after: folder sizes, `docker image ls`, idle `docker stats`.
+- [x] **15.9** Record before/after: folder sizes, `docker image ls`, idle `docker stats`.
+- Status (2026-10-20):
+
+  | Measure | Before | After | Target |
+  |---|---|---|---|
+  | Working tree total | 3,459 MB | 936 MB (896 MB after `npm run clean` removes `apps/api/tmp`) | ≤ 700 MB |
+  | `apps/web/web-ui/.next` | 2,218 MB | 0 at rest | 0 |
+  | root / api / web `node_modules` | 668 / 352 / 160 MB | 869 / 0 / 5 MB | ≤ 550 MB total |
+  | Prisma packages (all copies) | 136 MB | 40 MB (runtime image: 10 MB) | ≤ 60 MB |
+  | Tracked source files | 11.3 MB | 2.5 MB | ≤ 25 MB |
+  | `logo/` | 5.5 MB | 0.1 MB | ≤ 0.2 MB |
+  | API image | 792 MB | 413 MB (+ migrate image 615 MB, one-shot) | ≤ 300 MB |
+  | Web image | 334 MB | 328 MB | ≤ 200 MB |
+  | Idle RAM (api + web + postgres + redis) | ≈ 170 MiB | ≈ 220 MiB | ≤ 1.5 GB |
+
+  - **15.1:**
+    - `npm run clean` now also removes the tool caches and the old upload folder `apps/api/tmp`.
+    - The root `.gitignore` gains `.next/`, `dist/`, `coverage/`, `*.log` and `*.tsbuildinfo`.
+    - A tracked `apps/api-build.log` was deleted.
+  - **15.2:**
+    - The nested lockfiles and their `node_modules` are gone; everything installs from the root.
+    - `npm dedupe` hung for over an hour on the dev machine and was stopped. The single install already removed the duplicate tree.
+  - **15.4 Prisma 7.10.1:**
+    - Generator `prisma-client` writes TypeScript into `apps/api/src/generated/prisma` (git-ignored; the API `postinstall` and the build regenerate it). All imports go through [src/prisma/client.ts](apps/api/src/prisma/client.ts).
+    - `importFileExtension = ""` is needed so Jest can resolve the generated files.
+    - The `url` moved to [prisma.config.ts](apps/api/prisma.config.ts). `binaryTargets` and dotenv are gone.
+    - `.env` is loaded explicitly with `process.loadEnvFile`, because Prisma 7 no longer loads it.
+    - `pg` connect timeout is 5 s, matching Prisma 6.
+  - **15.4 Prisma CLI out of the runtime:**
+    - The CLI (with Studio, a PGlite dev server and TypeScript, ~200 MB) is a devDependency.
+    - Migrations run from a separate image, `apps/api/Dockerfile --target migrate`, used by Compose, the k8s Job (`cn-migrate`) and Jenkins.
+    - The runtime installs with `--omit=dev --omit=optional`. Those packages are "devOptional" (also optional peers of `@prisma/client`), so `--omit=dev` alone keeps them.
+    - The runtime image keeps only the PostgreSQL query compiler.
+  - **15.5:**
+    - `unpdf` replaces `pdf-parse` and is lazy-loaded as ESM from the CommonJS build. It was verified on a generated PDF and inside the container.
+    - `mammoth` stays for DOCX.
+  - **15.6:**
+    - Logos were resized to 512 px for the web (79 KB, was 2.8 MB) and 600 px for the report (102 KB). Pages already use `next/image`.
+    - `logo/TEST.*` and the unused `next.svg` / `vercel.svg` were deleted.
+  - **15.7 depcheck:**
+    - Removed: `swagger-ui-express` (`@nestjs/swagger` bundles `swagger-ui-dist`), `@eslint/eslintrc`, `ts-loader`, `pdf-parse`, `dotenv`, and `prisma` from the web app.
+    - `@types/*` moved to devDependencies.
+    - `@nestjs/websockets`, `socket.io` and `@jest/globals` are now declared explicitly.
+  - **Targets not met:**
+    - Web image: `node:24-alpine` is ~165 MB on its own (the Node binary is 126 MB) and the app layer is only 61 MB, so 200 MB isn't reachable with this base.
+    - API image: the same base plus 134 MB of production dependencies.
+    - Working tree: about 280 MB of the root `node_modules` is Next itself (`next` plus its native SWC compiler).
+    - Remaining options: pnpm (15.8), or a distroless/`alpine`-plus-node-binary base (saves only ~24 MB).
+  - **Verification:**
+    - API: typecheck, lint, 23 unit tests and 126/126 e2e tests pass. Web: typecheck, lint and tests pass.
+    - The OpenAPI-generated types are unchanged.
+    - Compose stack: migrate container (Prisma 7 CLI) succeeds; auth smoke test 24/24; live AI stream works; job search and `/api/docs` respond.
+    - One migrate run hit a transient P1001 (database unreachable) and passed on rerun.
 
 ---
 

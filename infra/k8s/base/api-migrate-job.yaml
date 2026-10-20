@@ -1,7 +1,7 @@
 # Applies pending Prisma migrations; run once per release before the new cn-api pods roll out
 # (Job specs are immutable, so delete the previous one first; see ../README.md).
 # Databases created earlier with `prisma db push` need a one-time baseline first:
-#   prisma migrate resolve --applied 0_init --schema prisma/schema.prisma
+#   prisma migrate resolve --applied 0_init
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -24,8 +24,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: migrate
-          image: cn-api # same image and tag as cn-api
-          command: ["npx", "prisma", "migrate", "deploy", "--schema", "prisma/schema.prisma"]
+          # `apps/api/Dockerfile --target migrate`, same git-SHA tag as cn-api; runs `prisma migrate deploy`.
+          image: cn-migrate
           env:
             - name: DATABASE_URL
               valueFrom:

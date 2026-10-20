@@ -62,12 +62,11 @@ services:
     mem_limit: 256m
     restart: unless-stopped
 
-  # Applies pending Prisma migrations once per deploy, then exits.
+  # Applies pending Prisma migrations once per deploy, then exits (separate image: the API image has no Prisma CLI).
   # First deploy on a database created by the old `prisma db push`: run once
-  #   docker compose run --rm migrate npx prisma migrate resolve --applied 0_init --schema prisma/schema.prisma
+  #   docker compose run --rm migrate npx prisma migrate resolve --applied 0_init
   migrate:
-    image: ${DOCKERHUB_USER:?set DOCKERHUB_USER}/career-navigator-api:${TAG:?set TAG to the image tag (git SHA)}
-    command: ["npx", "prisma", "migrate", "deploy", "--schema", "prisma/schema.prisma"]
+    image: ${DOCKERHUB_USER:?set DOCKERHUB_USER}/career-navigator-migrate:${TAG:?set TAG to the image tag (git SHA)}
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-career_navigator}?schema=public"
     depends_on:

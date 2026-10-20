@@ -1,9 +1,10 @@
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { defineConfig } from 'prisma/config';
-import { config } from 'dotenv';
 
-// Load .env from the api package root
-config({ path: path.join(__dirname, '.env') });
+// Prisma 7 no longer reads .env itself; existing environment variables win.
+const envFile = path.join(__dirname, '.env');
+if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 const DATABASE_URL_FALLBACK =
   'postgresql://postgres:postgres@localhost:5435/career_navigator?schema=public';
