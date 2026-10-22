@@ -55,6 +55,8 @@ services:
     build:
       context: ../../
       dockerfile: apps/api/Dockerfile
+      args:
+        WITH_OCR: "${CV_OCR_SERVER:-false}"
     environment:
       # Local stack: allows log-only OTPs and enables Swagger; production settings live in docker-compose.prod.yml.
       NODE_ENV: development
@@ -96,9 +98,12 @@ services:
       AI_BYOK_ENABLED: "${AI_BYOK_ENABLED:-false}"
       AI_KEY_ENCRYPTION_KEY: "${AI_KEY_ENCRYPTION_KEY:-}"
 
-      # BullMQ CV scan worker defaults
+      # BullMQ CV scan worker defaults (rule-based parser; AI only when the user asks)
       CV_SCAN_ENABLED: "true"
       CV_SCAN_WORKER_CONCURRENCY: "1"
+      CV_DEFAULT_PHONE_COUNTRY: "${CV_DEFAULT_PHONE_COUNTRY:-CM}"
+      CV_AI_ASSIST_ENABLED: "${CV_AI_ASSIST_ENABLED:-true}"
+      CV_OCR_SERVER: "${CV_OCR_SERVER:-false}"
 
       # Agora (not required to sign in; placeholders to satisfy env checks)
       AGORA_APP_ID: "dev"
