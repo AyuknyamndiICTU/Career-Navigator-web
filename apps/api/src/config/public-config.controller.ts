@@ -6,6 +6,7 @@ import { env } from './env';
 export type PublicConfig = {
   agoraAppId: string | null;
   aiByokEnabled: boolean;
+  cvAiAssistEnabled: boolean;
 };
 
 /** Browser-safe runtime settings, so one web image works in every environment. */
@@ -20,6 +21,7 @@ export class PublicConfigController {
     return {
       agoraAppId: env.agora.appId ?? null,
       aiByokEnabled: env.ai.byokEnabled,
+      cvAiAssistEnabled: env.cvScan.aiAssistEnabled,
     };
   }
 }

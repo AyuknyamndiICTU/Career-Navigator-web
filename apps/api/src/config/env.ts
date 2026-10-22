@@ -190,6 +190,18 @@ export const env = {
     get concurrency(): number {
       return positiveInt('CV_SCAN_WORKER_CONCURRENCY', 1);
     },
+    /** "Improve with AI" on a CV section (16.8); on unless CV_AI_ASSIST_ENABLED=false. */
+    get aiAssistEnabled(): boolean {
+      return read('CV_AI_ASSIST_ENABLED') !== 'false';
+    },
+    /** Server-side OCR fallback with the native `tesseract` CLI (image built with WITH_OCR=true). */
+    get serverOcr(): boolean {
+      return flag('CV_OCR_SERVER');
+    },
+    /** ISO country for phone numbers written without a prefix (default CM). */
+    get defaultPhoneCountry(): string {
+      return (read('CV_DEFAULT_PHONE_COUNTRY') ?? 'CM').toUpperCase();
+    },
   },
   notificationsWorker: {
     get enabled(): boolean {
@@ -218,6 +230,8 @@ const BOOLEAN_KEYS = [
   'GEMINI_JOB_MATCH_ENABLED',
   'AI_JOB_MATCH_ENABLED',
   'AI_BYOK_ENABLED',
+  'CV_AI_ASSIST_ENABLED',
+  'CV_OCR_SERVER',
 ];
 
 const POSITIVE_INT_KEYS = [
