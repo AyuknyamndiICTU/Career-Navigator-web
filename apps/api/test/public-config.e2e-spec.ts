@@ -40,7 +40,11 @@ describe('Public config + Swagger (Phase 14.1 / 14.8)', () => {
       .get('/api/config/public')
       .expect(200);
 
-    expect(res.body).toEqual({ agoraAppId: 'agora-app', aiByokEnabled: false });
+    expect(res.body).toEqual({
+      agoraAppId: 'agora-app',
+      aiByokEnabled: false,
+      cvAiAssistEnabled: true,
+    });
     expect(JSON.stringify(res.body)).not.toContain('secret-cert');
     expect(res.headers['cache-control']).toContain('max-age=300');
   });
