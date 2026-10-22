@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiFetch, ensureAccessToken, getSocketUrl } from '@/lib/auth';
 import { useApi } from '@/lib/useApi';
+import { getActiveCall } from '@/lib/api/video';
 import ErrorAlert from '@/components/ErrorAlert';
 
 type Message = {
@@ -42,6 +44,7 @@ export default function ConversationPage() {
   
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [activeCall, setActiveCall] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -73,6 +76,17 @@ export default function ConversationPage() {
     }
     void loadHistory();
     return () => controller.abort();
+  }, [id]);
+
+  // "Join call" instead of "Video call" while the other person is already in a call here.
+  useEffect(() => {
+    let active = true;
+    getActiveCall(id)
+      .then((res) => active && setActiveCall(Boolean(res.session)))
+      .catch((e: unknown) => console.warn('Could not check for an active call:', e));
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   async function loadOlder() {
@@ -122,6 +136,10 @@ export default function ConversationPage() {
       if (payload.userId !== currentUserId) {
         setIsPeerOnline(payload.online);
       }
+    });
+
+    newSocket.on('call:incoming', (payload: { conversationId: string }) => {
+      if (payload.conversationId === id) setActiveCall(true);
     });
 
     setSocket(newSocket);
@@ -190,6 +208,17 @@ export default function ConversationPage() {
               </div>
             </div>
           </div>
+          <Link
+            href={`/video?conversation=${id}`}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold shadow-soft ${
+              activeCall ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-primary-600 text-white hover:bg-primary-700'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            {activeCall ? 'Join call' : 'Video call'}
+          </Link>
         </div>
 
         <ErrorAlert error={error} />

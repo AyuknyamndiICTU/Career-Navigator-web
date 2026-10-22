@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/auth';
 import DashboardLayout from '@/components/DashboardLayout';
 import ErrorAlert from '@/components/ErrorAlert';
 import AdminAiPanel from '@/components/admin/AdminAiPanel';
+import AdminVideoUsageCard from '@/components/admin/AdminVideoUsageCard';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -185,6 +186,7 @@ export default function AdminAnalyticsPage() {
         </motion.div>
 
         <AdminAiPanel />
+        <AdminVideoUsageCard />
       </div>
     </DashboardLayout>
   );
