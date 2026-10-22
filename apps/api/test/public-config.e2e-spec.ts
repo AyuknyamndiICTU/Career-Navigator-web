@@ -32,8 +32,9 @@ describe('Public config + Swagger (Phase 14.1 / 14.8)', () => {
   });
 
   it('GET /api/config/public is anonymous and exposes only browser-safe settings', async () => {
-    process.env.AGORA_APP_ID = 'agora-app';
-    process.env.AGORA_APP_CERTIFICATE = 'secret-cert';
+    process.env.LIVEKIT_URL = 'wss://video.example.com';
+    process.env.LIVEKIT_API_KEY = 'key';
+    process.env.LIVEKIT_API_SECRET = 'secret-livekit-value';
     await start();
 
     const res = await request(app.getHttpServer())
@@ -41,11 +42,11 @@ describe('Public config + Swagger (Phase 14.1 / 14.8)', () => {
       .expect(200);
 
     expect(res.body).toEqual({
-      agoraAppId: 'agora-app',
+      videoEnabled: true,
       aiByokEnabled: false,
       cvAiAssistEnabled: true,
     });
-    expect(JSON.stringify(res.body)).not.toContain('secret-cert');
+    expect(JSON.stringify(res.body)).not.toContain('secret-livekit-value');
     expect(res.headers['cache-control']).toContain('max-age=300');
   });
 
