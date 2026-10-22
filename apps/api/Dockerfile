@@ -4,12 +4,15 @@
 FROM node:24-alpine AS manifests
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY packages/cv-parser/package.json packages/cv-parser/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/web-ui/package.json apps/web/web-ui/package.json
 
 FROM manifests AS build
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --workspace=apps/api --ignore-scripts --no-audit --no-fund
+COPY packages/cv-parser packages/cv-parser
+RUN npm run build --workspace=packages/cv-parser
 COPY apps/api apps/api
 WORKDIR /app/apps/api
 # generate writes the Rust-free client into src/generated, which the build compiles with the app.
@@ -43,7 +46,13 @@ CMD ["npx", "prisma", "migrate", "deploy"]
 FROM node:24-alpine AS runner
 ENV NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false
+# Optional server-side OCR for scanned CVs (CV_OCR_SERVER=true); adds ~40 MB.
+ARG WITH_OCR=false
+RUN if [ "$WITH_OCR" = "true" ]; then \
+      apk add --no-cache tesseract-ocr tesseract-ocr-data-eng tesseract-ocr-data-fra poppler-utils; \
+    fi
 COPY --from=prod-deps /app /app
+COPY --from=build /app/packages/cv-parser/dist /app/packages/cv-parser/dist
 COPY --from=build /app/apps/api/dist /app/apps/api/dist
 WORKDIR /app/apps/api
 USER node
