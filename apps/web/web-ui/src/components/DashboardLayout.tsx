@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ensureAccessToken, getAccessToken } from '@/lib/auth';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
+import IncomingCall from './video/IncomingCall';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -64,6 +65,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </main>
       </div>
+      <IncomingCall />
     </div>
   );
 }
