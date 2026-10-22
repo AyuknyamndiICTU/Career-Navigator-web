@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   HttpCode,
   Logger,
@@ -25,12 +26,17 @@ import type { Request, Response } from 'express';
 
 import { CurrentUser, Public } from '../auth/jwt-auth.guard';
 import { UploadService } from './upload.service';
+import { CvAssistDto, CvConfirmDto } from './dto/cv-review.dto';
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+// Images are accepted for scanned CVs; the browser (or the optional server OCR) reads them (16.3).
 const ALLOWED_CV_TYPES = [
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg',
+  'image/png',
 ];
+const MAX_OCR_FIELD_SIZE = 3 * 1024 * 1024; // OCR words JSON
 const MAX_PICTURE_SIZE = 5 * 1024 * 1024; // 5 MB
 const MAX_CV_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -53,14 +59,14 @@ const pictureMulterOptions: MulterOptions = {
 
 const cvMulterOptions: MulterOptions = {
   storage: memoryStorage(),
-  limits: { fileSize: MAX_CV_SIZE },
+  limits: { fileSize: MAX_CV_SIZE, fieldSize: MAX_OCR_FIELD_SIZE, fields: 2 },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_CV_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
       cb(
         new BadRequestException(
-          'Only PDF and DOCX files are accepted for CV uploads',
+          'Only PDF, DOCX, JPG and PNG files are accepted for CV uploads',
         ),
         false,
       );
@@ -108,6 +114,11 @@ export class UploadController {
       type: 'object',
       properties: {
         file: { type: 'string', format: 'binary' },
+        ocr: {
+          type: 'string',
+          description:
+            'Optional JSON array of OCR words {text,x,y,width,height,page} recognised in the browser.',
+        },
       },
     },
   })
@@ -115,15 +126,44 @@ export class UploadController {
   uploadCv(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser('sub') userId: string,
+    @Body('ocr') ocr?: string,
   ): Promise<unknown> {
-    return this.uploadService.uploadCv(userId, file);
+    return this.uploadService.uploadCv(userId, file, ocr);
   }
 
   @Get('cv/status')
-  @ApiOkResponse({ description: 'Get CV scan status.' })
+  @ApiOkResponse({
+    description: 'Get CV scan status and the parsed CV for review.',
+  })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
   getCvStatus(@CurrentUser('sub') userId: string): Promise<unknown> {
     return this.uploadService.getCvStatus(userId);
+  }
+
+  @Post('cv/confirm')
+  @HttpCode(200)
+  @ApiOkResponse({
+    description: 'Apply the reviewed CV to the profile (merge).',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  confirmCv(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: CvConfirmDto,
+  ): Promise<unknown> {
+    return this.uploadService.confirmCv(userId, dto);
+  }
+
+  @Post('cv/assist')
+  @HttpCode(200)
+  @ApiOkResponse({
+    description: 'Re-read one CV section with AI (on request only).',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  assistCv(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: CvAssistDto,
+  ): Promise<unknown> {
+    return this.uploadService.assistCv(userId, dto.section);
   }
 
   @Get('file/*')

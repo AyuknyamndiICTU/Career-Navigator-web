@@ -1,12 +1,31 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CvScanService } from '../cv-scan/cv-scan.service';
 import { env } from '../config/env';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import type { Client as MinioClient } from 'minio';
+import {
+  validateOcrWords,
+  type ParsedCv,
+  type TextItem,
+} from '@career-navigator/cv-parser';
 import { verifiedExtension } from './file-signature';
 import { createMinioClient } from '../lib/minio-client';
+import {
+  CvScanProcessor,
+  type StoredCvScan,
+} from '../cv-scan/worker/cv-scan-processor.service';
+import { CvProfilePopulator } from '../cv-scan/worker/cv-profile-populator.service';
+import {
+  CvAiParser,
+  type CvAssistSection,
+} from '../cv-scan/worker/cv-ai-parser.service';
+import type { CvConfirmDto } from './dto/cv-review.dto';
 
 const MEDIA_TYPE_PROFILE_PICTURE = 'PROFILE_PICTURE' as const;
 const MEDIA_TYPE_CV = 'CV' as const;
@@ -20,6 +39,9 @@ export class UploadService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cvScanService: CvScanService,
+    private readonly cvScanProcessor: CvScanProcessor,
+    private readonly cvProfilePopulator: CvProfilePopulator,
+    private readonly cvAiParser: CvAiParser,
   ) {}
 
   /** Lazy so the app boots (and non-upload routes work) without storage configured. */
@@ -107,8 +129,23 @@ export class UploadService {
     return { message: 'Picture uploaded', objectKey };
   }
 
-  async uploadCv(userId: string, file: Express.Multer.File): Promise<unknown> {
+  async uploadCv(
+    userId: string,
+    file: Express.Multer.File,
+    ocrField?: string,
+  ): Promise<unknown> {
     if (!file) throw new BadRequestException('Missing file');
+
+    // Words recognised in the browser (16.3) are untrusted input: strict shape and size checks.
+    let ocrItems: TextItem[] | null = null;
+    if (typeof ocrField === 'string' && ocrField.trim()) {
+      try {
+        ocrItems = validateOcrWords(JSON.parse(ocrField));
+      } catch {
+        ocrItems = null;
+      }
+      if (!ocrItems) throw new BadRequestException('Invalid OCR data');
+    }
 
     const { objectKey, contentType, originalFilename } =
       await this.uploadToMinio({
@@ -117,6 +154,13 @@ export class UploadService {
         file,
       });
 
+    const scanReset = {
+      cvScanStatus: 'PENDING' as const,
+      cvScanRequestedAt: new Date(),
+      cvScanCompletedAt: null,
+      cvScanError: null,
+      cvConfirmedAt: null,
+    };
     const uploadMedia = await this.prisma.uploadMedia.upsert({
       where: {
         userId_type: {
@@ -128,8 +172,7 @@ export class UploadService {
         objectKey,
         contentType: contentType ?? null,
         originalFilename: originalFilename ?? null,
-        cvScanStatus: 'PENDING',
-        cvScanRequestedAt: new Date(),
+        ...scanReset,
       },
       create: {
         userId,
@@ -137,23 +180,58 @@ export class UploadService {
         objectKey,
         contentType: contentType ?? null,
         originalFilename: originalFilename ?? null,
-        cvScanStatus: 'PENDING',
-        cvScanRequestedAt: new Date(),
+        ...scanReset,
       },
     });
 
-    await this.cvScanService.enqueueCvScan({
-      userId,
-      uploadMediaId: uploadMedia.id,
-      objectKey,
-    });
+    if (ocrItems) {
+      // Parsing words is fast and needs no file download, so do it now.
+      const sha256 = createHash('sha256').update(file.buffer).digest('hex');
+      await this.cvScanProcessor.processOcrWords(
+        uploadMedia.id,
+        ocrItems,
+        sha256,
+      );
+    } else {
+      await this.cvScanService.enqueueCvScan({
+        userId,
+        uploadMediaId: uploadMedia.id,
+        objectKey,
+      });
+    }
 
     return { message: 'CV uploaded', objectKey };
+  }
+
+  private async loadCvScan(userId: string) {
+    const media = await this.prisma.uploadMedia.findUnique({
+      where: { userId_type: { userId, type: MEDIA_TYPE_CV } },
+      select: {
+        id: true,
+        cvScanStatus: true,
+        cvScanError: true,
+        cvExtractedText: true,
+        cvConfirmedAt: true,
+        originalFilename: true,
+      },
+    });
+    let stored: Partial<StoredCvScan> | null = null;
+    if (media?.cvExtractedText) {
+      try {
+        const parsed = JSON.parse(media.cvExtractedText) as unknown;
+        if (parsed && typeof parsed === 'object')
+          stored = parsed as Partial<StoredCvScan>;
+      } catch {
+        stored = null;
+      }
+    }
+    return { media, stored };
   }
 
   async getCvStatus(userId: string): Promise<{
     status: string | null;
     error: string | null;
+    fileName: string | null;
     skills: string[];
     extractedData: {
       fullName?: string | null;
@@ -162,57 +240,119 @@ export class UploadService {
       skills?: string[];
       summary?: string | null;
     } | null;
+    review: ParsedCv | null;
+    confirmedAt: Date | null;
+    aiAssistAvailable: boolean;
   }> {
-    const media = await this.prisma.uploadMedia.findUnique({
-      where: { userId_type: { userId, type: MEDIA_TYPE_CV } },
-      select: { cvScanStatus: true, cvScanError: true, cvExtractedText: true },
-    });
+    const { media, stored } = await this.loadCvScan(userId);
+    const aiAssistAvailable = env.cvScan.aiAssistEnabled;
 
     if (!media)
-      return { status: null, error: null, skills: [], extractedData: null };
+      return {
+        status: null,
+        error: null,
+        fileName: null,
+        skills: [],
+        extractedData: null,
+        review: null,
+        confirmedAt: null,
+        aiAssistAvailable,
+      };
 
-    let skills: string[] = [];
-    let extractedData: {
-      fullName?: string | null;
-      education?: Array<Record<string, unknown>>;
-      experience?: Array<Record<string, unknown>>;
-      skills?: string[];
-      summary?: string | null;
-    } | null = null;
-
-    if (media.cvExtractedText) {
-      try {
-        const parsed = JSON.parse(media.cvExtractedText) as Record<
-          string,
-          unknown
-        >;
-        if (Array.isArray(parsed.skills)) skills = parsed.skills as string[];
-
-        extractedData = {
-          fullName:
-            typeof parsed.fullName === 'string' ? parsed.fullName : null,
-          summary: typeof parsed.summary === 'string' ? parsed.summary : null,
-          skills: Array.isArray(parsed.skills)
-            ? (parsed.skills as string[])
-            : [],
-          education: Array.isArray(parsed.education)
-            ? (parsed.education as Array<Record<string, unknown>>)
-            : [],
-          experience: Array.isArray(parsed.experience)
-            ? (parsed.experience as Array<Record<string, unknown>>)
-            : [],
-        };
-      } catch {
-        // ignore invalid extracted JSON
-      }
-    }
+    const strings = (v: unknown): string[] =>
+      Array.isArray(v)
+        ? v.filter((s): s is string => typeof s === 'string')
+        : [];
+    const objects = (v: unknown): Array<Record<string, unknown>> =>
+      Array.isArray(v)
+        ? v.filter(
+            (x): x is Record<string, unknown> =>
+              Boolean(x) && typeof x === 'object',
+          )
+        : [];
 
     return {
       status: media.cvScanStatus,
       error: media.cvScanError,
-      skills,
-      extractedData,
+      fileName: media.originalFilename,
+      skills: strings(stored?.skills),
+      extractedData: stored
+        ? {
+            fullName:
+              typeof stored.fullName === 'string' ? stored.fullName : null,
+            summary: typeof stored.summary === 'string' ? stored.summary : null,
+            skills: strings(stored.skills),
+            education: objects(stored.education),
+            experience: objects(stored.experience),
+          }
+        : null,
+      review: stored?.parsed ?? null,
+      confirmedAt: media.cvConfirmedAt,
+      aiAssistAvailable,
     };
+  }
+
+  /** Applies the reviewed CV to the profile (merge, no duplicates) and records the confirmation (16.7). */
+  async confirmCv(userId: string, dto: CvConfirmDto): Promise<unknown> {
+    const { media, stored } = await this.loadCvScan(userId);
+    if (!media || media.cvScanStatus !== 'COMPLETED' || !stored) {
+      throw new BadRequestException('There is no scanned CV to confirm.');
+    }
+
+    const result = await this.cvProfilePopulator.apply(userId, dto);
+
+    // Job matching reads skills from the stored scan, so keep it in line with what the user approved.
+    const updated = {
+      ...stored,
+      ...(dto.fullName !== undefined ? { fullName: dto.fullName } : {}),
+      ...(dto.summary !== undefined ? { summary: dto.summary } : {}),
+      ...(dto.skills ? { skills: dto.skills } : {}),
+      ...(dto.education ? { education: dto.education } : {}),
+      ...(dto.experience ? { experience: dto.experience } : {}),
+    };
+    const confirmedAt = new Date();
+    await this.prisma.uploadMedia.update({
+      where: { id: media.id },
+      data: {
+        cvConfirmedAt: confirmedAt,
+        cvExtractedText: JSON.stringify(updated),
+      },
+    });
+    return { message: 'CV applied to your profile', confirmedAt, ...result };
+  }
+
+  /** "Improve with AI" for one section, only when the user asks (16.8). */
+  async assistCv(userId: string, section: CvAssistSection): Promise<unknown> {
+    if (!env.cvScan.aiAssistEnabled) {
+      throw new ForbiddenException('AI assistance is turned off.');
+    }
+    const { media, stored } = await this.loadCvScan(userId);
+    const parsed = stored?.parsed;
+    if (
+      !media ||
+      media.cvScanStatus !== 'COMPLETED' ||
+      !parsed ||
+      !stored.fileSha256
+    ) {
+      throw new BadRequestException('There is no scanned CV to improve.');
+    }
+    const text = (parsed.sections ?? [])
+      .filter((s) => s.kind === section)
+      .map((s) => s.text)
+      .join('\n')
+      .trim();
+    if (!text) {
+      throw new BadRequestException(
+        `No ${section} section was found in this CV.`,
+      );
+    }
+    const result = await this.cvAiParser.assist(
+      userId,
+      section,
+      text,
+      stored.fileSha256,
+    );
+    return { section, result };
   }
 
   /**
