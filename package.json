@@ -2,6 +2,7 @@
   "name": "career-navigator",
   "private": true,
   "workspaces": [
+    "packages/*",
     "apps/*",
     "apps/web/*"
   ],
