@@ -367,7 +367,7 @@ model Feedback {
 }
 
 model AgoraSession {
-  // Milestone 6.2: store session metadata for video calling
+  // Legacy (Agora was replaced by LiveKit in Phase 17). Kept until its data is reviewed; no code uses it.
   sessionId   String   @id
   channelName String
   uid          BigInt
@@ -379,13 +379,46 @@ model AgoraSession {
   @@index([endedAt])
 }
 
+/// A video call in a conversation (Phase 17). One open session per conversation; the room name is random.
+model VideoSession {
+  id                 String    @id @default(uuid())
+  provider           String    @default("livekit")
+  room               String    @unique
+  conversationId     String
+  createdById        String
+  startedAt          DateTime  @default(now())
+  endedAt            DateTime?
+  /// Sum of closed participant connections, rounded up per connection (what LiveKit bills).
+  participantMinutes Int       @default(0)
+
+  conversation Conversation       @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  participants VideoParticipant[]
+
+  @@index([conversationId, endedAt])
+  @@index([startedAt])
+}
+
+/// One connection of a user to a session, from LiveKit webhooks.
+model VideoParticipant {
+  id        String    @id @default(uuid())
+  sessionId String
+  userId    String
+  joinedAt  DateTime
+  leftAt    DateTime?
+
+  session VideoSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, userId, leftAt])
+}
+
 model Conversation {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  participants ConversationParticipant[]
-  messages     Message[]
+  participants  ConversationParticipant[]
+  messages      Message[]
+  videoSessions VideoSession[]
 
   @@index([createdAt])
 }

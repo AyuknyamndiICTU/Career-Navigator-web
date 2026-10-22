@@ -35,7 +35,7 @@ export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
     .addTag('jobs', 'Job listings, applications & matching')
     .addTag('mentors', 'Mentor discovery & profiles')
     .addTag('ai', 'AI chat, mock interviews & course recommendations')
-    .addTag('agora', 'Video calling sessions')
+    .addTag('video', 'Video calls (LiveKit)')
     .addTag('conversations', 'Real-time messaging')
     .addTag('notifications', 'User notifications')
     .addTag('admin', 'Admin dashboard & user management')
