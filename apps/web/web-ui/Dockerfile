@@ -4,12 +4,15 @@
 FROM node:24-alpine AS manifests
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY packages/cv-parser/package.json packages/cv-parser/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/web-ui/package.json apps/web/web-ui/package.json
 
 FROM manifests AS build
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --workspace=web-ui --ignore-scripts --no-audit --no-fund
+COPY packages/cv-parser packages/cv-parser
+RUN npm run build --workspace=packages/cv-parser
 
 # Prevent next/font/google from fetching fonts over the network during docker builds.
 ENV NEXT_FONT_GOOGLE_MOCK=1

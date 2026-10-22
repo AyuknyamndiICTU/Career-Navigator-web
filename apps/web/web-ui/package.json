@@ -11,12 +11,15 @@
     "test": "node --test \"test/**/*.test.mjs\""
   },
   "dependencies": {
+    "@career-navigator/cv-parser": "*",
     "agora-rtc-sdk-ng": "^4.24.3",
     "framer-motion": "^12.38.0",
     "next": "^16.2.6",
     "react": "^18",
     "react-dom": "^18",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "tesseract.js": "^7.0.0",
+    "unpdf": "^1.9.1"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
