@@ -4,7 +4,7 @@ import { Public } from '../auth/jwt-auth.guard';
 import { env } from './env';
 
 export type PublicConfig = {
-  agoraAppId: string | null;
+  videoEnabled: boolean;
   aiByokEnabled: boolean;
   cvAiAssistEnabled: boolean;
 };
@@ -19,7 +19,7 @@ export class PublicConfigController {
   @ApiOkResponse({ description: 'Public runtime settings for the web app.' })
   getPublic(): PublicConfig {
     return {
-      agoraAppId: env.agora.appId ?? null,
+      videoEnabled: env.video.enabled,
       aiByokEnabled: env.ai.byokEnabled,
       cvAiAssistEnabled: env.cvScan.aiAssistEnabled,
     };

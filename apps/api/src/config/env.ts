@@ -372,7 +372,9 @@ export function validateEnv(): void {
     );
   }
   if (env.isProduction && (read('LIVEKIT_API_SECRET')?.length ?? 32) < 32) {
-    problems.push('LIVEKIT_API_SECRET must be at least 32 characters in production');
+    problems.push(
+      'LIVEKIT_API_SECRET must be at least 32 characters in production',
+    );
   }
 
   if (problems.length > 0) {
