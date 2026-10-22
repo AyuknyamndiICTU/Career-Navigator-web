@@ -1,8 +1,9 @@
 import { getApiBaseUrl } from './auth';
 
 export type PublicConfig = {
-  agoraAppId: string | null;
+  videoEnabled: boolean;
   aiByokEnabled: boolean;
+  cvAiAssistEnabled: boolean;
 };
 
 let cached: Promise<PublicConfig> | null = null;
