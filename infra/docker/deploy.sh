@@ -26,6 +26,8 @@ ready() {
 
 docker compose pull
 if docker compose up -d --remove-orphans && ready; then
+  # The Caddyfile is a bind mount: `up` keeps the running proxy, so load route changes explicitly.
+  docker compose exec -T proxy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || docker compose restart proxy
   echo "$TAG" > .deployed-tag
   docker image prune -f >/dev/null
   echo "Deployed $TAG"

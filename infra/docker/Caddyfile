@@ -8,6 +8,12 @@
 		reverse_proxy api:3000
 	}
 
+	# LiveKit signaling when self-hosted (WebSocket); media flows directly to the livekit ports.
+	@rtc path /rtc /rtc/*
+	handle @rtc {
+		reverse_proxy livekit:7880
+	}
+
 	handle {
 		reverse_proxy web:3000
 	}

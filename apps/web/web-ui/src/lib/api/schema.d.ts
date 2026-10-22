@@ -969,7 +969,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/agora/sessions": {
+    "/api/video/sessions": {
         parameters: {
             query?: never;
             header?: never;
@@ -978,14 +978,46 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["AgoraController_startSession"];
+        post: operations["VideoController_join"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/agora/sessions/{sessionId}/end": {
+    "/api/video/sessions/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["VideoController_active"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/video/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["VideoController_usage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/video/webhook": {
         parameters: {
             query?: never;
             header?: never;
@@ -994,7 +1026,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["AgoraController_endSession"];
+        post: operations["VideoController_webhook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1326,6 +1358,10 @@ export interface components {
         };
         SetUserRoleDto: Record<string, never>;
         SetFeedbackStatusDto: Record<string, never>;
+        StartVideoSessionDto: {
+            /** Format: uuid */
+            conversationId: string;
+        };
         SeedCoursesDto: Record<string, never>;
         ScrapeCoursesDto: Record<string, never>;
     };
@@ -3355,16 +3391,47 @@ export interface operations {
             };
         };
     };
-    AgoraController_startSession: {
+    VideoController_join: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartVideoSessionDto"];
+            };
+        };
+        responses: {
+            /** @description Join (or start) the video call of a conversation: LiveKit URL, room and a 2 h token. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    VideoController_active: {
+        parameters: {
+            query: {
+                conversationId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         requestBody?: never;
         responses: {
-            /** @description Start/join video session (mint Agora RTC token). */
+            /** @description The open call of a conversation, if any. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3373,18 +3440,34 @@ export interface operations {
             };
         };
     };
-    AgoraController_endSession: {
+    VideoController_usage: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                sessionId: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description End video session. */
+            /** @description Participant-minutes this month vs. the free allowance (admin). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    VideoController_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description LiveKit webhook (signed with the API secret). */
             200: {
                 headers: {
                     [name: string]: unknown;

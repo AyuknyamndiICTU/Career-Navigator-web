@@ -32,6 +32,8 @@ configMapGenerator:
       - CV_DEFAULT_PHONE_COUNTRY=CM
       - CV_AI_ASSIST_ENABLED=true
       - CV_OCR_SERVER=false
+      # Video: LiveKit Cloud (URL/key/secret in the overlay secrets); self-hosting LiveKit on k8s needs host networking.
+      - VIDEO_FREE_MINUTES_PER_MONTH=5000
       - NOTIFICATIONS_WORKER_ENABLED=false
       - OTP_EMAIL_LOG_ONLY=false
       - AI_BYOK_ENABLED=false

@@ -1,0 +1,8 @@
+# Real CVs contain personal data (including referees' contacts): keep the originals local only.
+# Commit anonymised fixtures instead: node scripts/anonymise-fixture.mjs <cv.pdf> real/<name>.json <map.json>
+*.pdf
+*.PDF
+*.docx
+*.png
+*.jpg
+*.jpeg

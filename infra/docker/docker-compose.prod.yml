@@ -113,8 +113,10 @@ services:
       CV_DEFAULT_PHONE_COUNTRY: "${CV_DEFAULT_PHONE_COUNTRY:-CM}"
       CV_AI_ASSIST_ENABLED: "${CV_AI_ASSIST_ENABLED:-true}"
       CV_OCR_SERVER: "${CV_OCR_SERVER:-false}"
-      AGORA_APP_ID: "${AGORA_APP_ID:-}"
-      AGORA_APP_CERTIFICATE: "${AGORA_APP_CERTIFICATE:-}"
+      LIVEKIT_URL: "${LIVEKIT_URL:-}"
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-}"
+      VIDEO_FREE_MINUTES_PER_MONTH: "${VIDEO_FREE_MINUTES_PER_MONTH:-5000}"
       CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-https://${SITE_ADDRESS}}"
       TRUST_PROXY: "1"
       SWAGGER_ENABLED: "${SWAGGER_ENABLED:-false}"
@@ -166,6 +168,41 @@ services:
         condition: service_healthy
     cpus: 0.25
     mem_limit: 128m
+    restart: unless-stopped
+
+  # Self-hosted video (17.3), off by default: `docker compose --profile livekit up -d` and set
+  # LIVEKIT_URL=wss://$SITE_ADDRESS plus a key/secret in .env. Signaling goes through the proxy at /rtc;
+  # open 7881/tcp, 7882/udp (media) and 3478/udp (TURN) in the firewall.
+  livekit:
+    image: livekit/livekit-server:v1.13.10
+    profiles: ["livekit"]
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: true
+        turn:
+          enabled: true
+          udp_port: 3478
+        keys:
+          ${LIVEKIT_API_KEY:-unset}: ${LIVEKIT_API_SECRET:-unset}
+        webhook:
+          api_key: ${LIVEKIT_API_KEY:-unset}
+          urls:
+            - http://api:3000/api/video/webhook
+        room:
+          empty_timeout: 300
+          departure_timeout: 20
+        logging:
+          level: info
+    ports:
+      - "7881:7881"
+      - "7882:7882/udp"
+      - "3478:3478/udp"
+    cpus: 1
+    mem_limit: 512m
     restart: unless-stopped
 
   minio:

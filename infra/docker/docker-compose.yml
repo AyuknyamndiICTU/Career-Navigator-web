@@ -105,9 +105,10 @@ services:
       CV_AI_ASSIST_ENABLED: "${CV_AI_ASSIST_ENABLED:-true}"
       CV_OCR_SERVER: "${CV_OCR_SERVER:-false}"
 
-      # Agora (not required to sign in; placeholders to satisfy env checks)
-      AGORA_APP_ID: "dev"
-      AGORA_APP_CERTIFICATE: "dev"
+      # Video calls: the local LiveKit server below, reached through the proxy at /rtc (dev keys only).
+      LIVEKIT_URL: "ws://localhost:${WEB_HOST_PORT:-3000}"
+      LIVEKIT_API_KEY: "devkey"
+      LIVEKIT_API_SECRET: "local-dev-livekit-secret-change-me-0123456789"
 
       # CORS for browser
       CORS_ALLOWED_ORIGINS: "http://localhost:${WEB_HOST_PORT:-3000}"
@@ -157,6 +158,35 @@ services:
         condition: service_healthy
     cpus: 0.25
     mem_limit: 128m
+    restart: unless-stopped
+
+  # Self-hosted LiveKit SFU (same server as LiveKit Cloud). Signaling via the proxy (/rtc); media on 7881/tcp + 7882/udp.
+  livekit:
+    image: livekit/livekit-server:v1.13.10
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          node_ip: 127.0.0.1
+          use_external_ip: false
+        keys:
+          devkey: local-dev-livekit-secret-change-me-0123456789
+        webhook:
+          api_key: devkey
+          urls:
+            - http://api:3000/api/video/webhook
+        room:
+          empty_timeout: 120
+          departure_timeout: 20
+        logging:
+          level: info
+    ports:
+      - "127.0.0.1:7881:7881"
+      - "127.0.0.1:7882:7882/udp"
+    cpus: 0.5
+    mem_limit: 256m
     restart: unless-stopped
 
   minio:
