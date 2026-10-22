@@ -2,37 +2,22 @@ import { Injectable } from '@nestjs/common';
 import { AiGatewayService } from '../../ai/gateway/ai-gateway.service';
 import { redactPii } from '../../ai/gateway/redact-pii';
 
-// Re-uploading the same file never calls a model again.
+// Asking again for the same file and section never calls a model again.
 const CV_CACHE_MS = 30 * 24 * 3_600_000;
+const MAX_SECTION_CHARS = 8_000;
 
-const SYSTEM = `You are a CV parser.
+export type CvAssistSection = 'summary' | 'education' | 'experience' | 'skills';
+
+const SYSTEM = `You are a CV parser. You receive ONE section of a CV.
 Return ONLY valid JSON. No markdown. No extra commentary.
-If you cannot find a field, set it to null (for nullable fields) or [] (for arrays).`;
+Use null for missing fields and [] for empty arrays. Never invent information.`;
 
-const SHAPE = `{
-  "fullName": string | null,
-  "education": Array<{
-    "degree": string | null,
-    "fieldOfStudy": string | null,
-    "institution": string | null,
-    "startYear": number | null,
-    "endYear": number | null,
-    "grade": string | null,
-    "description": string | null,
-    "isCurrent": boolean
-  }>,
-  "experience": Array<{
-    "jobTitle": string | null,
-    "company": string | null,
-    "location": string | null,
-    "startYear": number | null,
-    "endYear": number | null,
-    "description": string | null,
-    "isCurrent": boolean
-  }>,
-  "skills": string[],
-  "summary": string | null
-}`;
+const SHAPES: Record<CvAssistSection, string> = {
+  summary: `{ "summary": string | null }`,
+  skills: `{ "skills": string[] }`,
+  education: `{ "education": Array<{ "degree": string | null, "fieldOfStudy": string | null, "institution": string | null, "startYear": number | null, "endYear": number | null, "grade": string | null, "description": string | null, "isCurrent": boolean }> }`,
+  experience: `{ "experience": Array<{ "jobTitle": string | null, "company": string | null, "location": string | null, "startYear": number | null, "endYear": number | null, "description": string | null, "isCurrent": boolean }> }`,
+};
 
 function extractJson(text: string): string {
   const unfenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] ?? text;
@@ -43,18 +28,81 @@ function extractJson(text: string): string {
     : unfenced.slice(start, end + 1);
 }
 
-/** Turns CV text into the structured JSON the profile uses (contact details redacted first). */
+const s = (v: unknown, max = 2000): string | null =>
+  typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null;
+const y = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isInteger(v) && v >= 1950 && v <= 2100
+    ? v
+    : null;
+const list = (v: unknown): Array<Record<string, unknown>> =>
+  Array.isArray(v)
+    ? v
+        .filter(
+          (x): x is Record<string, unknown> =>
+            Boolean(x) && typeof x === 'object',
+        )
+        .slice(0, 30)
+    : [];
+
+/** Model output is untrusted: keep only the expected fields with bounded sizes. */
+function sanitize(
+  section: CvAssistSection,
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  switch (section) {
+    case 'summary':
+      return { summary: s(raw.summary, 3000) };
+    case 'skills':
+      return {
+        skills: Array.isArray(raw.skills)
+          ? [
+              ...new Set(
+                raw.skills
+                  .map((v) => s(v, 60))
+                  .filter((v): v is string => Boolean(v)),
+              ),
+            ].slice(0, 100)
+          : [],
+      };
+    case 'education':
+      return {
+        education: list(raw.education).map((e) => ({
+          degree: s(e.degree, 200),
+          fieldOfStudy: s(e.fieldOfStudy, 200),
+          institution: s(e.institution, 200),
+          startYear: y(e.startYear),
+          endYear: y(e.endYear),
+          grade: s(e.grade, 100),
+          description: s(e.description),
+          isCurrent: e.isCurrent === true,
+        })),
+      };
+    case 'experience':
+      return {
+        experience: list(raw.experience).map((w) => ({
+          jobTitle: s(w.jobTitle, 200),
+          company: s(w.company, 200),
+          location: s(w.location, 200),
+          startYear: y(w.startYear),
+          endYear: y(w.endYear),
+          description: s(w.description),
+          isCurrent: w.isCurrent === true,
+        })),
+      };
+  }
+}
+
+/** "Improve with AI" for one CV section, on request only (16.8). Contact details are redacted first. */
 @Injectable()
 export class CvAiParser {
   constructor(private readonly gateway: AiGatewayService) {}
 
-  /** Always returns a JSON object string with at least `skills: string[]`. */
-  async parse(
+  async assist(
     userId: string,
-    cvText: string,
+    section: CvAssistSection,
+    sectionText: string,
     sha256: string,
-    signal: AbortSignal,
-  ): Promise<string> {
+  ): Promise<Record<string, unknown>> {
     const { text } = await this.gateway.generate({
       task: 'cv-assist',
       userId,
@@ -62,28 +110,20 @@ export class CvAiParser {
       messages: [
         {
           role: 'user',
-          content: `Extract structured data from the CV text below.\n\nReturn ONLY valid JSON with this exact shape:\n\n${SHAPE}\n\nCV TEXT:\n"""\n${redactPii(cvText)}\n"""`,
+          content: `Extract the ${section} section below.\n\nReturn ONLY valid JSON with this exact shape:\n\n${SHAPES[section]}\n\nSECTION TEXT:\n"""\n${redactPii(sectionText.slice(0, MAX_SECTION_CHARS))}\n"""`,
         },
       ],
-      signal,
-      cache: { key: sha256, ttlMs: CV_CACHE_MS },
+      cache: { key: `${sha256}:${section}`, ttlMs: CV_CACHE_MS },
     });
 
     try {
       const parsed = JSON.parse(extractJson(text)) as unknown;
-      if (!parsed || typeof parsed !== 'object')
-        return JSON.stringify({ skills: [] });
-
-      const record = parsed as Record<string, unknown>;
-      record.skills = Array.isArray(record.skills)
-        ? record.skills
-            .filter((v): v is string => typeof v === 'string')
-            .map((v) => v.trim())
-            .filter(Boolean)
-        : [];
-      return JSON.stringify(record);
+      if (parsed && typeof parsed === 'object') {
+        return sanitize(section, parsed as Record<string, unknown>);
+      }
     } catch {
-      return JSON.stringify({ skills: [] });
+      // fall through
     }
+    return sanitize(section, {});
   }
 }

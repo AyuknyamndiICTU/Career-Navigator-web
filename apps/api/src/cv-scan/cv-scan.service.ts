@@ -70,7 +70,12 @@ export class CvScanService implements OnModuleDestroy {
     const queue = this.getQueue();
     if (!queue) return { skipped: true };
 
-    const jobId = params.uploadMediaId;
+    // One job per stored file: a re-upload gets a new id even while an old failed job is retained.
+    const fileId = params.objectKey
+      .split('/')
+      .pop()
+      ?.replace(/\.\w+$/, '');
+    const jobId = `${params.uploadMediaId}-${fileId ?? 'cv'}`;
 
     await queue.add('cv-scan', params, {
       jobId,

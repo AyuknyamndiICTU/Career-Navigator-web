@@ -5,6 +5,8 @@ import { CvScanWorkerService } from './worker/cv-scan-worker.service';
 import { CvTextExtractor } from './worker/cv-text-extractor.service';
 import { CvAiParser } from './worker/cv-ai-parser.service';
 import { CvProfilePopulator } from './worker/cv-profile-populator.service';
+import { CvScanProcessor } from './worker/cv-scan-processor.service';
+import { CvServerOcr } from './worker/cv-server-ocr.service';
 
 @Module({
   imports: [PrismaModule],
@@ -14,7 +16,9 @@ import { CvProfilePopulator } from './worker/cv-profile-populator.service';
     CvTextExtractor,
     CvAiParser,
     CvProfilePopulator,
+    CvScanProcessor,
+    CvServerOcr,
   ],
-  exports: [CvScanService],
+  exports: [CvScanService, CvScanProcessor, CvProfilePopulator, CvAiParser],
 })
 export class CvScanModule {}
