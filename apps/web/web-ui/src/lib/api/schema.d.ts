@@ -374,6 +374,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/upload/cv/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["UploadController_confirmCv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/upload/cv/assist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["UploadController_assistCv"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/upload/file/{path}": {
         parameters: {
             query?: never;
@@ -1175,6 +1207,41 @@ export interface components {
             email?: string;
             phone?: string;
             notes?: string;
+        };
+        CvConfirmEducationDto: {
+            degree?: string | null;
+            fieldOfStudy?: string | null;
+            institution?: string | null;
+            startYear?: number | null;
+            endYear?: number | null;
+            isCurrent?: boolean;
+            grade?: string | null;
+            description?: string | null;
+        };
+        CvConfirmExperienceDto: {
+            jobTitle?: string | null;
+            company?: string | null;
+            location?: string | null;
+            startYear?: number | null;
+            endYear?: number | null;
+            isCurrent?: boolean;
+            description?: string | null;
+        };
+        CvConfirmDto: {
+            fullName?: string | null;
+            phone?: string | null;
+            location?: string | null;
+            summary?: string | null;
+            linkedIn?: string | null;
+            website?: string | null;
+            skills?: string[];
+            languages?: string[];
+            education?: components["schemas"]["CvConfirmEducationDto"][];
+            experience?: components["schemas"]["CvConfirmExperienceDto"][];
+        };
+        CvAssistDto: {
+            /** @enum {string} */
+            section: "summary" | "education" | "experience" | "skills";
         };
         ApplyJobDto: {
             coverLetter: string;
@@ -2111,6 +2178,8 @@ export interface operations {
                 "multipart/form-data": {
                     /** Format: binary */
                     file?: string;
+                    /** @description Optional JSON array of OCR words {text,x,y,width,height,page} recognised in the browser. */
+                    ocr?: string;
                 };
             };
         };
@@ -2140,7 +2209,65 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Get CV scan status. */
+            /** @description Get CV scan status and the parsed CV for review. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    UploadController_confirmCv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CvConfirmDto"];
+            };
+        };
+        responses: {
+            /** @description Apply the reviewed CV to the profile (merge). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    UploadController_assistCv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CvAssistDto"];
+            };
+        };
+        responses: {
+            /** @description Re-read one CV section with AI (on request only). */
             200: {
                 headers: {
                     [name: string]: unknown;
