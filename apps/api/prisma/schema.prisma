@@ -258,6 +258,8 @@ model UploadMedia {
   cvScanCompletedAt  DateTime?
   cvExtractedText    String?
   cvScanError        String?
+  // Set when the user reviews the parsed CV and applies it to the profile (16.7).
+  cvConfirmedAt      DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
