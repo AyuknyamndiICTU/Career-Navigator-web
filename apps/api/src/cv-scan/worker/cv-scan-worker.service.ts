@@ -1,10 +1,7 @@
-/* global AbortController, setTimeout, clearTimeout */
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { env } from '../../config/env';
-import { CvTextExtractor } from './cv-text-extractor.service';
-import { CvAiParser } from './cv-ai-parser.service';
-import { CvProfilePopulator } from './cv-profile-populator.service';
+import { CvScanProcessor } from './cv-scan-processor.service';
 
 type CvScanJobPayload = {
   userId: string;
@@ -24,7 +21,7 @@ type WorkerOnLike = {
 };
 type CvScanWorkerLike = WorkerCloseLike & WorkerOnLike;
 
-/** BullMQ worker: extract text → parse with AI → fill the profile, with status tracking. */
+/** BullMQ worker: rule-based CV parse with status tracking (no AI, no profile writes). */
 @Injectable()
 export class CvScanWorkerService implements OnModuleDestroy {
   private readonly logger = new Logger(CvScanWorkerService.name);
@@ -32,9 +29,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly extractor: CvTextExtractor,
-    private readonly parser: CvAiParser,
-    private readonly populator: CvProfilePopulator,
+    private readonly processor: CvScanProcessor,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -83,29 +78,6 @@ export class CvScanWorkerService implements OnModuleDestroy {
   }
 
   private async processJob(payload: CvScanJobPayload): Promise<void> {
-    const { uploadMediaId } = payload;
-
-    // Overall timeout: text extraction plus the AI time budget (60 s) with some headroom.
-    const JOB_TIMEOUT_MS = 90_000;
-    const timeoutController = new AbortController();
-    const jobTimeoutId = setTimeout(() => {
-      this.logger.error(
-        `cv-scan job timed out after ${JOB_TIMEOUT_MS}ms. uploadMediaId=${uploadMediaId}`,
-      );
-      timeoutController.abort();
-    }, JOB_TIMEOUT_MS);
-
-    try {
-      await this.processJobInternal(payload, timeoutController.signal);
-    } finally {
-      clearTimeout(jobTimeoutId);
-    }
-  }
-
-  private async processJobInternal(
-    payload: CvScanJobPayload,
-    abortSignal: AbortSignal,
-  ): Promise<void> {
     const { uploadMediaId, objectKey } = payload;
 
     // Skip if already processed for the same upload file.
@@ -131,73 +103,7 @@ export class CvScanWorkerService implements OnModuleDestroy {
       return;
     }
 
-    await this.prisma.uploadMedia.update({
-      where: { id: uploadMediaId },
-      data: {
-        cvScanStatus: 'PROCESSING',
-        cvScanRequestedAt: new Date(),
-      },
-    });
-
-    try {
-      const { text: extractedText, sha256 } =
-        await this.extractor.extract(objectKey);
-      abortSignal.throwIfAborted();
-
-      // DOCX support is handled here.
-      if (!extractedText.trim()) {
-        throw new Error(
-          `No extractable text found for objectKey=${objectKey}.`,
-        );
-      }
-
-      const structured = await this.parser.parse(
-        payload.userId,
-        extractedText,
-        sha256,
-        abortSignal,
-      );
-      // A timed-out job is marked FAILED instead of writing late results.
-      abortSignal.throwIfAborted();
-
-      await this.prisma.uploadMedia.update({
-        where: { id: uploadMediaId },
-        data: {
-          cvScanStatus: 'COMPLETED',
-          cvScanCompletedAt: new Date(),
-          cvExtractedText: structured,
-          cvScanError: null,
-        },
-      });
-
-      // Auto-populate Profile, Education, and WorkExperience from extracted data
-      try {
-        await this.populator.apply(payload.userId, structured);
-        this.logger.log(
-          `cv-scan profile auto-populated. userId=${payload.userId}`,
-        );
-      } catch (applyErr) {
-        // Log but don't fail the job — the extraction itself succeeded
-        this.logger.warn(
-          `cv-scan profile auto-populate failed (non-fatal). userId=${payload.userId} err=${(applyErr as Error)?.message}`,
-        );
-      }
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : `Unknown error: ${String(err)}`;
-
-      await this.prisma.uploadMedia.update({
-        where: { id: uploadMediaId },
-        data: {
-          cvScanStatus: 'FAILED',
-          cvScanCompletedAt: new Date(),
-          cvScanError: message,
-        },
-      });
-
-      this.logger.error(
-        `Failed to process cv-scan. uploadMediaId=${uploadMediaId} err=${message}`,
-      );
-    }
+    // Rule-based parse only; results wait for the user's review (16.7/16.8).
+    await this.processor.processFile(uploadMediaId, objectKey);
   }
 }
