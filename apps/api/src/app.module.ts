@@ -19,7 +19,7 @@ import { RealtimeModule } from './realtime/realtime.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AiModule } from './ai/ai.module';
 import { AdminModule } from './admin/admin.module';
-import { AgoraModule } from './agora/agora.module';
+import { VideoModule } from './video/video.module';
 import { CoursesModule } from './courses/courses.module';
 import { HealthModule } from './health/health.module';
 import { AiGatewayModule } from './ai/gateway/ai-gateway.module';
@@ -42,7 +42,7 @@ import { PublicConfigController } from './config/public-config.controller';
     NotificationsModule,
     AiModule,
     AdminModule,
-    AgoraModule,
+    VideoModule,
     CoursesModule,
   ],
   controllers: [AppController, PublicConfigController],
