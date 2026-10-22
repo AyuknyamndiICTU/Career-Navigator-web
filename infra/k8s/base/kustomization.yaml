@@ -29,6 +29,9 @@ configMapGenerator:
       - REDIS_URL=redis://cn-redis:6379
       - CV_SCAN_ENABLED=true
       - CV_SCAN_WORKER_CONCURRENCY=1
+      - CV_DEFAULT_PHONE_COUNTRY=CM
+      - CV_AI_ASSIST_ENABLED=true
+      - CV_OCR_SERVER=false
       - NOTIFICATIONS_WORKER_ENABLED=false
       - OTP_EMAIL_LOG_ONLY=false
       - AI_BYOK_ENABLED=false

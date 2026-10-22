@@ -211,12 +211,26 @@ export const env = {
       return positiveInt('NOTIFICATIONS_WORKER_CONCURRENCY', 2);
     },
   },
-  agora: {
-    get appId(): string | undefined {
-      return read('AGORA_APP_ID');
+  video: {
+    /** Browser-facing LiveKit server URL (wss://…); LiveKit Cloud or self-hosted, same code. */
+    get livekitUrl(): string | undefined {
+      return read('LIVEKIT_URL');
     },
-    get appCertificate(): string | undefined {
-      return read('AGORA_APP_CERTIFICATE');
+    get apiKey(): string | undefined {
+      return read('LIVEKIT_API_KEY');
+    },
+    get apiSecret(): string | undefined {
+      return read('LIVEKIT_API_SECRET');
+    },
+    get enabled(): boolean {
+      return Boolean(this.livekitUrl && this.apiKey && this.apiSecret);
+    },
+    get tokenTtlMinutes(): number {
+      return positiveInt('VIDEO_TOKEN_TTL_MINUTES', 120);
+    },
+    /** Participant-minutes included per month (LiveKit Cloud Build plan: 5,000). */
+    get freeMinutes(): number {
+      return positiveInt('VIDEO_FREE_MINUTES_PER_MONTH', 5000);
     },
   },
 };
@@ -242,12 +256,15 @@ const POSITIVE_INT_KEYS = [
   'NOTIFICATIONS_WORKER_CONCURRENCY',
   'AI_CHAT_TIME_BUDGET_MS',
   'AI_KEY_ENCRYPTION_KEY_VERSION',
+  'VIDEO_TOKEN_TTL_MINUTES',
+  'VIDEO_FREE_MINUTES_PER_MONTH',
 ];
 
 const URL_KEYS: Array<[key: string, protocols: string[]]> = [
   ['DATABASE_URL', ['postgres:', 'postgresql:']],
   ['REDIS_URL', ['redis:', 'rediss:']],
   ['MINIO_ENDPOINT', ['http:', 'https:']],
+  ['LIVEKIT_URL', ['wss:', 'ws:', 'https:', 'http:']],
 ];
 
 function isAes256Key(value: string | undefined): boolean {
@@ -345,6 +362,17 @@ export function validateEnv(): void {
     problems.push(
       'CORS_ALLOWED_ORIGINS must list the allowed origins in production',
     );
+  }
+
+  const videoKeys = ['LIVEKIT_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'];
+  const videoSet = videoKeys.filter((key) => read(key));
+  if (videoSet.length > 0 && videoSet.length < videoKeys.length) {
+    problems.push(
+      `Video calls need all of ${videoKeys.join(', ')} (missing ${videoKeys.filter((k) => !read(k)).join(', ')})`,
+    );
+  }
+  if (env.isProduction && (read('LIVEKIT_API_SECRET')?.length ?? 32) < 32) {
+    problems.push('LIVEKIT_API_SECRET must be at least 32 characters in production');
   }
 
   if (problems.length > 0) {
