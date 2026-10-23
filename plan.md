@@ -293,7 +293,8 @@ Resolution order for each AI request:
 - [x] **14.8 Swagger** — serve at `/api/docs`; `SWAGGER_ENABLED` (off in production by default, or behind basic auth); relative server URL instead of the hard-coded `http://localhost:3001`.
 - [x] **14.9 Replace OpenSearch with PostgreSQL search** — generated `tsvector` column on `Job` (title, company, description, skills) + GIN index, `pg_trgm` for fuzzy titles; remove the `OPENSEARCH_*` path in [jobs.service.ts](apps/api/src/jobs/jobs.service.ts) and the `opensearch` Compose profile (OpenSearch alone needs 1–2 GB RAM).
 - [x] **14.10 Cross-platform scripts** — root scripts `clean`, `db:migrate`, `db:seed`, `typecheck`, `api:openapi` written in Node (no bash/PowerShell-only commands); fix the `start:prod` path mismatch (`dist/main` vs `dist/src/main.js`).
-- [ ] **14.11 One repository** — `apps/api` contains its own `.git` with a separate remote; fold it into the monorepo after confirming nothing is unpushed (team decision).
+- [x] **14.11 One repository** — `apps/api` contains its own `.git` with a separate remote; fold it into the monorepo after confirming nothing is unpushed (team decision).
+  - Done 2026-10-23: the nested repo (`AyuknyamndiICTU/api`, `master` = `origin/master`, last commit 2026-06-08, nothing unpushed) was moved out to `%USERPROFILE%\cn-api-git-backup` (reversible). The monorepo already tracked all 182 `apps/api` files, so its history is unaffected. Archive the old GitHub repo when convenient.
 - Status (2026-10-20):
   - **14.1 Same origin:**
     - The browser uses `/api` and `window.location.origin` for Socket.IO.
@@ -377,7 +378,8 @@ Steps:
 - [x] **15.5** Replace `pdf-parse` with `unpdf`; keep `mammoth` for DOCX, lazy-imported inside the worker.
 - [x] **15.6** Optimize logo assets and serve them with `next/image`; delete `logo/TEST.*`.
 - [x] **15.7** Run `npx depcheck` in both workspaces and remove unused packages; move `@types/*` from `dependencies` to `devDependencies` in the API.
-- [ ] **15.8** Optional: switch to pnpm (content-addressable store, hard-linked `node_modules`) for further disk savings — only if the team agrees to change package manager.
+- [x] **15.8** Optional: switch to pnpm (content-addressable store, hard-linked `node_modules`) for further disk savings — only if the team agrees to change package manager.
+  - Declined 2026-10-23: the project stays on npm (one root lockfile).
 - [x] **15.9** Record before/after: folder sizes, `docker image ls`, idle `docker stats`.
 - Status (2026-10-20):
 
