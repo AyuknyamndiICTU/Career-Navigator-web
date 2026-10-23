@@ -574,15 +574,26 @@ Order (respects dependencies):
 11. Remaining P2/P3 items
 
 Definition of done:
-- [ ] `npm run lint`, `npm run typecheck` and `npm test` pass at the root; e2e passes in CI
-- [ ] No `@ts-nocheck`, no `process.env` outside the config module, no hard-coded secrets or hosts
+- [x] `npm run lint`, `npm run typecheck` and `npm test` pass at the root; e2e passes in CI
+- [x] No `@ts-nocheck`, no `process.env` outside the config module, no hard-coded secrets or hosts
 - [ ] Fresh clone → `npm ci` → `docker compose up` works on Windows, macOS and Linux with only `.env` files filled in
 - [ ] Phase 15 size targets met and recorded
 - [ ] AI works with only `GEMINI_API_KEY` set; every additional key only adds fallbacks
 - [ ] Users can add and remove their own AI key; their token and cost usage is shown live and matches provider-reported usage
-- [ ] Uploading a CV fills the profile with zero AI tokens by default; AI runs only on explicit request
-- [ ] Video calls run on LiveKit; no Agora code or package remains
+- [x] Uploading a CV fills the profile with zero AI tokens by default; AI runs only on explicit request
+- [x] Video calls run on LiveKit; no Agora code or package remains
 - [ ] Files live on R2 (production) / Garage (local); no MinIO image or package remains
+
+**Status (checked 2026-10-23):**
+- **Lint, typecheck, tests:** root `npm run lint` 0 errors (40 warnings left: `any`, setState-in-effect, `<img>`; 5 dead-code warnings fixed), `npm run typecheck` clean, `npm test` = parser 38 + API 33 + web 6. API e2e 146 (+3 storage contract tests against Garage); Jenkins runs both, plus the contract suite on a throwaway Garage.
+- **Code hygiene:** `@ts-nocheck` only in the generated, git-ignored Prisma client. `process.env` only in `config/env.ts`, tests and the two CLI entry points (`seed-admin.ts`, `prisma.config.ts`, whose fallback is the local dev database). `git grep` for secrets matches only `.env.example`, the dev Compose file (dev Postgres and LiveKit keys) and the documentation IP `203.0.113.10` in the Jenkinsfile.
+- **Fresh clone (Windows):** the 343 files git would commit, copied to an empty folder with no `.env` → `npm ci` OK → `docker compose -p cn-fresh up --build --wait` all healthy with only `GEMINI_API_KEY` in `infra/docker/.env`. `tmp/fresh-smoke.ps1` 9/10: health (database, Redis, storage), web through Caddy, register/login, CV PDF parsed by the worker, a picture stored in Garage and served by a presigned URL. macOS and Linux not run here (the Compose file has no OS-specific parts; Jenkins runs `npm ci` on Linux).
+- **AI with only Gemini:** the route logic is covered by e2e (Gemini first, every other provider is skipped without a key, fallbacks only when present). Live it fails: Google answers `403 PERMISSION_DENIED — Your project has been denied access` for every model with the current key (the leaked key from 10.7; listing models still works). The gateway handled it correctly (cooled both models, clean 503). **Needs a new key from a project in good standing**, then re-run `tmp/fresh-smoke.ps1`.
+- **BYOK:** covered by `byok.e2e-spec.ts` (12 tests: add/test/remove keys, encryption, budgets, usage from provider-reported tokens, live `ai:usage` events). Not yet checked against a real user key on a live provider.
+- **CV without AI:** live: the scan completed and the user's AI usage showed 0 calls. The AI parser is only reachable through `POST /api/upload/cv/assist`.
+- **Video / storage:** no Agora or MinIO package, image or code (`AgoraSession` table kept as unused legacy). Garage verified locally; R2 waits for the Cloudflare bucket and token (runbook in [infra/docker/README.md](infra/docker/README.md)).
+- **Sizes (vs. Phase 15 targets):** source 2.9 MB (≤ 25 MB ✔), idle RAM api + web + postgres + redis ≈ 214 MiB (≤ 1.5 GB ✔), fresh `npm ci` tree 917 MB (≤ 700 MB ✘), API image 401 MB (≤ 300 MB ✘), web image 332 MB (≤ 200 MB ✘). The misses are the Node base image and Next's own size, as recorded in Phase 15; pnpm (15.8) was declined.
+- **Open items:** 14.11 done (nested `.git` moved to a backup), 15.8 declined. Remaining manual steps: rotate the Gemini key (10.7), create the R2 bucket and run the storage migration (Phase 18), a 30-minute two-device LiveKit call (Phase 17).
 
 ---
 
