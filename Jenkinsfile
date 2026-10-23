@@ -73,6 +73,21 @@ pipeline {
             steps {
                 sh 'npm test'
                 sh 'npm run test:e2e -w api -- --runInBand'
+                // Storage contract: the real S3 client against a throwaway Garage node (same image as docker compose).
+                sh '''
+                    set -eu
+                    name="cn-ci-garage-${BUILD_NUMBER}"
+                    trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+                    docker run -d --name "$name" -p 127.0.0.1::3900 \
+                      -v "$WORKSPACE/infra/docker/garage.toml:/etc/garage.toml:ro" \
+                      -e GARAGE_DEFAULT_ACCESS_KEY=GK1c0de0de0c0ffee000000001 \
+                      -e GARAGE_DEFAULT_SECRET_KEY=6c6f63616c2d6465762d6761726167652d7365637265742d6368616e67652d6d \
+                      -e GARAGE_DEFAULT_BUCKET=career-navigator \
+                      dxflrs/garage:v2.4.1 /garage server --single-node --default-bucket
+                    port=$(docker port "$name" 3900/tcp | head -n1 | sed 's/.*://')
+                    for i in $(seq 1 30); do docker exec "$name" /garage status >/dev/null 2>&1 && break; sleep 1; done
+                    S3_CONTRACT_ENDPOINT="http://127.0.0.1:$port" npm run test:e2e -w api -- --runInBand storage-contract
+                '''
             }
         }
 
