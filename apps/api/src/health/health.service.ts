@@ -1,9 +1,8 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import IORedis from 'ioredis';
-import type { Client as MinioClient } from 'minio';
 import { PrismaService } from '../prisma/prisma.service';
 import { env } from '../config/env';
-import { createMinioClient } from '../lib/minio-client';
+import { OBJECT_STORAGE, type ObjectStorage } from '../storage/object-storage';
 
 export type DependencyStatus = 'up' | 'down' | 'skipped';
 
@@ -26,9 +25,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 export class HealthService implements OnModuleDestroy {
   private readonly logger = new Logger(HealthService.name);
   private redis?: IORedis;
-  private minio?: MinioClient | null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
+  ) {}
 
   async onModuleDestroy(): Promise<void> {
     if (this.redis) await this.redis.quit().catch(() => undefined);
@@ -40,10 +41,11 @@ export class HealthService implements OnModuleDestroy {
       env.redisUrl
         ? this.check('redis', () => this.getRedis().ping())
         : Promise.resolve<DependencyStatus>('skipped'),
-      this.getMinio()
-        ? this.check('storage', () =>
-            this.getMinio()!.bucketExists(env.minio.bucket),
-          )
+      this.storage.configured
+        ? this.check('storage', async () => {
+            if (!(await this.storage.bucketExists()))
+              throw new Error(`bucket "${env.storage.bucket}" not found`);
+          })
         : Promise.resolve<DependencyStatus>('skipped'),
     ]);
 
@@ -76,10 +78,5 @@ export class HealthService implements OnModuleDestroy {
       this.redis.on('error', () => undefined);
     }
     return this.redis;
-  }
-
-  private getMinio(): MinioClient | null {
-    if (this.minio === undefined) this.minio = createMinioClient();
-    return this.minio;
   }
 }

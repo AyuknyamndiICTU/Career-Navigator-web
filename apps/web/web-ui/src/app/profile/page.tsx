@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import DashboardLayout from '@/components/DashboardLayout';
-import { apiFetch, apiFetchFile, getApiBaseUrl } from '@/lib/auth';
+import { apiFetch, apiFetchFile } from '@/lib/auth';
+import { resizeProfilePhoto } from '@/lib/image-resize';
 import SuccessToast from '@/components/SuccessToast';
 
 type CvWizardData = {
@@ -251,12 +252,17 @@ export default function ProfilePage() {
 
   useEffect(() => {
     setDraft(form);
-    // Set photo preview from loaded profile.
-    // form.photoUrl is a MinIO object key – build the API proxy URL for display.
-    if (form.photoUrl) {
-      const apiBase = getApiBaseUrl();
-      setPhotoPreview(`${apiBase}/upload/file/${form.photoUrl}`);
-    }
+    // form.photoUrl is a private storage key: ask the API for a short-lived download link.
+    if (!form.photoUrl) return;
+    let active = true;
+    apiFetch(`/upload/url?key=${encodeURIComponent(form.photoUrl)}`, { method: 'GET' })
+      .then((res: { url: string }) => {
+        if (active) setPhotoPreview(res.url);
+      })
+      .catch((e: unknown) => console.warn('Could not load the profile photo:', e));
+    return () => {
+      active = false;
+    };
   }, [form]);
 
   useEffect(() => {
@@ -342,16 +348,13 @@ export default function ProfilePage() {
     setPhotoUploading(true);
     setError('');
     try {
+      const upload = await resizeProfilePhoto(file);
       const formData = new FormData();
-      formData.append('file', file);
-      const res = await apiFetchFile('/upload/picture', formData);
-      // The upload returns { message, objectKey }. We'll construct a URL from the objectKey
-      // and store it in cvWizardData.photoUrl
-      const objectKey = (res as any)?.objectKey;
+      formData.append('file', upload);
+      const res = (await apiFetchFile('/upload/picture', formData)) as { objectKey?: string };
+      const objectKey = res?.objectKey;
       if (objectKey) {
-        // Set preview locally
-        const localPreview = URL.createObjectURL(file);
-        setPhotoPreview(localPreview);
+        setPhotoPreview(URL.createObjectURL(upload));
         // Store objectKey in draft (will be saved with Save Changes)
         setDraft((d) => ({ ...d, photoUrl: objectKey }));
         markDirty();

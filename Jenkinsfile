@@ -119,7 +119,7 @@ pipeline {
                         SSH_OPTS="-o StrictHostKeyChecking=accept-new"
                         ssh $SSH_OPTS "$DEPLOY_TARGET" "mkdir -p $DEPLOY_PATH"
                         scp $SSH_OPTS infra/docker/docker-compose.prod.yml "$DEPLOY_TARGET:$DEPLOY_PATH/docker-compose.yml"
-                        scp $SSH_OPTS infra/docker/Caddyfile infra/docker/deploy.sh "$DEPLOY_TARGET:$DEPLOY_PATH/"
+                        scp $SSH_OPTS infra/docker/Caddyfile infra/docker/deploy.sh infra/docker/migrate-storage.sh "$DEPLOY_TARGET:$DEPLOY_PATH/"
                         ssh $SSH_OPTS "$DEPLOY_TARGET" "cd $DEPLOY_PATH && TAG=$TAG DOCKERHUB_USER=$DOCKER_CREDS_USR sh deploy.sh"
                     '''
                 }

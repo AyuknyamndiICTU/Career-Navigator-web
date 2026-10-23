@@ -406,14 +406,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/upload/file/{path}": {
+    "/api/upload/url": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["UploadController_serveFile"];
+        get: operations["UploadController_signedUrl"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2319,17 +2319,26 @@ export interface operations {
             };
         };
     };
-    UploadController_serveFile: {
+    UploadController_signedUrl: {
         parameters: {
-            query?: never;
+            query: {
+                key: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Serve an uploaded file from storage. */
+            /** @description Short-lived download URL for one of your own files (private bucket). */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid bearer token. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

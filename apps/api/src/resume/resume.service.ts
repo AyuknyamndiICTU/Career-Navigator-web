@@ -1,8 +1,16 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import type { Prisma } from '../prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { env } from '../config/env';
-import { API_PREFIX } from '../lib/api-prefix';
+import {
+  keyOwner,
+  OBJECT_STORAGE,
+  type ObjectStorage,
+} from '../storage/object-storage';
 import { BuildResumeDto, ResumeTemplateId } from './dto/build-resume.dto';
 
 type CvWizardData = Record<string, unknown>;
@@ -11,7 +19,12 @@ const DEFAULT_TEMPLATE: ResumeTemplateId = 'CLASSIC';
 
 @Injectable()
 export class ResumeService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ResumeService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
+  ) {}
 
   async buildResume(userId: string, dto: BuildResumeDto): Promise<unknown> {
     const template: ResumeTemplateId = dto.template ?? DEFAULT_TEMPLATE;
@@ -99,22 +112,51 @@ export class ResumeService {
       projects.length === 0 &&
       references.length === 0
     ) {
-      return this.formatResume(template, {
-        profile: null,
-        education: [],
-        workExperience: [],
-        projects: [],
-        references: [],
-      });
+      return this.formatResume(
+        template,
+        {
+          profile: null,
+          education: [],
+          workExperience: [],
+          projects: [],
+          references: [],
+        },
+        null,
+      );
     }
 
-    return this.formatResume(template, {
-      profile,
-      education,
-      workExperience,
-      projects,
-      references,
-    });
+    return this.formatResume(
+      template,
+      {
+        profile,
+        education,
+        workExperience,
+        projects,
+        references,
+      },
+      await this.photoUrl(userId, profile?.cvWizardData ?? null),
+    );
+  }
+
+  /** Presigned link to the user's own photo; keys of other users are never signed. */
+  private async photoUrl(
+    userId: string,
+    cvWizardData: Prisma.JsonValue | null,
+  ): Promise<string | null> {
+    const key = this.asCvWizardData(cvWizardData)?.photoUrl;
+    if (
+      typeof key !== 'string' ||
+      keyOwner(key) !== userId ||
+      !this.storage.configured
+    )
+      return null;
+    try {
+      // Long enough to view and print the resume.
+      return await this.storage.presignGet(key, { expiresInSeconds: 3600 });
+    } catch (err) {
+      this.logger.warn(`Could not sign the resume photo: ${String(err)}`);
+      return null;
+    }
   }
 
   private formatResume(
@@ -164,6 +206,7 @@ export class ResumeService {
         notes: string | null;
       }>;
     },
+    photoUrl: string | null,
   ): unknown {
     const VALID_TEMPLATES = [
       'CLASSIC',
@@ -209,8 +252,7 @@ export class ResumeService {
         dateOfBirth: cv ? coerceNullableString(cv.dateOfBirth) : null,
         website: cv ? coerceNullableString(cv.website) : null,
         linkedIn: cv ? coerceNullableString(cv.linkedIn) : null,
-        photoUrl:
-          cv && cv.photoUrl ? this.buildMinioUrl(String(cv.photoUrl)) : null,
+        photoUrl,
       },
     };
 
@@ -290,16 +332,6 @@ export class ResumeService {
         cvWizardData: data.profile?.cvWizardData ?? null,
       },
     };
-  }
-
-  private buildMinioUrl(objectKey: string): string | null {
-    if (!objectKey) return null;
-    // Same-origin by default (`/api/upload/file/...`); API_BASE_URL overrides it when the API lives elsewhere.
-    const apiBase = (env.publicApiBaseUrl ?? `/${API_PREFIX}`).replace(
-      /\/+$/,
-      '',
-    );
-    return `${apiBase}/upload/file/${objectKey}`;
   }
 
   private asCvWizardData(

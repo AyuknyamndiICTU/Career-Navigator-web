@@ -1,9 +1,11 @@
-/* global Buffer, NodeJS */
-import { Injectable } from '@nestjs/common';
+/* global Buffer */
+import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { TextItem } from '@career-navigator/cv-parser';
-import { env } from '../../config/env';
-import { createMinioClient } from '../../lib/minio-client';
+import {
+  OBJECT_STORAGE,
+  type ObjectStorage,
+} from '../../storage/object-storage';
 
 const MAX_PDF_PAGES = 10;
 
@@ -17,16 +19,6 @@ export type ExtractedCv =
     }
   | { sha256: string; kind: 'docx'; html: string }
   | { sha256: string; kind: 'image'; buffer: Buffer };
-
-async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream as AsyncIterable<unknown>) {
-    chunks.push(
-      chunk instanceof Buffer ? chunk : Buffer.from(chunk as Uint8Array),
-    );
-  }
-  return Buffer.concat(chunks);
-}
 
 type PdfTextItem = {
   str?: string;
@@ -118,14 +110,12 @@ export async function pdfToItems(
 /** Downloads an uploaded CV and turns it into parser input: PDF text items, DOCX HTML, or an image for OCR. */
 @Injectable()
 export class CvTextExtractor {
-  async extract(objectKey: string): Promise<ExtractedCv> {
-    const minio = createMinioClient();
-    if (!minio) throw new Error('MinIO is not configured (missing env vars).');
+  constructor(
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
+  ) {}
 
-    const objectStream = await minio.getObject(env.minio.bucket, objectKey);
-    const buffer = await streamToBuffer(
-      objectStream as unknown as NodeJS.ReadableStream,
-    );
+  async extract(objectKey: string): Promise<ExtractedCv> {
+    const buffer = await this.storage.getBuffer(objectKey);
     const sha256 = createHash('sha256').update(buffer).digest('hex');
     const ext = objectKey.toLowerCase().split('.').pop();
 

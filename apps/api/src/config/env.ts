@@ -32,9 +32,6 @@ export const env = {
   get redisUrl(): string | undefined {
     return read('REDIS_URL');
   },
-  get publicApiBaseUrl(): string | undefined {
-    return read('API_BASE_URL');
-  },
   /** undefined = no allow-list configured (reflect the request origin; dev only). */
   get corsAllowedOrigins(): string[] | undefined {
     const raw = read('CORS_ALLOWED_ORIGINS');
@@ -97,18 +94,42 @@ export const env = {
       return read('BREVO_SENDER_EMAIL');
     },
   },
-  minio: {
+  storage: {
+    /** S3 API endpoint the API talks to: R2 `https://<account>.r2.cloudflarestorage.com`, Garage `http://garage:3900`. */
     get endpoint(): string | undefined {
-      return read('MINIO_ENDPOINT');
+      return read('S3_ENDPOINT');
     },
-    get accessKey(): string | undefined {
-      return read('MINIO_ACCESS_KEY');
+    /** Endpoint browsers use for presigned downloads (defaults to S3_ENDPOINT). */
+    get publicEndpoint(): string | undefined {
+      return read('S3_PUBLIC_ENDPOINT') ?? read('S3_ENDPOINT');
     },
-    get secretKey(): string | undefined {
-      return read('MINIO_SECRET_KEY');
+    get region(): string {
+      return read('S3_REGION') ?? 'auto';
     },
     get bucket(): string {
-      return read('MINIO_BUCKET') ?? 'resumes';
+      return read('S3_BUCKET') ?? 'career-navigator';
+    },
+    get accessKeyId(): string | undefined {
+      return read('S3_ACCESS_KEY_ID');
+    },
+    get secretAccessKey(): string | undefined {
+      return read('S3_SECRET_ACCESS_KEY');
+    },
+    get forcePathStyle(): boolean {
+      return read('S3_FORCE_PATH_STYLE') !== 'false';
+    },
+    get configured(): boolean {
+      return Boolean(this.endpoint && this.accessKeyId && this.secretAccessKey);
+    },
+    get presignTtlSeconds(): number {
+      return positiveInt('S3_PRESIGN_TTL_SECONDS', 300);
+    },
+    get lifecycleEnabled(): boolean {
+      return flag('STORAGE_LIFECYCLE_ENABLED');
+    },
+    /** CV versions kept per user by the nightly clean-up (the current one included). */
+    get cvVersionsKept(): number {
+      return positiveInt('STORAGE_CV_VERSIONS_KEPT', 3);
     },
   },
   ai: {
@@ -246,6 +267,8 @@ const BOOLEAN_KEYS = [
   'AI_BYOK_ENABLED',
   'CV_AI_ASSIST_ENABLED',
   'CV_OCR_SERVER',
+  'S3_FORCE_PATH_STYLE',
+  'STORAGE_LIFECYCLE_ENABLED',
 ];
 
 const POSITIVE_INT_KEYS = [
@@ -258,12 +281,15 @@ const POSITIVE_INT_KEYS = [
   'AI_KEY_ENCRYPTION_KEY_VERSION',
   'VIDEO_TOKEN_TTL_MINUTES',
   'VIDEO_FREE_MINUTES_PER_MONTH',
+  'S3_PRESIGN_TTL_SECONDS',
+  'STORAGE_CV_VERSIONS_KEPT',
 ];
 
 const URL_KEYS: Array<[key: string, protocols: string[]]> = [
   ['DATABASE_URL', ['postgres:', 'postgresql:']],
   ['REDIS_URL', ['redis:', 'rediss:']],
-  ['MINIO_ENDPOINT', ['http:', 'https:']],
+  ['S3_ENDPOINT', ['http:', 'https:']],
+  ['S3_PUBLIC_ENDPOINT', ['http:', 'https:']],
   ['LIVEKIT_URL', ['wss:', 'ws:', 'https:', 'http:']],
 ];
 
@@ -328,7 +354,9 @@ export function validateEnv(): void {
   }
 
   if (
-    (env.cvScan.enabled || env.notificationsWorker.enabled) &&
+    (env.cvScan.enabled ||
+      env.notificationsWorker.enabled ||
+      env.storage.lifecycleEnabled) &&
     !env.redisUrl
   ) {
     problems.push('REDIS_URL is required when a background worker is enabled');
@@ -361,6 +389,28 @@ export function validateEnv(): void {
   if (env.isProduction && !env.corsAllowedOrigins) {
     problems.push(
       'CORS_ALLOWED_ORIGINS must list the allowed origins in production',
+    );
+  }
+
+  const storageKeys = [
+    'S3_ENDPOINT',
+    'S3_ACCESS_KEY_ID',
+    'S3_SECRET_ACCESS_KEY',
+  ];
+  const storageSet = storageKeys.filter((key) => read(key));
+  if (storageSet.length > 0 && storageSet.length < storageKeys.length) {
+    problems.push(
+      `File storage needs all of ${storageKeys.join(', ')} (missing ${storageKeys.filter((k) => !read(k)).join(', ')})`,
+    );
+  }
+  const legacy = [
+    'MINIO_ENDPOINT',
+    'MINIO_ACCESS_KEY',
+    'MINIO_SECRET_KEY',
+  ].filter((k) => read(k));
+  if (legacy.length > 0 && !env.storage.configured) {
+    problems.push(
+      `${legacy.join(', ')} are no longer read: set S3_ENDPOINT, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY`,
     );
   }
 

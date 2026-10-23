@@ -1,0 +1,19 @@
+# Local development only: single-node Garage (S3-compatible). Production uses Cloudflare R2.
+# The bucket and access key come from GARAGE_DEFAULT_* in docker-compose.yml (`--single-node --default-bucket`).
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+# Dev-only secret; this node is reachable from localhost only.
+rpc_secret = "0c0ffee0de5ec7e7d0e5c0de1ce5c0de0c0ffee0de5ec7e7d0e5c0de1ce5c0de"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+api_bind_addr = "[::]:3903"

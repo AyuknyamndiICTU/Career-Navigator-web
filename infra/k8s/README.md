@@ -12,7 +12,7 @@ Kustomize layout: `base/` holds everything shared; `overlays/dev` and `overlays/
 | `ingress.yaml` | one host: `/api` and `/socket.io` → API, `/` → web; TLS via cert-manager |
 | `networkpolicy.yaml` | only API pods reach Postgres/Redis |
 
-Prerequisites: ingress-nginx, cert-manager with ClusterIssuers `letsencrypt` (prod) and `letsencrypt-staging` (dev), metrics-server (for the HPA), a default StorageClass. Object storage is external (MinIO-compatible endpoint; Cloudflare R2 after Phase 18).
+Prerequisites: ingress-nginx, cert-manager with ClusterIssuers `letsencrypt` (prod) and `letsencrypt-staging` (dev), metrics-server (for the HPA), a default StorageClass. Object storage is external: a private Cloudflare R2 bucket (`S3_*` in the API secrets).
 
 ## First setup
 

@@ -3,12 +3,9 @@ import {
   Body,
   Controller,
   HttpCode,
-  Logger,
   Post,
   Get,
-  Req,
-  Res,
-  NotFoundException,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -16,17 +13,26 @@ import {
   ApiBody,
   ApiConsumes,
   ApiOkResponse,
+  ApiProperty,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { IsString, Matches, MaxLength } from 'class-validator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
-import type { Request, Response } from 'express';
 
-import { CurrentUser, Public } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/jwt-auth.guard';
 import { UploadService } from './upload.service';
 import { CvAssistDto, CvConfirmDto } from './dto/cv-review.dto';
+
+class SignedUrlQueryDto {
+  @ApiProperty({ example: 'users/<userId>/picture/<uuid>.webp' })
+  @IsString()
+  @MaxLength(300)
+  @Matches(/^[\w./-]+$/)
+  key!: string;
+}
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 // Images are accepted for scanned CVs; the browser (or the optional server OCR) reads them (16.3).
@@ -77,8 +83,6 @@ const cvMulterOptions: MulterOptions = {
 @ApiTags('upload')
 @Controller('upload')
 export class UploadController {
-  private readonly logger = new Logger(UploadController.name);
-
   constructor(private readonly uploadService: UploadService) {}
 
   @Post('picture')
@@ -166,31 +170,16 @@ export class UploadController {
     return this.uploadService.assistCv(userId, dto.section);
   }
 
-  @Get('file/*')
-  @Public()
-  @ApiOkResponse({ description: 'Serve an uploaded file from storage.' })
-  async serveFile(@Req() req: Request, @Res() res: Response): Promise<void> {
-    // req.path is "[/api]/upload/file/<userId>/<TYPE>/<uuid>.<ext>"
-    const objectKey = decodeURIComponent(
-      req.path.replace(/^.*?\/upload\/file\//, ''),
-    );
-    if (!objectKey) {
-      throw new NotFoundException('File not found');
-    }
-
-    try {
-      const { stream, contentType } =
-        await this.uploadService.getFileStream(objectKey);
-      res.set('Content-Type', contentType);
-      res.set('Cache-Control', 'public, max-age=86400');
-      stream.on('error', (streamErr) => {
-        this.logger.warn(`Stored file stream failed: ${String(streamErr)}`);
-        res.destroy();
-      });
-      stream.pipe(res);
-    } catch (err) {
-      this.logger.warn(`Could not serve stored file: ${String(err)}`);
-      throw new NotFoundException('File not found');
-    }
+  @Get('url')
+  @ApiOkResponse({
+    description:
+      'Short-lived download URL for one of your own files (private bucket).',
+  })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token.' })
+  signedUrl(
+    @CurrentUser('sub') userId: string,
+    @Query() query: SignedUrlQueryDto,
+  ): Promise<{ url: string; expiresAt: string }> {
+    return this.uploadService.signedUrl(userId, query.key);
   }
 }

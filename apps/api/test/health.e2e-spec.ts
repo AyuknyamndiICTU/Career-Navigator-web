@@ -1,9 +1,3 @@
-jest.mock('minio', () => ({
-  Client: jest.fn().mockImplementation(() => ({
-    bucketExists: jest.fn().mockResolvedValue(true as never),
-  })),
-}));
-
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -18,6 +12,8 @@ import {
 } from '@jest/globals';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { OBJECT_STORAGE } from '../src/storage/object-storage';
+import { FakeObjectStorage } from './fake-storage';
 
 describe('Health checks and error responses (e2e)', () => {
   let app: INestApplication<App>;
@@ -30,15 +26,14 @@ describe('Health checks and error responses (e2e)', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     delete process.env.REDIS_URL;
-    process.env.MINIO_ENDPOINT = 'http://minio.test:9000';
-    process.env.MINIO_ACCESS_KEY = 'test';
-    process.env.MINIO_SECRET_KEY = 'test';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider(PrismaService)
       .useValue(mockPrisma)
+      .overrideProvider(OBJECT_STORAGE)
+      .useValue(new FakeObjectStorage())
       .compile();
 
     app = moduleFixture.createNestApplication();

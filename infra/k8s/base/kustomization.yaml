@@ -39,6 +39,8 @@ configMapGenerator:
       - AI_BYOK_ENABLED=false
       - AI_JOB_MATCH_ENABLED=false
       - SWAGGER_ENABLED=false
-      - MINIO_BUCKET=resumes
+      - S3_BUCKET=career-navigator
+      - S3_REGION=auto
+      - STORAGE_LIFECYCLE_ENABLED=true
 
 # Images are the placeholders `cn-api` / `cn-web`; each overlay pins a registry and a git-SHA tag (never :latest).

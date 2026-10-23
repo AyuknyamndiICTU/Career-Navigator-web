@@ -8,16 +8,6 @@ import {
   jest,
 } from '@jest/globals';
 
-jest.mock('minio', () => {
-  return {
-    Client: jest.fn().mockImplementation(() => ({
-      bucketExists: jest.fn().mockResolvedValue(true as never),
-      makeBucket: jest.fn().mockResolvedValue(undefined as never),
-      putObject: jest.fn().mockResolvedValue({} as never),
-    })),
-  };
-});
-
 import request from 'supertest';
 
 import { INestApplication } from '@nestjs/common';
@@ -29,6 +19,8 @@ import { AuthService } from '../src/auth/auth.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { AiGatewayService } from '../src/ai/gateway/ai-gateway.service';
 import { signAccessToken } from '../src/auth/jwt/jwt-utils';
+import { OBJECT_STORAGE } from '../src/storage/object-storage';
+import { FakeObjectStorage } from './fake-storage';
 
 /** OCR words for a short CV, one word per item, laid out in lines like tesseract output. */
 function ocrWords(): Array<Record<string, number | string>> {
@@ -94,14 +86,13 @@ describe('Upload endpoints (Milestone 2.3)', () => {
 
   beforeAll(() => {
     process.env.JWT_ACCESS_SECRET = 'test-secret';
-    process.env.MINIO_ENDPOINT = 'http://localhost:9000';
-    process.env.MINIO_ACCESS_KEY = 'minio-access';
-    process.env.MINIO_SECRET_KEY = 'minio-secret';
-    process.env.MINIO_BUCKET = 'resumes';
   });
+
+  let storage: FakeObjectStorage;
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    storage = new FakeObjectStorage();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -112,6 +103,8 @@ describe('Upload endpoints (Milestone 2.3)', () => {
       .useValue(mockPrisma)
       .overrideProvider(AiGatewayService)
       .useValue(mockGateway)
+      .overrideProvider(OBJECT_STORAGE)
+      .useValue(storage)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -167,6 +160,48 @@ describe('Upload endpoints (Milestone 2.3)', () => {
       .expect(200);
 
     expect(mockPrisma.uploadMedia.upsert).toHaveBeenCalledTimes(1);
+    const keys = [...storage.objects.keys()];
+    expect(keys).toHaveLength(1);
+    expect(keys[0]).toMatch(/^users\/user-1\/picture\/[0-9a-f-]{36}\.png$/);
+  });
+
+  it('GET /upload/url signs keys the user owns (new and legacy layout)', async () => {
+    const token = signTestToken();
+    for (const key of [
+      'users/user-1/picture/a.webp',
+      'user-1/PROFILE_PICTURE/a.png',
+    ]) {
+      const res = await request(app.getHttpServer())
+        .get('/upload/url')
+        .query({ key })
+        .set('authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body.url).toContain(key);
+      expect(res.body.url).toContain('X-Amz-Signature');
+    }
+  });
+
+  it('GET /upload/url refuses other users, bad keys and anonymous callers', async () => {
+    const token = signTestToken();
+    await request(app.getHttpServer())
+      .get('/upload/url')
+      .query({ key: 'users/user-2/cv/a.pdf' })
+      .set('authorization', `Bearer ${token}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/upload/url')
+      .query({ key: 'users/user-1/../user-2/cv/a.pdf' })
+      .set('authorization', `Bearer ${token}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/upload/url')
+      .query({ key: 'users/user-1/cv/a b?.pdf' })
+      .set('authorization', `Bearer ${token}`)
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/upload/url')
+      .query({ key: 'users/user-1/cv/a.pdf' })
+      .expect(401);
   });
 
   it('POST /upload/picture rejects content that is not really an image', async () => {

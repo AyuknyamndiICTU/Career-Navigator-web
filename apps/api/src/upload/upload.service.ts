@@ -1,21 +1,28 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CvScanService } from '../cv-scan/cv-scan.service';
 import { env } from '../config/env';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Express } from 'express';
-import type { Client as MinioClient } from 'minio';
 import {
   validateOcrWords,
   type ParsedCv,
   type TextItem,
 } from '@career-navigator/cv-parser';
 import { verifiedExtension } from './file-signature';
-import { createMinioClient } from '../lib/minio-client';
+import {
+  keyOwner,
+  OBJECT_STORAGE,
+  StorageError,
+  userObjectKey,
+  type ObjectStorage,
+} from '../storage/object-storage';
 import {
   CvScanProcessor,
   type StoredCvScan,
@@ -34,26 +41,16 @@ type UploadMediaType = typeof MEDIA_TYPE_PROFILE_PICTURE | typeof MEDIA_TYPE_CV;
 
 @Injectable()
 export class UploadService {
-  private minio?: MinioClient;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly cvScanService: CvScanService,
     private readonly cvScanProcessor: CvScanProcessor,
     private readonly cvProfilePopulator: CvProfilePopulator,
     private readonly cvAiParser: CvAiParser,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
   ) {}
 
-  /** Lazy so the app boots (and non-upload routes work) without storage configured. */
-  private getMinio(): MinioClient {
-    this.minio ??= createMinioClient() ?? undefined;
-    if (!this.minio) {
-      throw new BadRequestException('MinIO is not configured');
-    }
-    return this.minio;
-  }
-
-  private async uploadToMinio(params: {
+  private async store(params: {
     type: UploadMediaType;
     userId: string;
     file: Express.Multer.File;
@@ -62,8 +59,11 @@ export class UploadService {
     contentType?: string;
     originalFilename?: string;
   }> {
-    const minioBucket = env.minio.bucket;
-
+    if (!this.storage.configured) {
+      throw new ServiceUnavailableException(
+        'File storage is not configured on this server.',
+      );
+    }
     const content = params.file.buffer;
     if (!content?.length) throw new BadRequestException('Invalid file size');
 
@@ -72,17 +72,21 @@ export class UploadService {
       throw new BadRequestException('File content does not match its type');
     }
 
-    const objectKey = `${params.userId}/${params.type}/${randomUUID()}${ext}`;
-    const minio = this.getMinio();
-
-    const bucketExists = await minio.bucketExists(minioBucket);
-    if (!bucketExists) {
-      await minio.makeBucket(minioBucket);
+    const kind = params.type === MEDIA_TYPE_CV ? 'cv' : 'picture';
+    const objectKey = userObjectKey(params.userId, kind, randomUUID(), ext);
+    try {
+      await this.storage.put(
+        objectKey,
+        content,
+        params.file.mimetype ?? 'application/octet-stream',
+      );
+    } catch (err) {
+      throw new ServiceUnavailableException(
+        err instanceof StorageError
+          ? 'File storage is unavailable. Please try again.'
+          : 'Upload failed.',
+      );
     }
-
-    await minio.putObject(minioBucket, objectKey, content, content.length, {
-      'Content-Type': params.file.mimetype ?? 'application/octet-stream',
-    });
 
     return {
       objectKey,
@@ -91,18 +95,42 @@ export class UploadService {
     };
   }
 
+  /** A short-lived direct download link for one of the caller's own files (private bucket, 18.2). */
+  async signedUrl(
+    userId: string,
+    objectKey: string,
+  ): Promise<{ url: string; expiresAt: string }> {
+    if (keyOwner(objectKey) !== userId) {
+      // Same answer for "not yours" and "does not exist".
+      throw new ForbiddenException('File not available');
+    }
+    const ttl = env.storage.presignTtlSeconds;
+    try {
+      const url = await this.storage.presignGet(objectKey, {
+        expiresInSeconds: ttl,
+      });
+      return {
+        url,
+        expiresAt: new Date(Date.now() + ttl * 1000).toISOString(),
+      };
+    } catch {
+      throw new ServiceUnavailableException(
+        'File storage is not configured on this server.',
+      );
+    }
+  }
+
   async uploadPicture(
     userId: string,
     file: Express.Multer.File,
   ): Promise<unknown> {
     if (!file) throw new BadRequestException('Missing file');
 
-    const { objectKey, contentType, originalFilename } =
-      await this.uploadToMinio({
-        userId,
-        type: MEDIA_TYPE_PROFILE_PICTURE,
-        file,
-      });
+    const { objectKey, contentType, originalFilename } = await this.store({
+      userId,
+      type: MEDIA_TYPE_PROFILE_PICTURE,
+      file,
+    });
 
     // Note: type-safe field names appear after `prisma generate`.
     await this.prisma.uploadMedia.upsert({
@@ -147,12 +175,11 @@ export class UploadService {
       if (!ocrItems) throw new BadRequestException('Invalid OCR data');
     }
 
-    const { objectKey, contentType, originalFilename } =
-      await this.uploadToMinio({
-        userId,
-        type: MEDIA_TYPE_CV,
-        file,
-      });
+    const { objectKey, contentType, originalFilename } = await this.store({
+      userId,
+      type: MEDIA_TYPE_CV,
+      file,
+    });
 
     const scanReset = {
       cvScanStatus: 'PENDING' as const,
@@ -353,31 +380,5 @@ export class UploadService {
       stored.fileSha256,
     );
     return { section, result };
-  }
-
-  /**
-   * Retrieve a file from MinIO as a readable stream.
-   * Used by the proxy endpoint so the browser can load images via the API
-   * instead of hitting MinIO directly (which may have CORS / port issues).
-   */
-  async getFileStream(objectKey: string): Promise<{
-    stream: import('stream').Readable;
-    contentType: string;
-  }> {
-    const minioBucket = env.minio.bucket;
-    const minio = this.getMinio();
-
-    // Get stat for content-type, then stream the object
-    let contentType = 'application/octet-stream';
-    try {
-      const stat = await minio.statObject(minioBucket, objectKey);
-      contentType =
-        stat.metaData?.['content-type'] ?? 'application/octet-stream';
-    } catch {
-      // Ignore stat errors; we'll still try to stream
-    }
-
-    const stream = await minio.getObject(minioBucket, objectKey);
-    return { stream, contentType };
   }
 }

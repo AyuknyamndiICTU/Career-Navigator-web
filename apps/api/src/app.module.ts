@@ -20,6 +20,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AiModule } from './ai/ai.module';
 import { AdminModule } from './admin/admin.module';
 import { VideoModule } from './video/video.module';
+import { StorageModule } from './storage/storage.module';
 import { CoursesModule } from './courses/courses.module';
 import { HealthModule } from './health/health.module';
 import { AiGatewayModule } from './ai/gateway/ai-gateway.module';
@@ -43,6 +44,7 @@ import { PublicConfigController } from './config/public-config.controller';
     AiModule,
     AdminModule,
     VideoModule,
+    StorageModule,
     CoursesModule,
   ],
   controllers: [AppController, PublicConfigController],
