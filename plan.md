@@ -304,7 +304,7 @@ Resolution order for each AI request:
     - `next dev` rewrites `/api` and `/socket.io` to `API_INTERNAL_URL`; WebSocket and polling were both verified through it.
     - `GET /api/config/public` returns `agoraAppId` and `aiByokEnabled`; the LiveKit URL joins it in Phase 17.
     - New `TRUST_PROXY` setting (hops) keeps per-IP rate limits correct behind the proxy.
-    - Resume photo URLs are now relative (`/api/upload/file/...`).
+    - Resume photo URLs are now relative (`/api/upload/file/...`); Phase 18 replaced them with presigned storage URLs.
     - The `/api/v1` workaround was already gone.
   - **14.2 Typed client:**
     - `npm run api:openapi` builds the API and exports OpenAPI in Nest preview mode (no database needed), then generates [schema.d.ts](apps/web/web-ui/src/lib/api/schema.d.ts).
@@ -341,7 +341,7 @@ Resolution order for each AI request:
     - Verified on sample rows: stemming, typos, skills, phrases and company names all match.
     - `POST /jobs/index`, which any signed-in user could call, was removed, along with the OpenSearch config and Compose service.
   - **14.10:** [scripts/clean.mjs](scripts/clean.mjs) and [scripts/openapi.mjs](scripts/openapi.mjs) run CLIs through `node` without a shell, so paths with spaces work. The web `typecheck` script runs `next typegen` first, which fixes the stale `.next/dev/types` problem.
-  - **14.11 (open):** `apps/api/.git` points at `github.com/AyuknyamndiICTU/api` (`master`). It has no unpushed commits; its working-tree changes are older copies of files the monorepo already tracks. Folding it in means deleting `apps/api/.git` and archiving the old remote — waiting for the team's go-ahead.
+  - **14.11:** done on 2026-10-23 (see the item above).
 
 ---
 
