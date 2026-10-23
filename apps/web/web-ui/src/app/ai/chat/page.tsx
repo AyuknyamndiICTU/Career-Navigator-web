@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 'use client';
 
 import { Fragment, useState, useRef, useEffect } from 'react';
@@ -246,7 +245,7 @@ export default function AiChatPage() {
                   Ask me to analyze your skill gaps, suggest learning paths, or help you prepare for an upcoming interview.
                 </p>
                 <div className="mt-8 flex flex-wrap gap-3 justify-center">
-                  {['What skills should I learn next?', 'Review my career trajectory', 'Give me interview tips'].map((q, i) => (
+                  {['What skills should I learn next?', 'Review my career trajectory', 'Give me interview tips'].map((q) => (
                     <motion.button
                       key={q}
                       whileHover={{ scale: 1.05 }}

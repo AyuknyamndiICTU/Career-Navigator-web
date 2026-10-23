@@ -118,12 +118,6 @@ function compactCvData(data: Record<string, unknown>): Record<string, unknown> {
   );
 }
 
-function hasValues(data: Record<string, unknown>): boolean {
-  return Object.values(data).some(
-    (value) => value !== undefined && value !== null && value !== '',
-  );
-}
-
 function TextField({
   label,
   value,

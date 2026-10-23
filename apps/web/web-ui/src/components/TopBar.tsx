@@ -24,7 +24,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
           const namePart = payload.email.split('@')[0];
           setUsername(namePart);
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
     });
